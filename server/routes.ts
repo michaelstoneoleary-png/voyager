@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./replit_integrations/auth";
+import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, updateUserSettingsSchema, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
@@ -107,6 +108,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerChatRoutes(app);
 
   app.get("/api/user-settings", isAuthenticated, async (req: any, res) => {
     try {

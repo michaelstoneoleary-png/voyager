@@ -21,6 +21,7 @@ import { useUser } from "@/lib/UserContext";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import type { Journey } from "@shared/schema";
+import { ChatBubble } from "./ChatBubble";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -253,6 +254,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      <ChatBubble />
     </div>
   );
 }
