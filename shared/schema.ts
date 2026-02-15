@@ -27,6 +27,7 @@ export const journeys = pgTable("journeys", {
 export const pastTrips = pgTable("past_trips", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  journeyId: varchar("journey_id").references(() => journeys.id),
   destination: text("destination").notNull(),
   country: text("country"),
   startDate: text("start_date"),
@@ -42,12 +43,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   pastTrips: many(pastTrips),
 }));
 
-export const journeysRelations = relations(journeys, ({ one }) => ({
+export const journeysRelations = relations(journeys, ({ one, many }) => ({
   user: one(users, { fields: [journeys.userId], references: [users.id] }),
+  pastTrips: many(pastTrips),
 }));
 
 export const pastTripsRelations = relations(pastTrips, ({ one }) => ({
   user: one(users, { fields: [pastTrips.userId], references: [users.id] }),
+  journey: one(journeys, { fields: [pastTrips.journeyId], references: [journeys.id] }),
 }));
 
 export const insertJourneySchema = createInsertSchema(journeys).omit({

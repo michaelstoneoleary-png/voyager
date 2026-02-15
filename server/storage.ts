@@ -4,7 +4,7 @@ import {
   pastTrips, type PastTrip, type InsertPastTrip,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -59,6 +59,7 @@ export class DatabaseStorage implements IStorage {
   async deleteJourney(id: string, userId: string): Promise<boolean> {
     const existing = await this.getJourney(id, userId);
     if (!existing) return false;
+    await db.delete(pastTrips).where(eq(pastTrips.journeyId, id));
     await db.delete(journeys).where(eq(journeys.id, id));
     return true;
   }

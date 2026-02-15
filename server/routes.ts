@@ -425,10 +425,12 @@ ${truncated}`,
       }
 
       if (Array.isArray(parsed.pastTrips) && parsed.pastTrips.length > 0) {
+        const parentJourneyId = createdJourneys.length > 0 ? createdJourneys[0].id : null;
         const tripRecords: any[] = [];
         for (const t of parsed.pastTrips) {
           const candidate = {
             userId,
+            journeyId: parentJourneyId,
             destination: t.destination ? String(t.destination).trim() : "",
             country: t.country ? String(t.country).trim() : null,
             startDate: t.startDate ? String(t.startDate).trim() : null,
