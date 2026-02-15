@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import LandingPage from "@/pages/LandingPage";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
 import TripPlanner from "@/pages/TripPlanner";
 import PackingList from "@/pages/PackingList";
 import Intel from "@/pages/Intel";
@@ -33,8 +35,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
 
   if (!isAuthenticated) {
-    window.location.href = "/api/login";
-    return null;
+    return <Redirect to="/login" />;
   }
 
   if (!settings.onboardingCompleted) {
@@ -56,8 +57,7 @@ function OnboardingRoute() {
   }
 
   if (!isAuthenticated) {
-    window.location.href = "/api/login";
-    return null;
+    return <Redirect to="/login" />;
   }
 
   return <Onboarding />;
@@ -90,6 +90,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route path="/onboarding" component={OnboardingRoute} />
       <Route path="/planner">{() => <ProtectedRoute component={TripPlanner} />}</Route>
       <Route path="/packing">{() => <ProtectedRoute component={PackingList} />}</Route>

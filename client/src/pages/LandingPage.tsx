@@ -8,7 +8,7 @@ export default function LandingPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl font-bold tracking-tight text-primary" data-testid="text-brand">VOYAGER</h1>
-          <a href="/api/login" data-testid="link-login-header">
+          <a href="/login" data-testid="link-login-header">
             <Button variant="outline" size="sm">Sign In</Button>
           </a>
         </div>
@@ -35,7 +35,7 @@ export default function LandingPage() {
             Plan extraordinary trips with intelligent itineraries, real-time travel intel, and a personal travel curator that learns your style.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <a href="/api/login" data-testid="link-cta-hero">
+            <a href="/register" data-testid="link-cta-hero">
               <Button size="lg" className="text-base px-8 py-6 shadow-lg hover:shadow-xl transition-shadow">
                 Begin Your Journey <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
@@ -108,7 +108,7 @@ export default function LandingPage() {
           <p className="text-muted-foreground text-lg mb-10 max-w-xl mx-auto">
             Join travelers who plan smarter, explore deeper, and create unforgettable journeys.
           </p>
-          <a href="/api/login" data-testid="link-cta-bottom">
+          <a href="/register" data-testid="link-cta-bottom">
             <Button size="lg" className="text-base px-8 py-6 shadow-lg hover:shadow-xl transition-shadow">
               Get Started — It's Free <ArrowRight className="ml-2 h-5 w-5" />
             </Button>

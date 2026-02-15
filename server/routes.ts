@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./replit_integrations/auth";
 import { insertJourneySchema, insertPastTripSchema, updateUserSettingsSchema, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
@@ -110,7 +110,7 @@ export async function registerRoutes(
 
   app.get("/api/user-settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(formatUserSettings(user));
@@ -122,7 +122,7 @@ export async function registerRoutes(
 
   app.put("/api/user-settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const validated = updateUserSettingsSchema.parse(req.body);
       const updated = await storage.updateUser(userId, validated);
       if (!updated) return res.status(404).json({ message: "User not found" });
@@ -136,7 +136,7 @@ export async function registerRoutes(
   // Journeys CRUD
   app.get("/api/journeys", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const journeys = await storage.getJourneys(userId);
       res.json(journeys);
     } catch (error) {
@@ -147,7 +147,7 @@ export async function registerRoutes(
 
   app.get("/api/journeys/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const journey = await storage.getJourney(req.params.id, userId);
       if (!journey) return res.status(404).json({ message: "Journey not found" });
       res.json(journey);
@@ -159,7 +159,7 @@ export async function registerRoutes(
 
   app.post("/api/journeys", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const parsed = insertJourneySchema.parse({ ...req.body, userId });
       const journey = await storage.createJourney(parsed);
       res.status(201).json(journey);
@@ -174,7 +174,7 @@ export async function registerRoutes(
 
   app.patch("/api/journeys/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const journey = await storage.updateJourney(req.params.id, userId, req.body);
       if (!journey) return res.status(404).json({ message: "Journey not found" });
       res.json(journey);
@@ -186,7 +186,7 @@ export async function registerRoutes(
 
   app.delete("/api/journeys/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const deleted = await storage.deleteJourney(req.params.id, userId);
       if (!deleted) return res.status(404).json({ message: "Journey not found" });
       res.json({ message: "Journey deleted" });
@@ -199,7 +199,7 @@ export async function registerRoutes(
   // Past Trips CRUD
   app.get("/api/past-trips", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const trips = await storage.getPastTrips(userId);
       res.json(trips);
     } catch (error) {
@@ -210,7 +210,7 @@ export async function registerRoutes(
 
   app.post("/api/past-trips", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const parsed = insertPastTripSchema.parse({ ...req.body, userId });
       const trip = await storage.createPastTrip(parsed);
       res.status(201).json(trip);
@@ -225,7 +225,7 @@ export async function registerRoutes(
 
   app.post("/api/past-trips/bulk", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const trips = req.body.trips.map((t: any) => insertPastTripSchema.parse({ ...t, userId }));
       const created = await storage.createPastTrips(trips);
       res.status(201).json(created);
@@ -240,7 +240,7 @@ export async function registerRoutes(
 
   app.delete("/api/past-trips/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const deleted = await storage.deletePastTrip(req.params.id, userId);
       if (!deleted) return res.status(404).json({ message: "Trip not found" });
       res.json({ message: "Trip deleted" });
@@ -421,7 +421,7 @@ ${truncated}`,
         return res.status(422).json({ message: "AI returned invalid data. Please try again." });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       const createdJourneys: any[] = [];
       const createdPastTrips: any[] = [];
 
@@ -515,7 +515,7 @@ ${truncated}`,
 
   app.post("/api/journeys/bulk", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req)!
       if (!Array.isArray(req.body.journeys)) {
         return res.status(400).json({ message: "journeys array is required" });
       }

@@ -1,7 +1,5 @@
 import { Link, useLocation } from "wouter";
 import { 
-  Map, 
-  Compass, 
   Luggage, 
   Info, 
   LayoutDashboard, 
@@ -10,19 +8,41 @@ import {
   X,
   Globe,
   Users,
-  LogOut
+  LogOut,
+  ChevronDown,
+  MapPin,
+  History,
+  Compass,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/lib/UserContext";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import type { Journey } from "@shared/schema";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isJourneysOpen, setIsJourneysOpen] = useState(
+    location === "/journeys" || location === "/history"
+  );
   const { settings } = useUser();
   const { user, logout } = useAuth();
+
+  const { data: journeys = [] } = useQuery<Journey[]>({
+    queryKey: ["/api/journeys"],
+    queryFn: async () => {
+      const res = await fetch("/api/journeys", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const recentJourneys = journeys
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 3);
 
   const userInitials = user
     ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
@@ -31,19 +51,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
     ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "Traveler"
     : "Traveler";
 
-  const navItems = [
+  const topNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/planner", label: "Trip Planner", icon: Map },
+  ];
+
+  const bottomNavItems = [
     { href: "/packing", label: "Smart Pack", icon: Luggage },
     { href: "/intel", label: "Travel Intel", icon: Info },
     { href: "/explore", label: "Explore", icon: Compass },
-    { href: "/journeys", label: "Your Journeys", icon: Globe },
     { href: "/community", label: "Community", icon: Users },
   ];
 
+  const isJourneyActive = location === "/journeys" || location === "/history";
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col md:flex-row relative">
-      {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-sidebar/50 backdrop-blur-md sticky top-0 z-50">
         <h1 className="font-serif text-xl font-bold tracking-tight text-primary">VOYAGER</h1>
         <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} data-testid="button-mobile-menu">
@@ -51,7 +73,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </Button>
       </div>
 
-      {/* Sidebar Navigation */}
       <aside className={cn(
         "fixed inset-0 z-40 bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:w-64 md:flex-shrink-0 flex flex-col",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -61,23 +82,122 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Travel Curator</p>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {navItems.map((item) => {
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+          {topNavItems.map((item) => {
             const isActive = location === item.href;
             return (
               <Link key={item.href} href={item.href}>
-                <div className={cn(
-                  "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
-                  isActive 
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
-                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}>
+                <div
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
                   <item.icon className={cn("h-5 w-5", isActive ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
                   {item.label}
                 </div>
               </Link>
             );
           })}
+
+          <div>
+            <button
+              onClick={() => setIsJourneysOpen(!isJourneysOpen)}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer w-full",
+                isJourneyActive
+                  ? "bg-sidebar-primary/10 text-sidebar-primary-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              )}
+              data-testid="button-journeys-toggle"
+            >
+              <Globe className={cn("h-5 w-5", isJourneyActive ? "text-primary" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
+              <span className="flex-1 text-left">Your Journeys</span>
+              <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isJourneysOpen ? "rotate-180" : "")} />
+            </button>
+
+            {isJourneysOpen && (
+              <div className="ml-4 pl-4 border-l border-sidebar-border space-y-1 mt-1">
+                <Link href="/journeys">
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-2.5 text-sm rounded-md transition-all duration-200 cursor-pointer",
+                      location === "/journeys"
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="link-journeys-upcoming"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    Upcoming & Planning
+                  </div>
+                </Link>
+                <Link href="/history">
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-2.5 text-sm rounded-md transition-all duration-200 cursor-pointer",
+                      location === "/history"
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="link-journeys-past"
+                  >
+                    <History className="h-4 w-4" />
+                    Past Journeys
+                  </div>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {bottomNavItems.map((item) => {
+            const isActive = location === item.href;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
+                    isActive 
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <item.icon className={cn("h-5 w-5", isActive ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
+                  {item.label}
+                </div>
+              </Link>
+            );
+          })}
+
+          {recentJourneys.length > 0 && (
+            <div className="pt-4 mt-4 border-t border-sidebar-border">
+              <p className="px-4 text-xs uppercase tracking-wider text-muted-foreground mb-2">Recent Journeys</p>
+              {recentJourneys.map((journey) => (
+                <Link key={journey.id} href="/journeys">
+                  <div
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md transition-all duration-200 cursor-pointer group"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid={`link-recent-journey-${journey.id}`}
+                  >
+                    <div className="h-6 w-6 rounded-md bg-muted/50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {journey.image ? (
+                        <img src={journey.image} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Globe className="h-3 w-3 text-muted-foreground" />
+                      )}
+                    </div>
+                    <span className="truncate">{journey.title}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">
@@ -114,7 +234,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-background/50 relative">
         <div className="max-w-7xl mx-auto p-4 md:p-8 pb-20">
           {children}
