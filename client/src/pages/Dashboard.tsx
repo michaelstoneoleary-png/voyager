@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { TRIP_DATA } from "@/lib/mock-data";
 import { 
   Calendar, 
   MapPin, 
@@ -19,6 +18,7 @@ import {
   ArrowUpRight
 } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
+import { useTrips } from "@/lib/TripContext";
 import heroTravel from "@/assets/hero-travel.png";
 import { NewTripDialog } from "@/components/NewTripDialog";
 import { useState } from "react";
@@ -26,6 +26,10 @@ import { useState } from "react";
 export default function Dashboard() {
   const { formatTemp } = useUser();
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
+  const { trips } = useTrips();
+
+  // Find the first upcoming trip to feature
+  const activeTrip = trips.find(t => t.status === "Upcoming" || t.status === "Planning") || trips[0];
 
   return (
     <>
@@ -79,52 +83,68 @@ export default function Dashboard() {
                </div>
             </div>
             
-            <Card className="overflow-hidden border-sidebar-border shadow-md group relative">
-              <div className="absolute top-0 right-0 w-1/2 h-full">
-                 <img 
-                   src={heroTravel} 
-                   alt="Travel" 
-                   className="w-full h-full object-cover opacity-60 mask-image-linear-to-l" 
-                 />
-                 <div className="absolute inset-0 bg-gradient-to-l from-transparent to-background" />
-              </div>
-
-              <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row gap-8">
-                <div className="flex-1 space-y-6">
-                   <div>
-                     <Badge className="mb-2 bg-accent text-accent-foreground border-0">12 Days to Departure</Badge>
-                     <h2 className="font-serif text-4xl font-bold text-foreground mb-2">
-                       {TRIP_DATA.title}
-                     </h2>
-                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                       <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {TRIP_DATA.dates}</span>
-                       <span className="flex items-center gap-1"><MapPin className="h-4 w-4" /> From {TRIP_DATA.origin} ({TRIP_DATA.timeDifference})</span>
-                       <span className="flex items-center gap-1"><Wallet className="h-4 w-4" /> $1,850 Est.</span>
-                     </div>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Weather</span>
-                        <div className="font-medium flex items-center gap-2">
-                          <CloudSun className="h-4 w-4 text-amber-500" /> {formatTemp(18)} Sunny
-                        </div>
-                      </div>
-                      <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</span>
-                        <div className="font-medium flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" /> 85% Ready
-                        </div>
-                      </div>
-                   </div>
-
-                   <div className="flex gap-3 pt-2">
-                     <Button className="shadow-sm">Open Itinerary</Button>
-                     <Button variant="outline">View Packing List</Button>
-                   </div>
+            {activeTrip ? (
+              <Card className="overflow-hidden border-sidebar-border shadow-md group relative">
+                <div className="absolute top-0 right-0 w-1/2 h-full">
+                   <img 
+                     src={activeTrip.image} 
+                     alt="Travel" 
+                     className="w-full h-full object-cover opacity-60 mask-image-linear-to-l" 
+                   />
+                   <div className="absolute inset-0 bg-gradient-to-l from-transparent to-background" />
                 </div>
-              </div>
-            </Card>
+
+                <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row gap-8">
+                  <div className="flex-1 space-y-6">
+                     <div>
+                       <Badge className="mb-2 bg-accent text-accent-foreground border-0">
+                         {activeTrip.status === "Upcoming" ? "12 Days to Departure" : "In Planning Phase"}
+                       </Badge>
+                       <h2 className="font-serif text-4xl font-bold text-foreground mb-2">
+                         {activeTrip.title}
+                       </h2>
+                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                         <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {activeTrip.dates}</span>
+                         <span className="flex items-center gap-1"><Wallet className="h-4 w-4" /> {activeTrip.cost} Est.</span>
+                       </div>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Weather</span>
+                          <div className="font-medium flex items-center gap-2">
+                            <CloudSun className="h-4 w-4 text-amber-500" /> {formatTemp(18)} Sunny
+                          </div>
+                        </div>
+                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</span>
+                          <div className="font-medium flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-primary" /> {activeTrip.progress}% Ready
+                          </div>
+                        </div>
+                     </div>
+
+                     <div className="flex gap-3 pt-2">
+                       <Button className="shadow-sm">Open Itinerary</Button>
+                       <Button variant="outline">View Packing List</Button>
+                     </div>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-8 text-center border-sidebar-border border-dashed">
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                    <Plus className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium">No Active Journeys</h3>
+                    <p className="text-muted-foreground">Start planning your next adventure today.</p>
+                  </div>
+                  <Button onClick={() => setIsNewTripOpen(true)}>Create New Journey</Button>
+                </div>
+              </Card>
+            )}
 
             {/* Quick Stats / Upcoming Tasks */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -181,7 +201,7 @@ export default function Dashboard() {
                      <span className="text-xs font-bold text-primary">Currency</span>
                      <span className="text-[10px] text-muted-foreground">Live</span>
                    </div>
-                   <p className="text-sm text-muted-foreground">1 USD = {TRIP_DATA.intel.currency.rates[0].rate} BGN. Favorable rate compared to last month.</p>
+                   <p className="text-sm text-muted-foreground">1 USD = 1.78 BGN. Favorable rate compared to last month.</p>
                 </div>
               </CardContent>
             </Card>

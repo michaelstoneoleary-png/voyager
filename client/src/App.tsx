@@ -13,6 +13,7 @@ import Explore from "@/pages/Explore";
 import Community from "@/pages/Community";
 import PastJourneys from "@/pages/PastJourneys";
 import { UserProvider } from "@/lib/UserContext";
+import { TripProvider } from "@/lib/TripContext";
 
 function Router() {
   return (
@@ -35,10 +36,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <TripProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </TripProvider>
       </UserProvider>
     </QueryClientProvider>
   );

@@ -22,120 +22,15 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from "react";
 import { NewTripDialog } from "@/components/NewTripDialog";
-
 import { Link } from "wouter";
-
-// Assets - using what we have available
-import kyotoImg from "@/assets/kyoto.png";
-import tuscanyImg from "@/assets/tuscany.png";
-import patagoniaImg from "@/assets/patagonia.png";
-import heroTravel from "@/assets/hero-travel.png";
+import { useTrips } from "@/lib/TripContext";
 
 export default function Journeys() {
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
+  const { trips } = useTrips();
 
-  const upcomingJourneys = [
-    {
-      id: "trip-1",
-      title: "Balkan Odyssey",
-      dates: "Oct 12 - Oct 22, 2026",
-      image: heroTravel,
-      days: 10,
-      cost: "$1,850",
-      progress: 85,
-      status: "Upcoming",
-      seasonality: {
-        type: "Shoulder Season",
-        description: "Great choice! October offers cooler temperatures and fewer crowds compared to summer. You'll catch the beautiful autumn foliage in the Rila mountains.",
-        crowdLevel: "Low",
-        weatherIcon: "🍂"
-      },
-      priceAlert: {
-        status: "Price Drop",
-        amount: "-$120",
-        trend: "down",
-        currentPrice: "$850 (Flights)",
-        recommendation: "Book Now"
-      },
-      logistics: {
-        visa: "Visa Free",
-        health: "Standard"
-      }
-    },
-    {
-      id: "trip-2",
-      title: "Kyoto: Autumn Colors",
-      dates: "Nov 15 - Nov 24, 2026",
-      image: kyotoImg,
-      days: 10,
-      cost: "$3,200",
-      progress: 30,
-      status: "Planning",
-      seasonality: {
-        type: "Peak Season",
-        description: "You are visiting during the famous Momiji (maple leaf) season. Expect heavy crowds at major temples, but the scenery will be breathtaking.",
-        crowdLevel: "Very High",
-        weatherIcon: "🍁"
-      },
-      priceAlert: {
-        status: "Tracking",
-        amount: "+$50",
-        trend: "stable",
-        currentPrice: "$1,200 (Flights)",
-        recommendation: "Wait"
-      },
-      logistics: {
-        visa: "e-Visa Required",
-        health: "None"
-      }
-    },
-    {
-      id: "trip-3",
-      title: "Tuscan Wine Tour",
-      dates: "May 20 - May 30, 2027",
-      image: tuscanyImg,
-      days: 11,
-      cost: "$4,500",
-      progress: 10,
-      status: "Dreaming",
-      seasonality: {
-        type: "Shoulder Season",
-        description: "Late May is perfect. The rolling hills are vibrant green, poppies are in bloom, and it's warm enough for al fresco dining without the intense summer heat.",
-        crowdLevel: "Moderate",
-        weatherIcon: "🌤️"
-      },
-      priceAlert: {
-        status: "High Demand",
-        amount: "+$200",
-        trend: "up",
-        currentPrice: "$1,400 (Flights)",
-        recommendation: "Book Soon"
-      },
-      logistics: {
-        visa: "Schengen",
-        health: "Standard"
-      }
-    }
-  ];
-
-  const pastJourneys = [
-    {
-      id: "trip-4",
-      title: "Patagonia Trek",
-      dates: "Jan 10 - Jan 24, 2025",
-      image: patagoniaImg,
-      days: 14,
-      cost: "$2,800",
-      progress: 100,
-      status: "Completed",
-      seasonality: {
-        type: "Peak Season",
-        description: "January is peak summer in Patagonia, offering the best hiking weather but requiring bookings months in advance.",
-        crowdLevel: "High",
-        weatherIcon: "🏔️"
-      }
-    }
-  ];
+  const upcomingJourneys = trips.filter(t => t.status !== "Completed");
+  const pastJourneys = trips.filter(t => t.status === "Completed");
 
   return (
     <>
@@ -270,37 +165,41 @@ export default function Journeys() {
 
                         <div className="space-y-4">
                            {/* Price Alert Widget */}
-                           <div className="bg-background rounded-xl p-4 border border-border shadow-sm">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-medium flex items-center gap-2">
-                                  <TrendingUp className="h-4 w-4 text-emerald-500" /> Price Watch
-                                </h4>
-                                <Badge variant="outline" className={trip.priceAlert?.trend === "down" ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-orange-600 border-orange-200 bg-orange-50"}>
-                                  {trip.priceAlert?.recommendation}
-                                </Badge>
-                              </div>
-                              <div className="flex items-baseline justify-between">
-                                 <div>
-                                   <p className="text-2xl font-bold font-mono">{trip.priceAlert?.currentPrice}</p>
-                                   <p className="text-xs text-muted-foreground">Checked today</p>
-                                 </div>
-                                 <div className={`text-sm font-bold ${trip.priceAlert?.trend === "down" ? "text-emerald-600" : "text-orange-600"}`}>
-                                   {trip.priceAlert?.amount}
-                                 </div>
-                              </div>
-                           </div>
+                           {trip.priceAlert && (
+                             <div className="bg-background rounded-xl p-4 border border-border shadow-sm">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-medium flex items-center gap-2">
+                                    <TrendingUp className="h-4 w-4 text-emerald-500" /> Price Watch
+                                  </h4>
+                                  <Badge variant="outline" className={trip.priceAlert?.trend === "down" ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-orange-600 border-orange-200 bg-orange-50"}>
+                                    {trip.priceAlert?.recommendation}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-baseline justify-between">
+                                   <div>
+                                     <p className="text-2xl font-bold font-mono">{trip.priceAlert?.currentPrice}</p>
+                                     <p className="text-xs text-muted-foreground">Checked today</p>
+                                   </div>
+                                   <div className={`text-sm font-bold ${trip.priceAlert?.trend === "down" ? "text-emerald-600" : "text-orange-600"}`}>
+                                     {trip.priceAlert?.amount}
+                                   </div>
+                                </div>
+                             </div>
+                           )}
 
                            {/* Logistics Mini-Grid */}
-                           <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                                <span className="text-[10px] uppercase text-muted-foreground font-bold">Visa</span>
-                                <p className="text-sm font-medium">{trip.logistics?.visa}</p>
-                              </div>
-                              <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                                <span className="text-[10px] uppercase text-muted-foreground font-bold">Health</span>
-                                <p className="text-sm font-medium">{trip.logistics?.health}</p>
-                              </div>
-                           </div>
+                           {trip.logistics && (
+                             <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                  <span className="text-[10px] uppercase text-muted-foreground font-bold">Visa</span>
+                                  <p className="text-sm font-medium">{trip.logistics?.visa}</p>
+                                </div>
+                                <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                  <span className="text-[10px] uppercase text-muted-foreground font-bold">Health</span>
+                                  <p className="text-sm font-medium">{trip.logistics?.health}</p>
+                                </div>
+                             </div>
+                           )}
                         </div>
                       </div>
 

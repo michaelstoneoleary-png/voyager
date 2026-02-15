@@ -34,6 +34,9 @@ import {
   X,
   CheckCircle2
 } from "lucide-react";
+import { useTrips } from "@/lib/TripContext";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 interface NewTripDialogProps {
   open: boolean;
@@ -53,6 +56,10 @@ const USER_DEFAULTS = {
 
 export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   const [step, setStep] = useState(1);
+  const { addTrip } = useTrips();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
   const [formData, setFormData] = useState({
     // Step 1: Logistics
     travelers: 2,
@@ -105,10 +112,38 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   };
 
   const handleFinish = () => {
-    // Here we would submit the data
+    // Generate dates string
+    let datesStr = "TBD";
+    if (formData.dateType === "fixed" && formData.startDate) {
+      const start = new Date(formData.startDate);
+      const end = formData.endDate ? new Date(formData.endDate) : new Date(start.getTime() + (formData.duration * 24 * 60 * 60 * 1000));
+      datesStr = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } else {
+      datesStr = `Flexible (${formData.duration} days)`;
+    }
+
+    // Add trip to context
+    addTrip({
+      title: formData.destinations.length > 0 ? `Journey to ${formData.destinations[0]}` : "New Adventure",
+      dates: datesStr,
+      days: formData.duration,
+      cost: formData.budgetType === "later" ? "TBD" : `$${formData.budgetAmount}`,
+      status: "Planning",
+      destinations: formData.destinations
+    });
+
     onOpenChange(false);
+    
+    toast({
+      title: "Journey Created",
+      description: "Redirecting you to the trip planner...",
+    });
+
     // Reset form for next time
-    setTimeout(() => setStep(1), 300); 
+    setTimeout(() => {
+      setStep(1);
+      setLocation("/planner");
+    }, 300); 
   };
 
   return (
