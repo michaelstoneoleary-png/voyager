@@ -1,5 +1,5 @@
 import { Layout } from "@/components/Layout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,7 +14,12 @@ import {
   Search,
   Filter,
   Calendar,
-  DollarSign
+  DollarSign,
+  Plus,
+  Instagram,
+  Rss,
+  Sparkles,
+  ExternalLink
 } from "lucide-react";
 import {
   Dialog,
@@ -120,10 +125,44 @@ const COMMUNITY_TRIPS = [
   }
 ];
 
+const EXTERNAL_SOURCES = [
+  {
+    id: 1,
+    name: "Nomadic Matt",
+    type: "blog",
+    url: "nomadicmatt.com",
+    icon: Rss,
+    status: "active",
+    lastMatch: "Money saving tips for Balkans",
+    matchReason: "Matches your upcoming 'Balkan Odyssey' trip"
+  },
+  {
+    id: 2,
+    name: "@lostleblanc",
+    type: "instagram",
+    url: "instagram.com/lostleblanc",
+    icon: Instagram,
+    status: "active",
+    lastMatch: "Reel: Hidden gems in Kyoto",
+    matchReason: "Relevant to your interest in 'Photography'"
+  },
+  {
+    id: 3,
+    name: "The Points Guy",
+    type: "blog",
+    url: "thepointsguy.com",
+    icon: Rss,
+    status: "active",
+    lastMatch: "Flight deal alert: NYC to Tokyo",
+    matchReason: "Price watch trigger for 'Kyoto' trip"
+  }
+];
+
 export default function Community() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [likedTrips, setLikedTrips] = useState<number[]>([]);
+  const [followedSources, setFollowedSources] = useState(EXTERNAL_SOURCES);
 
   const handleLike = (id: number) => {
     if (likedTrips.includes(id)) {
@@ -141,6 +180,13 @@ export default function Community() {
     toast({
       title: "Trip Cloned!",
       description: `"${title}" has been added to Your Journeys.`,
+    });
+  };
+
+  const handleAddSource = () => {
+    toast({
+      title: "Source Added",
+      description: "We'll monitor this source for relevant travel intel.",
     });
   };
 
@@ -167,188 +213,249 @@ export default function Community() {
           </Button>
         </div>
 
-        {/* Search & Filter Bar */}
-        <div className="flex gap-4 items-center bg-card p-4 rounded-xl border border-border shadow-sm">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search destinations, tags, or routes..." 
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Button variant="outline" className="gap-2 hidden md:flex">
-            <Filter className="h-4 w-4" /> Filters
-          </Button>
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+          
+          {/* Main Content Column */}
+          <div className="space-y-8">
+             {/* Search & Filter Bar */}
+            <div className="flex gap-4 items-center bg-card p-4 rounded-xl border border-border shadow-sm">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search destinations, tags, or routes..." 
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" className="gap-2 hidden md:flex">
+                <Filter className="h-4 w-4" /> Filters
+              </Button>
+            </div>
 
-        {/* Featured Feed */}
-        <div className="grid grid-cols-1 gap-8">
-          {filteredTrips.map((journey) => (
-            <Dialog key={journey.id}>
-              <Card className="overflow-hidden border-0 bg-card/50 hover:bg-card transition-colors group">
-                <div className="flex flex-col md:flex-row">
-                  {/* Image Section */}
-                  <DialogTrigger className="md:w-2/5 relative h-64 md:h-auto min-h-[300px] cursor-pointer overflow-hidden">
-                    <img 
-                      src={journey.image} 
-                      alt={journey.title} 
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                    <div className="absolute top-4 left-4">
-                       <Badge className="bg-white/90 text-black hover:bg-white backdrop-blur-md">
-                          {journey.days} Days
-                       </Badge>
-                    </div>
-                  </DialogTrigger>
+            {/* Featured Feed */}
+            <div className="grid grid-cols-1 gap-8">
+              {filteredTrips.map((journey) => (
+                <Dialog key={journey.id}>
+                  <Card className="overflow-hidden border-0 bg-card/50 hover:bg-card transition-colors group">
+                    <div className="flex flex-col md:flex-row">
+                      {/* Image Section */}
+                      <DialogTrigger className="md:w-2/5 relative h-64 md:h-auto min-h-[300px] cursor-pointer overflow-hidden">
+                        <img 
+                          src={journey.image} 
+                          alt={journey.title} 
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
+                        <div className="absolute top-4 left-4">
+                           <Badge className="bg-white/90 text-black hover:bg-white backdrop-blur-md">
+                              {journey.days} Days
+                           </Badge>
+                        </div>
+                      </DialogTrigger>
 
-                  {/* Content Section */}
-                  <div className="flex-1 p-6 md:p-8 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={journey.author.avatar} />
-                            <AvatarFallback>{journey.author.name[0]}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-medium leading-none">{journey.author.name}</p>
-                            <p className="text-xs text-muted-foreground">{journey.author.handle}</p>
+                      {/* Content Section */}
+                      <div className="flex-1 p-6 md:p-8 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarImage src={journey.author.avatar} />
+                                <AvatarFallback>{journey.author.name[0]}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="text-sm font-medium leading-none">{journey.author.name}</p>
+                                <p className="text-xs text-muted-foreground">{journey.author.handle}</p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="font-mono">
+                              {journey.budget}
+                            </Badge>
+                          </div>
+
+                          <DialogTrigger className="text-left w-full hover:underline decoration-primary underline-offset-4 transition-all">
+                            <h3 className="font-serif text-2xl font-bold mb-2">{journey.title}</h3>
+                          </DialogTrigger>
+                          <p className="text-muted-foreground mb-4">{journey.description}</p>
+
+                          <div className="flex items-center gap-2 text-sm text-primary font-medium mb-6 bg-primary/5 p-3 rounded-lg w-fit">
+                            <Map className="h-4 w-4" />
+                            {journey.route}
+                          </div>
+
+                          <div className="flex gap-2 mb-6">
+                            {journey.tags.map(tag => (
+                              <Badge key={tag} variant="secondary" className="font-normal">
+                                #{tag}
+                              </Badge>
+                            ))}
                           </div>
                         </div>
-                        <Badge variant="outline" className="font-mono">
-                          {journey.budget}
-                        </Badge>
-                      </div>
 
-                      <DialogTrigger className="text-left w-full hover:underline decoration-primary underline-offset-4 transition-all">
-                        <h3 className="font-serif text-2xl font-bold mb-2">{journey.title}</h3>
-                      </DialogTrigger>
-                      <p className="text-muted-foreground mb-4">{journey.description}</p>
-
-                      <div className="flex items-center gap-2 text-sm text-primary font-medium mb-6 bg-primary/5 p-3 rounded-lg w-fit">
-                        <Map className="h-4 w-4" />
-                        {journey.route}
-                      </div>
-
-                      <div className="flex gap-2 mb-6">
-                        {journey.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="font-normal">
-                            #{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t border-border">
-                      <div className="flex gap-4 text-muted-foreground text-sm">
-                        <button 
-                          onClick={() => handleLike(journey.id)}
-                          className={`flex items-center gap-1 transition-colors ${likedTrips.includes(journey.id) ? "text-red-500" : "hover:text-red-500"}`}
-                        >
-                          <Heart className={`h-4 w-4 ${likedTrips.includes(journey.id) ? "fill-current" : ""}`} /> 
-                          {journey.likes + (likedTrips.includes(journey.id) ? 1 : 0)}
-                        </button>
-                        <button className="flex items-center gap-1 hover:text-primary transition-colors">
-                          <MessageCircle className="h-4 w-4" /> 42
-                        </button>
-                        <button className="flex items-center gap-1 hover:text-primary transition-colors">
-                          <Share2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                      
-                      <Button 
-                        className="group"
-                        onClick={() => handleClone(journey.title)}
-                      >
-                        <Copy className="h-4 w-4 mr-2 group-hover:hidden" />
-                        <ArrowRight className="h-4 w-4 mr-2 hidden group-hover:block" />
-                        Clone Trip
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Detail Modal */}
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
-                 <div className="relative h-48 md:h-64 flex-shrink-0">
-                    <img 
-                      src={journey.image} 
-                      alt={journey.title} 
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-                    <div className="absolute bottom-6 left-6 right-6 text-white">
-                       <Badge className="mb-2 bg-primary text-primary-foreground border-0">{journey.days} Days</Badge>
-                       <DialogTitle className="font-serif text-3xl md:text-4xl font-bold mb-2">{journey.title}</DialogTitle>
-                       <div className="flex items-center gap-4 text-sm opacity-90">
-                         <span className="flex items-center gap-1"><Map className="h-4 w-4" /> {journey.route}</span>
-                         <span className="flex items-center gap-1"><DollarSign className="h-4 w-4" /> Budget: {journey.budget}</span>
-                       </div>
-                    </div>
-                 </div>
-
-                 <ScrollArea className="flex-1 p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-[1fr_250px] gap-8">
-                       <div className="space-y-6">
-                          <div>
-                            <h3 className="text-lg font-bold mb-3 font-serif">About this trip</h3>
-                            <p className="text-muted-foreground leading-relaxed">{journey.description}</p>
+                        <div className="flex items-center justify-between pt-4 border-t border-border">
+                          <div className="flex gap-4 text-muted-foreground text-sm">
+                            <button 
+                              onClick={() => handleLike(journey.id)}
+                              className={`flex items-center gap-1 transition-colors ${likedTrips.includes(journey.id) ? "text-red-500" : "hover:text-red-500"}`}
+                            >
+                              <Heart className={`h-4 w-4 ${likedTrips.includes(journey.id) ? "fill-current" : ""}`} /> 
+                              {journey.likes + (likedTrips.includes(journey.id) ? 1 : 0)}
+                            </button>
+                            <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                              <MessageCircle className="h-4 w-4" /> 42
+                            </button>
+                            <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                              <Share2 className="h-4 w-4" />
+                            </button>
                           </div>
-
-                          <div>
-                            <h3 className="text-lg font-bold mb-4 font-serif">Itinerary Highlights</h3>
-                            <div className="relative border-l border-border ml-2 space-y-6 pb-2">
-                               {journey.itinerary.map((item, idx) => (
-                                 <div key={idx} className="ml-6 relative">
-                                    <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full border-2 border-primary bg-background" />
-                                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                                      <span className="text-sm font-bold text-primary">Day {item.day}</span>
-                                      <h4 className="font-semibold">{item.title}</h4>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground mt-1">{item.highlight}</p>
-                                 </div>
-                               ))}
-                            </div>
-                          </div>
-                       </div>
-
-                       <div className="space-y-6">
-                          <div className="bg-muted/50 p-4 rounded-xl border border-border">
-                             <div className="flex items-center gap-3 mb-4">
-                                <Avatar className="h-12 w-12 border-2 border-background">
-                                  <AvatarImage src={journey.author.avatar} />
-                                  <AvatarFallback>{journey.author.name[0]}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-bold">{journey.author.name}</p>
-                                  <p className="text-xs text-muted-foreground">{journey.author.handle}</p>
-                                </div>
-                             </div>
-                             <Button variant="outline" className="w-full text-xs h-8">View Profile</Button>
-                          </div>
-
-                          <div className="space-y-2">
-                             <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Trip Tags</h4>
-                             <div className="flex flex-wrap gap-2">
-                                {journey.tags.map(tag => (
-                                  <Badge key={tag} variant="secondary">{tag}</Badge>
-                                ))}
-                             </div>
-                          </div>
-
-                          <Button size="lg" className="w-full" onClick={() => handleClone(journey.title)}>
-                            <Copy className="h-4 w-4 mr-2" /> Clone to My Journeys
+                          
+                          <Button 
+                            className="group"
+                            onClick={() => handleClone(journey.title)}
+                          >
+                            <Copy className="h-4 w-4 mr-2 group-hover:hidden" />
+                            <ArrowRight className="h-4 w-4 mr-2 hidden group-hover:block" />
+                            Clone Trip
                           </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Detail Modal */}
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0 flex flex-col">
+                     <div className="relative h-48 md:h-64 flex-shrink-0">
+                        <img 
+                          src={journey.image} 
+                          alt={journey.title} 
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                        <div className="absolute bottom-6 left-6 right-6 text-white">
+                           <Badge className="mb-2 bg-primary text-primary-foreground border-0">{journey.days} Days</Badge>
+                           <DialogTitle className="font-serif text-3xl md:text-4xl font-bold mb-2">{journey.title}</DialogTitle>
+                           <div className="flex items-center gap-4 text-sm opacity-90">
+                             <span className="flex items-center gap-1"><Map className="h-4 w-4" /> {journey.route}</span>
+                             <span className="flex items-center gap-1"><DollarSign className="h-4 w-4" /> Budget: {journey.budget}</span>
+                           </div>
+                        </div>
+                     </div>
+
+                     <ScrollArea className="flex-1 p-6 md:p-8">
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_250px] gap-8">
+                           <div className="space-y-6">
+                              <div>
+                                <h3 className="text-lg font-bold mb-3 font-serif">About this trip</h3>
+                                <p className="text-muted-foreground leading-relaxed">{journey.description}</p>
+                              </div>
+
+                              <div>
+                                <h3 className="text-lg font-bold mb-4 font-serif">Itinerary Highlights</h3>
+                                <div className="relative border-l border-border ml-2 space-y-6 pb-2">
+                                   {journey.itinerary.map((item, idx) => (
+                                     <div key={idx} className="ml-6 relative">
+                                        <div className="absolute -left-[31px] top-0 h-4 w-4 rounded-full border-2 border-primary bg-background" />
+                                        <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+                                          <span className="text-sm font-bold text-primary">Day {item.day}</span>
+                                          <h4 className="font-semibold">{item.title}</h4>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground mt-1">{item.highlight}</p>
+                                     </div>
+                                   ))}
+                                </div>
+                              </div>
+                           </div>
+
+                           <div className="space-y-6">
+                              <div className="bg-muted/50 p-4 rounded-xl border border-border">
+                                 <div className="flex items-center gap-3 mb-4">
+                                    <Avatar className="h-12 w-12 border-2 border-background">
+                                      <AvatarImage src={journey.author.avatar} />
+                                      <AvatarFallback>{journey.author.name[0]}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                      <p className="font-bold">{journey.author.name}</p>
+                                      <p className="text-xs text-muted-foreground">{journey.author.handle}</p>
+                                    </div>
+                                 </div>
+                                 <Button variant="outline" className="w-full text-xs h-8">View Profile</Button>
+                              </div>
+
+                              <div className="space-y-2">
+                                 <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Trip Tags</h4>
+                                 <div className="flex flex-wrap gap-2">
+                                    {journey.tags.map(tag => (
+                                      <Badge key={tag} variant="secondary">{tag}</Badge>
+                                    ))}
+                                 </div>
+                              </div>
+
+                              <Button size="lg" className="w-full" onClick={() => handleClone(journey.title)}>
+                                <Copy className="h-4 w-4 mr-2" /> Clone to My Journeys
+                              </Button>
+                           </div>
+                        </div>
+                     </ScrollArea>
+                  </DialogContent>
+                </Dialog>
+              ))}
+            </div>
+          </div>
+
+          {/* Right Sidebar - Travel Pulse */}
+          <div className="space-y-6">
+             <Card className="border-border bg-sidebar/30 backdrop-blur-sm sticky top-6">
+               <CardHeader className="pb-3">
+                 <div className="flex items-center justify-between">
+                   <CardTitle className="text-lg font-serif font-bold flex items-center gap-2">
+                     <Sparkles className="h-4 w-4 text-primary" /> Travel Pulse
+                   </CardTitle>
+                   <Button variant="ghost" size="icon" className="h-6 w-6">
+                     <Plus className="h-4 w-4" onClick={handleAddSource} />
+                   </Button>
+                 </div>
+                 <p className="text-xs text-muted-foreground">
+                   AI-curated updates from your followed sources, matched to your interests.
+                 </p>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                  {followedSources.map(source => (
+                    <div key={source.id} className="group relative bg-background/50 hover:bg-background p-3 rounded-lg transition-colors border border-transparent hover:border-border">
+                       <div className="flex justify-between items-start mb-1">
+                          <div className="flex items-center gap-2">
+                             <source.icon className="h-3 w-3 text-muted-foreground" />
+                             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{source.name}</span>
+                          </div>
+                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                       </div>
+                       <p className="text-sm font-medium leading-snug mb-2 group-hover:text-primary transition-colors cursor-pointer">
+                         "{source.lastMatch}"
+                       </p>
+                       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-primary/5 w-fit px-1.5 py-0.5 rounded">
+                         <Sparkles className="h-2.5 w-2.5 text-primary" /> {source.matchReason}
                        </div>
                     </div>
-                 </ScrollArea>
-              </DialogContent>
-            </Dialog>
-          ))}
+                  ))}
+                  
+                  <Button variant="outline" className="w-full text-xs" onClick={handleAddSource}>
+                    <Plus className="h-3 w-3 mr-1" /> Add Blog or Social
+                  </Button>
+               </CardContent>
+             </Card>
+
+             <Card className="border-border bg-gradient-to-br from-primary/10 to-transparent border-0">
+               <CardContent className="p-6 text-center space-y-3">
+                 <h3 className="font-serif font-bold text-lg">Voyager AI</h3>
+                 <p className="text-sm text-muted-foreground">
+                   Connect your favorite creators to get personalized travel alerts.
+                 </p>
+                 <Button className="w-full shadow-md bg-background text-foreground hover:bg-muted">
+                   Connect Accounts
+                 </Button>
+               </CardContent>
+             </Card>
+          </div>
+
         </div>
       </div>
     </Layout>
