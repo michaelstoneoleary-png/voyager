@@ -42,7 +42,7 @@ export default function Dashboard() {
              <Sparkles className="h-4 w-4 text-amber-500 fill-amber-500/20" />
              <span className="font-medium">Synergy Detected:</span>
              <span className="text-muted-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
-               Combine <span className="underline decoration-amber-300/50 underline-offset-2">Tuscany</span> + <span className="underline decoration-amber-300/50 underline-offset-2">Cinque Terre</span> to save $850
+               Combine <span className="underline decoration-amber-300/50 underline-offset-2">Tuscany</span> + <span className="underline decoration-amber-300/50 underline-offset-2">Cinque Terre</span>: Save ~$850, add 2 days to your trip
              </span>
            </div>
            <Button variant="ghost" size="sm" className="h-6 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-full px-3">
