@@ -1,17 +1,12 @@
 import { Layout } from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MapPin, 
   Heart, 
-  Share2, 
   Plus, 
-  Utensils, 
-  Mountain, 
-  Landmark,
   Search,
   Filter
 } from "lucide-react";
@@ -64,7 +59,6 @@ const GEMS = [
     description: "Traditional Serbian cuisine in the historic bohemian quarter accompanied by live music.",
     tags: ["Traditional", "Live Music", "Dinner"]
   },
-  // Duplicates to fill the grid for demo
   {
     id: 5,
     title: "Secret Jazz Bar",
@@ -86,6 +80,86 @@ const GEMS = [
     tags: ["Nature", "Short Hike", "Water"]
   }
 ];
+
+function GemCard({ gem }: { gem: typeof GEMS[0] }) {
+  return (
+    <Card className="group overflow-hidden border-0 shadow-none bg-transparent hover:bg-card hover:shadow-lg transition-all duration-300 rounded-xl">
+      <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
+        <img 
+          src={gem.image} 
+          alt={gem.title} 
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+        
+        <div className="absolute top-3 right-3">
+          <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-md border-0 text-white hover:bg-white hover:text-red-500 transition-colors">
+            <Heart className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="absolute bottom-3 left-3 right-3 text-white">
+          <div className="flex items-center justify-between mb-1">
+            <Badge variant="secondary" className="bg-white/20 backdrop-blur-md border-0 text-white hover:bg-white/30">
+              {gem.category}
+            </Badge>
+            <div className="flex items-center gap-1 text-xs font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-full">
+              ★ {gem.rating}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <CardContent className="p-4 pt-5">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h3 className="font-serif text-xl font-bold group-hover:text-primary transition-colors">{gem.title}</h3>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-3 w-3" /> {gem.location}
+            </div>
+          </div>
+        </div>
+        
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+          {gem.description}
+        </p>
+
+        <div className="flex items-center justify-between">
+          <div className="flex flex-wrap gap-2">
+            {gem.tags.map(tag => (
+              <span key={tag} className="text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded-md">#{tag}</span>
+            ))}
+          </div>
+          <Button size="sm" variant="ghost" className="h-8 rounded-full hover:bg-primary/10 hover:text-primary">
+            <Plus className="h-4 w-4 mr-1" /> Add
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GemGrid({ category }: { category: string }) {
+  const filteredGems = category === "all" 
+    ? GEMS 
+    : GEMS.filter(gem => gem.category.toLowerCase().includes(category.toLowerCase()) || (category === "food" && gem.category === "Food & Drink"));
+
+  if (filteredGems.length === 0) {
+    return (
+      <div className="py-12 text-center text-muted-foreground">
+        <p>No gems found in this category yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {filteredGems.map((gem) => (
+        <GemCard key={gem.id} gem={gem} />
+      ))}
+    </div>
+  );
+}
 
 export default function Explore() {
   return (
@@ -121,63 +195,16 @@ export default function Explore() {
           </TabsList>
 
           <TabsContent value="all" className="mt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {GEMS.map((gem) => (
-                <Card key={gem.id} className="group overflow-hidden border-0 shadow-none bg-transparent hover:bg-card hover:shadow-lg transition-all duration-300 rounded-xl">
-                  <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
-                    <img 
-                      src={gem.image} 
-                      alt={gem.title} 
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
-                    
-                    <div className="absolute top-3 right-3">
-                      <Button size="icon" variant="secondary" className="h-8 w-8 rounded-full bg-white/20 backdrop-blur-md border-0 text-white hover:bg-white hover:text-red-500 transition-colors">
-                        <Heart className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 right-3 text-white">
-                      <div className="flex items-center justify-between mb-1">
-                        <Badge variant="secondary" className="bg-white/20 backdrop-blur-md border-0 text-white hover:bg-white/30">
-                          {gem.category}
-                        </Badge>
-                        <div className="flex items-center gap-1 text-xs font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-full">
-                          ★ {gem.rating}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <CardContent className="p-4 pt-5">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-serif text-xl font-bold group-hover:text-primary transition-colors">{gem.title}</h3>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" /> {gem.location}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                      {gem.description}
-                    </p>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-wrap gap-2">
-                        {gem.tags.map(tag => (
-                          <span key={tag} className="text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded-md">#{tag}</span>
-                        ))}
-                      </div>
-                      <Button size="sm" variant="ghost" className="h-8 rounded-full hover:bg-primary/10 hover:text-primary">
-                        <Plus className="h-4 w-4 mr-1" /> Add
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <GemGrid category="all" />
+          </TabsContent>
+          <TabsContent value="food" className="mt-0">
+            <GemGrid category="food" />
+          </TabsContent>
+          <TabsContent value="adventure" className="mt-0">
+            <GemGrid category="adventure" />
+          </TabsContent>
+          <TabsContent value="culture" className="mt-0">
+            <GemGrid category="culture" />
           </TabsContent>
         </Tabs>
       </div>
