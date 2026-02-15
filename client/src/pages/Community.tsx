@@ -19,7 +19,9 @@ import {
   Instagram,
   Rss,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Settings2,
+  Check
 } from "lucide-react";
 import {
   Dialog,
@@ -27,15 +29,24 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 // Assets
 import kotor from "@/assets/kotor.png";
 import transylvania from "@/assets/transylvania.png";
 import albania from "@/assets/albania.png";
+
+const INTEREST_OPTIONS = {
+  regions: ["Europe", "Asia", "South America", "Africa", "North America", "Oceania"],
+  styles: ["Budget Friendly", "Luxury", "Solo Travel", "Family", "Backpacking", "Slow Travel"],
+  nature: ["Mountains", "Jungle", "Desert", "Ocean", "Sunsets", "Sunrises", "Forests"]
+};
 
 const COMMUNITY_TRIPS = [
   {
@@ -163,6 +174,16 @@ export default function Community() {
   const [searchTerm, setSearchTerm] = useState("");
   const [likedTrips, setLikedTrips] = useState<number[]>([]);
   const [followedSources, setFollowedSources] = useState(EXTERNAL_SOURCES);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(["Europe", "Budget Friendly", "Mountains"]);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  const toggleInterest = (interest: string) => {
+    if (selectedInterests.includes(interest)) {
+      setSelectedInterests(selectedInterests.filter(i => i !== interest));
+    } else {
+      setSelectedInterests([...selectedInterests, interest]);
+    }
+  };
 
   const handleLike = (id: number) => {
     if (likedTrips.includes(id)) {
@@ -410,13 +431,113 @@ export default function Community() {
                    <CardTitle className="text-lg font-serif font-bold flex items-center gap-2">
                      <Sparkles className="h-4 w-4 text-primary" /> Travel Pulse
                    </CardTitle>
-                   <Button variant="ghost" size="icon" className="h-6 w-6">
-                     <Plus className="h-4 w-4" onClick={handleAddSource} />
-                   </Button>
+                   <div className="flex gap-1">
+                     <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+                       <DialogTrigger asChild>
+                         <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-primary">
+                           <Settings2 className="h-4 w-4" />
+                         </Button>
+                       </DialogTrigger>
+                       <DialogContent className="max-w-xl">
+                         <DialogHeader>
+                           <DialogTitle className="font-serif text-2xl">Personalize Your Pulse</DialogTitle>
+                           <DialogDescription>
+                             Select your interests to help Voyager AI curate the best travel content for you.
+                           </DialogDescription>
+                         </DialogHeader>
+                         
+                         <div className="space-y-6 py-4">
+                           <div className="space-y-3">
+                             <h4 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Regions & Continents</h4>
+                             <div className="flex flex-wrap gap-2">
+                               {INTEREST_OPTIONS.regions.map(interest => (
+                                 <Badge 
+                                   key={interest}
+                                   variant="outline"
+                                   className={cn(
+                                     "cursor-pointer px-3 py-1.5 text-sm transition-all hover:border-primary",
+                                     selectedInterests.includes(interest) 
+                                       ? "bg-primary text-primary-foreground border-primary" 
+                                       : "bg-background hover:bg-muted"
+                                   )}
+                                   onClick={() => toggleInterest(interest)}
+                                 >
+                                   {selectedInterests.includes(interest) && <Check className="h-3 w-3 mr-1.5 inline-block" />}
+                                   {interest}
+                                 </Badge>
+                               ))}
+                             </div>
+                           </div>
+
+                           <div className="space-y-3">
+                             <h4 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Travel Style</h4>
+                             <div className="flex flex-wrap gap-2">
+                               {INTEREST_OPTIONS.styles.map(interest => (
+                                 <Badge 
+                                   key={interest}
+                                   variant="outline"
+                                   className={cn(
+                                     "cursor-pointer px-3 py-1.5 text-sm transition-all hover:border-primary",
+                                     selectedInterests.includes(interest) 
+                                       ? "bg-primary text-primary-foreground border-primary" 
+                                       : "bg-background hover:bg-muted"
+                                   )}
+                                   onClick={() => toggleInterest(interest)}
+                                 >
+                                   {selectedInterests.includes(interest) && <Check className="h-3 w-3 mr-1.5 inline-block" />}
+                                   {interest}
+                                 </Badge>
+                               ))}
+                             </div>
+                           </div>
+
+                           <div className="space-y-3">
+                             <h4 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Vibe & Nature</h4>
+                             <div className="flex flex-wrap gap-2">
+                               {INTEREST_OPTIONS.nature.map(interest => (
+                                 <Badge 
+                                   key={interest}
+                                   variant="outline"
+                                   className={cn(
+                                     "cursor-pointer px-3 py-1.5 text-sm transition-all hover:border-primary",
+                                     selectedInterests.includes(interest) 
+                                       ? "bg-primary text-primary-foreground border-primary" 
+                                       : "bg-background hover:bg-muted"
+                                   )}
+                                   onClick={() => toggleInterest(interest)}
+                                 >
+                                   {selectedInterests.includes(interest) && <Check className="h-3 w-3 mr-1.5 inline-block" />}
+                                   {interest}
+                                 </Badge>
+                               ))}
+                             </div>
+                           </div>
+                         </div>
+
+                         <DialogFooter>
+                           <Button onClick={() => {
+                             setIsConfigOpen(false);
+                             toast({ title: "Preferences Updated", description: "Your Travel Pulse feed will now reflect your new interests." });
+                           }}>
+                             Save Preferences
+                           </Button>
+                         </DialogFooter>
+                       </DialogContent>
+                     </Dialog>
+                     
+                     <Button variant="ghost" size="icon" className="h-6 w-6">
+                       <Plus className="h-4 w-4" onClick={handleAddSource} />
+                     </Button>
+                   </div>
                  </div>
-                 <p className="text-xs text-muted-foreground">
-                   AI-curated updates from your followed sources, matched to your interests.
-                 </p>
+                 <div className="flex flex-wrap gap-1 mt-2">
+                    {selectedInterests.slice(0, 3).map(i => (
+                      <span key={i} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{i}</span>
+                    ))}
+                    {selectedInterests.length > 3 && (
+                      <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">+{selectedInterests.length - 3}</span>
+                    )}
+                 </div>
                </CardHeader>
                <CardContent className="space-y-4">
                   {followedSources.map(source => (
