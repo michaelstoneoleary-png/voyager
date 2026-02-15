@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { WorldMap } from "@/components/WorldMap";
 import { FileUpload } from "@/components/FileUpload";
@@ -6,11 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Globe, Calendar, Loader2, Trash2 } from "lucide-react";
+import { Download, Globe, Calendar, Loader2, Trash2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isUnauthorizedError } from "@/lib/auth-utils";
-import Papa from "papaparse";
 
 interface PastTrip {
   id: string;
@@ -23,50 +23,10 @@ interface PastTrip {
   lng: string | null;
 }
 
-const KNOWN_COORDINATES: Record<string, { lat: string; lng: string }> = {
-  "paris": { lat: "48.8566", lng: "2.3522" },
-  "london": { lat: "51.5074", lng: "-0.1278" },
-  "tokyo": { lat: "35.6762", lng: "139.6503" },
-  "new york": { lat: "40.7128", lng: "-74.0060" },
-  "rome": { lat: "41.9028", lng: "12.4964" },
-  "bangkok": { lat: "13.7563", lng: "100.5018" },
-  "rio de janeiro": { lat: "-22.9068", lng: "-43.1729" },
-  "cairo": { lat: "30.0444", lng: "31.2357" },
-  "sydney": { lat: "-33.8688", lng: "151.2093" },
-  "istanbul": { lat: "41.0082", lng: "28.9784" },
-  "barcelona": { lat: "41.3874", lng: "2.1686" },
-  "lisbon": { lat: "38.7223", lng: "-9.1393" },
-  "berlin": { lat: "52.5200", lng: "13.4050" },
-  "amsterdam": { lat: "52.3676", lng: "4.9041" },
-  "prague": { lat: "50.0755", lng: "14.4378" },
-  "vienna": { lat: "48.2082", lng: "16.3738" },
-  "athens": { lat: "37.9838", lng: "23.7275" },
-  "dubai": { lat: "25.2048", lng: "55.2708" },
-  "singapore": { lat: "1.3521", lng: "103.8198" },
-  "hong kong": { lat: "22.3193", lng: "114.1694" },
-  "seoul": { lat: "37.5665", lng: "126.9780" },
-  "mumbai": { lat: "19.0760", lng: "72.8777" },
-  "cape town": { lat: "-33.9249", lng: "18.4241" },
-  "mexico city": { lat: "19.4326", lng: "-99.1332" },
-  "buenos aires": { lat: "-34.6037", lng: "-58.3816" },
-  "marrakech": { lat: "31.6295", lng: "-7.9811" },
-  "kyoto": { lat: "35.0116", lng: "135.7681" },
-  "florence": { lat: "43.7696", lng: "11.2558" },
-  "cusco": { lat: "-13.5319", lng: "-71.9675" },
-  "reykjavik": { lat: "64.1466", lng: "-21.9426" },
-};
-
-function guessCoordinates(destination: string): { lat: string; lng: string } | null {
-  const lower = destination.toLowerCase();
-  for (const [city, coords] of Object.entries(KNOWN_COORDINATES)) {
-    if (lower.includes(city)) return coords;
-  }
-  return null;
-}
-
 export default function PastJourneys() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [aiParsing, setAiParsing] = useState(false);
 
   const { data: pastTrips = [], isLoading } = useQuery<PastTrip[]>({
     queryKey: ["/api/past-trips"],
@@ -77,35 +37,6 @@ export default function PastJourneys() {
       return res.json();
     },
     retry: false,
-  });
-
-  const bulkImportMutation = useMutation({
-    mutationFn: async (trips: Omit<PastTrip, "id">[]) => {
-      const res = await fetch("/api/past-trips/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ trips }),
-      });
-      if (res.status === 401) throw new Error("401: Unauthorized");
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/past-trips"] });
-      toast({
-        title: "Import Successful",
-        description: `Successfully imported ${Array.isArray(data) ? data.length : 0} trips.`,
-      });
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
-        window.location.href = "/api/login";
-        return;
-      }
-      toast({ title: "Import Failed", description: "Could not import trips. Check your file format.", variant: "destructive" });
-    },
   });
 
   const deleteTripMutation = useMutation({
@@ -133,65 +64,54 @@ export default function PastJourneys() {
 
   const uniqueCountries = new Set(pastTrips.map(t => t.country).filter(Boolean));
 
-  const handleUploadComplete = (files: File[]) => {
+  const handleUploadComplete = async (files: File[]) => {
     if (files.length === 0) return;
 
     const file = files[0];
-    const reader = new FileReader();
+    setAiParsing(true);
 
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (!text) {
-        toast({ title: "Error", description: "Could not read file.", variant: "destructive" });
-        return;
-      }
+    try {
+      const text = await file.text();
 
-      const result = Papa.parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (h: string) => h.trim().toLowerCase(),
+      const res = await fetch("/api/past-trips/ai-parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ csvText: text }),
       });
 
-      if (result.errors.length > 0 && result.data.length === 0) {
-        toast({ title: "Parse Error", description: "Could not parse the file. Make sure it's a valid CSV.", variant: "destructive" });
+      if (res.status === 401) {
+        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
+        window.location.href = "/api/login";
         return;
       }
 
-      const trips = (result.data as Record<string, string>[]).map((row) => {
-        const destination = row.destination || row.city || row.place || row.location || "";
-        const country = row.country || row.nation || "";
-        const startDate = row.start_date || row.startdate || row.date || row.start || row.when || "";
-        const endDate = row.end_date || row.enddate || row.end || "";
-        const notes = row.notes || row.note || row.description || "";
-        const lat = row.lat || row.latitude || "";
-        const lng = row.lng || row.longitude || row.lon || "";
+      const data = await res.json();
 
-        const coords = (lat && lng) ? { lat, lng } : guessCoordinates(destination);
-
-        return {
-          destination: destination.trim(),
-          country: country.trim() || null,
-          startDate: startDate.trim() || null,
-          endDate: endDate.trim() || null,
-          notes: notes.trim() || null,
-          lat: coords?.lat || null,
-          lng: coords?.lng || null,
-        };
-      }).filter(t => t.destination);
-
-      if (trips.length === 0) {
+      if (!res.ok) {
         toast({
-          title: "No trips found",
-          description: "Make sure your CSV has a 'destination' or 'city' column.",
+          title: "Import Issue",
+          description: data.message || "Could not parse the file.",
           variant: "destructive",
         });
         return;
       }
 
-      bulkImportMutation.mutate(trips as any);
-    };
-
-    reader.readAsText(file);
+      queryClient.invalidateQueries({ queryKey: ["/api/past-trips"] });
+      toast({
+        title: "Import Successful",
+        description: `AI extracted ${Array.isArray(data) ? data.length : 0} trips from your file.`,
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Import Failed",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiParsing(false);
+    }
   };
 
   return (
@@ -253,14 +173,17 @@ export default function PastJourneys() {
 
                  <Card>
                    <CardHeader>
-                     <CardTitle className="text-lg font-serif">Import Guide</CardTitle>
+                     <CardTitle className="text-lg font-serif flex items-center gap-2">
+                       <Sparkles className="h-4 w-4 text-primary" /> AI-Powered Import
+                     </CardTitle>
                    </CardHeader>
                    <CardContent className="space-y-3">
-                     <p className="text-sm text-muted-foreground">Your CSV should have columns like:</p>
-                     <div className="bg-muted/30 p-3 rounded-lg text-xs font-mono">
-                       destination, country, start_date, end_date, notes
+                     <p className="text-sm text-muted-foreground">Upload any spreadsheet or CSV — no special formatting needed. AI will automatically detect your destinations, dates, and details.</p>
+                     <div className="bg-muted/30 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
+                       <div>Works with any column names</div>
+                       <div>Auto-detects coordinates for map pins</div>
+                       <div>Supports messy or informal data</div>
                      </div>
-                     <p className="text-xs text-muted-foreground">We'll try to automatically place your destinations on the map. You can also include <span className="font-mono">lat</span> and <span className="font-mono">lng</span> columns for exact positioning.</p>
                    </CardContent>
                  </Card>
               </div>
@@ -276,11 +199,28 @@ export default function PastJourneys() {
                 <TabsContent value="import">
                   <Card className="border-sidebar-border">
                     <CardHeader>
-                      <CardTitle className="font-serif text-lg">Import History</CardTitle>
-                      <CardDescription>Add trips from CSV spreadsheets</CardDescription>
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        Import History
+                        {aiParsing && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                      </CardTitle>
+                      <CardDescription>
+                        {aiParsing
+                          ? "AI is reading your file and extracting trip data..."
+                          : "Upload any spreadsheet — AI handles the rest"}
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <FileUpload onUploadComplete={handleUploadComplete} />
+                      {aiParsing ? (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                          <div className="relative">
+                            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                          </div>
+                          <p className="text-sm text-muted-foreground text-center">Analyzing your spreadsheet with AI...</p>
+                          <p className="text-xs text-muted-foreground text-center">Identifying destinations, dates, and coordinates</p>
+                        </div>
+                      ) : (
+                        <FileUpload onUploadComplete={handleUploadComplete} />
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
