@@ -226,7 +226,7 @@ JOURNEY fields (for creating a full trip plan):
 - dates: Date range string like "Jun 15 - Jun 22, 2024" or "Flexible (7 days)" if no exact dates
 - days: Number of days (integer, calculate from dates if possible, or estimate based on destination)
 - cost: Budget string like "$2,500" — use any budget/cost/price data from the spreadsheet, or provide a realistic estimate for the destination and duration
-- status: "Completed" for past trips, "Planning" for future trips
+- status: Default to "Completed" unless the data clearly indicates a future trip. When in doubt, use "Completed" since users are importing their travel history.
 - progress: 100 for completed, 0 for planning
 - destinations: Array of destination strings like ["Paris, France", "Lyon, France"]
 - destination_type: One of these categories that best describes the destination: "city", "beach", "mountain", "historic", "nature", "desert", "coastal", "urban" (used to select a matching photo)
