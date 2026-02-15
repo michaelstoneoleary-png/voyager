@@ -11,6 +11,7 @@ import Intel from "@/pages/Intel";
 import Journeys from "@/pages/Journeys";
 import Explore from "@/pages/Explore";
 import Community from "@/pages/Community";
+import PastJourneys from "@/pages/PastJourneys";
 import { UserProvider } from "@/lib/UserContext";
 
 function Router() {
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/journeys" component={Journeys} />
       <Route path="/community" component={Community} />
       <Route path="/explore" component={Explore} />
+      <Route path="/history" component={PastJourneys} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>

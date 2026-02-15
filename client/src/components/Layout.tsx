@@ -10,7 +10,8 @@ import {
   X,
   Globe,
   Thermometer,
-  Users
+  Users,
+  History
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/intel", label: "Travel Intel", icon: Info },
     { href: "/explore", label: "Explore", icon: Compass },
     { href: "/journeys", label: "Your Journeys", icon: Globe },
+    { href: "/history", label: "Past Journeys", icon: History },
     { href: "/community", label: "Community", icon: Users },
   ];
 
