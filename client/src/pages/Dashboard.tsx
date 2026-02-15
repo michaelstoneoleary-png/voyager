@@ -3,21 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { 
   Calendar, 
   MapPin, 
-  ArrowRight, 
   CloudSun, 
   CheckCircle2, 
   Plus, 
   Wallet,
-  MoreHorizontal,
-  Sparkles,
-  Lightbulb,
-  ArrowUpRight
 } from "lucide-react";
-import { useUser } from "@/lib/UserContext";
 import { useAuth } from "@/hooks/use-auth";
 import { useTrips } from "@/lib/TripContext";
 import heroTravel from "@/assets/hero-travel.png";
@@ -25,7 +18,6 @@ import { NewTripDialog } from "@/components/NewTripDialog";
 import { useState } from "react";
 
 export default function Dashboard() {
-  const { formatTemp } = useUser();
   const { user } = useAuth();
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
   const { trips } = useTrips();
@@ -57,20 +49,6 @@ export default function Dashboard() {
                <Plus className="mr-2 h-5 w-5" /> Start New Journey
             </Button>
           </div>
-
-        {/* Ultra-Compact Synergy Alert */}
-        <div className="flex items-center justify-between bg-amber-50/50 dark:bg-amber-950/10 border border-amber-200/50 dark:border-amber-900/30 rounded-full px-4 py-2 text-sm shadow-sm hover:shadow-md transition-all cursor-pointer group">
-           <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
-             <Sparkles className="h-4 w-4 text-amber-500 fill-amber-500/20" />
-             <span className="font-medium">Synergy Detected:</span>
-             <span className="text-muted-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
-               Opportunity: Add <span className="font-semibold text-amber-900 dark:text-amber-100">Cinque Terre</span> (+2 days). Costs +$350 now, but saves <span className="font-bold">$1,200</span> on future flights.
-             </span>
-           </div>
-           <Button variant="ghost" size="sm" className="h-6 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-full px-3">
-             View Details <ArrowRight className="ml-1 h-3 w-3" />
-           </Button>
-        </div>
 
         {/* Main Content Area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -114,9 +92,9 @@ export default function Dashboard() {
 
                      <div className="grid grid-cols-2 gap-4">
                         <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Weather</span>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Duration</span>
                           <div className="font-medium flex items-center gap-2">
-                            <CloudSun className="h-4 w-4 text-amber-500" /> {formatTemp(18)} Sunny
+                            <Calendar className="h-4 w-4 text-primary" /> {activeTrip.days} days
                           </div>
                         </div>
                         <div className="bg-muted/30 p-3 rounded-lg border border-border">
@@ -149,65 +127,76 @@ export default function Dashboard() {
               </Card>
             )}
 
-            {/* Quick Stats / Upcoming Tasks */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {activeTrip && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="hover:shadow-sm transition-shadow">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Pending Actions</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Planning Progress</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex gap-3 items-center">
-                        <div className="h-2 w-2 rounded-full bg-destructive" />
-                        <span className="text-sm font-medium">Book Rila Monastery shuttle</span>
+                     <div className="flex items-end justify-between mb-2">
+                       <span className="text-2xl font-bold">{activeTrip.progress}%</span>
+                       <span className="text-xs text-muted-foreground">{activeTrip.status}</span>
+                     </div>
+                     <Progress value={activeTrip.progress} className="h-2" />
+                  </CardContent>
+                </Card>
+
+                <Card className="hover:shadow-sm transition-shadow">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Trip Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Duration</span>
+                        <span className="font-medium">{activeTrip.days} days</span>
                       </div>
-                      <div className="flex gap-3 items-center">
-                        <div className="h-2 w-2 rounded-full bg-amber-500" />
-                        <span className="text-sm text-muted-foreground">Review travel insurance options</span>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Budget</span>
+                        <span className="font-medium">{activeTrip.cost}</span>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-
-                <Card className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Packing Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                     <div className="flex items-end justify-between mb-2">
-                       <span className="text-2xl font-bold">45%</span>
-                       <span className="text-xs text-muted-foreground">12 items remaining</span>
-                     </div>
-                     <Progress value={45} className="h-2" />
-                  </CardContent>
-                </Card>
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column: Mini Widgets (1/3 width) */}
           <div className="space-y-6">
-            <Card className="bg-sidebar border-sidebar-border">
-              <CardHeader>
-                <CardTitle className="font-serif text-lg">Travel Intel</CardTitle>
-                <CardDescription>Latest updates for your destinations</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-3 bg-background rounded-lg border border-border">
-                   <div className="flex items-center justify-between mb-1">
-                     <span className="text-xs font-bold text-primary">Bulgaria</span>
-                     <span className="text-[10px] text-muted-foreground">2h ago</span>
-                   </div>
-                   <p className="text-sm text-muted-foreground">Public transport strike expected on Oct 15 in Sofia. Check alternative routes.</p>
-                </div>
-                <div className="p-3 bg-background rounded-lg border border-border">
-                   <div className="flex items-center justify-between mb-1">
-                     <span className="text-xs font-bold text-primary">Currency</span>
-                     <span className="text-[10px] text-muted-foreground">Live</span>
-                   </div>
-                   <p className="text-sm text-muted-foreground">1 USD = 1.78 BGN. Favorable rate compared to last month.</p>
-                </div>
-              </CardContent>
-            </Card>
+            {trips.length > 0 ? (
+              <Card className="bg-sidebar border-sidebar-border">
+                <CardHeader>
+                  <CardTitle className="font-serif text-lg">Your Journeys</CardTitle>
+                  <CardDescription>Quick overview of your plans</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {trips.slice(0, 3).map(trip => (
+                    <div key={trip.id} className="p-3 bg-background rounded-lg border border-border">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-primary">{trip.title}</span>
+                        <Badge variant="outline" className="text-[10px]">{trip.status}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{trip.dates} &middot; {trip.days} days</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-sidebar border-sidebar-border">
+                <CardHeader>
+                  <CardTitle className="font-serif text-lg">Getting Started</CardTitle>
+                  <CardDescription>Begin your travel planning journey</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Create your first journey to start seeing travel insights, packing lists, and more.</p>
+                  <Button onClick={() => setIsNewTripOpen(true)} variant="outline" className="w-full" data-testid="button-get-started">
+                    <Plus className="mr-2 h-4 w-4" /> Plan Your First Trip
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
               <CardHeader>
