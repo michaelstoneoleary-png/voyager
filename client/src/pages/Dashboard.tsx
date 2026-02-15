@@ -85,6 +85,7 @@ export default function Dashboard() {
                      </h2>
                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
                        <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {TRIP_DATA.dates}</span>
+                       <span className="flex items-center gap-1"><MapPin className="h-4 w-4" /> From {TRIP_DATA.origin} ({TRIP_DATA.timeDifference})</span>
                        <span className="flex items-center gap-1"><Wallet className="h-4 w-4" /> $1,850 Est.</span>
                      </div>
                    </div>
