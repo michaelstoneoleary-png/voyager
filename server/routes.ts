@@ -290,7 +290,9 @@ export async function registerRoutes(
 
 The data may come from a spreadsheet with MULTIPLE TABS (marked with "=== Tab: TabName ==="). Each tab may contain different destinations or trip details. Process ALL tabs.
 
-The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", "Budget", "Cost", "Notes", "Comments", etc. The tab names themselves may indicate the destination or trip.
+IMPORTANT: Determine the logical structure of the trip(s). If multiple tabs appear to be part of ONE journey (e.g. tabs named "Bulgaria", "Serbia" for a Balkans trip, or tabs with itinerary details for different legs of the same trip), consolidate them into a SINGLE journey with multiple destinations. Only create separate journeys if the data clearly represents independent, unrelated trips.
+
+The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", "Budget", "Cost", "Notes", "Comments", etc. The tab names themselves may indicate destinations within the journey.
 
 CRITICAL RULE: Only use data that is ACTUALLY PRESENT in the spreadsheet. Do NOT invent, fabricate, or estimate any values. If a field is not in the data, use null or omit it. The only exceptions are:
 - lat/lng coordinates for well-known cities (these are factual, not estimates)
@@ -298,18 +300,18 @@ CRITICAL RULE: Only use data that is ACTUALLY PRESENT in the spreadsheet. Do NOT
 - country name if clearly implied by the city name
 - seasonality and logistics fields (these are factual reference information about the destination, not personal data)
 
-For EACH trip found, create a JSON object with these fields:
+Create journey JSON objects with these fields:
 
 JOURNEY fields:
-- title: Use the destination name from the data as-is, e.g. "Paris, France" or "Tokyo, Japan" (required). Do NOT invent creative titles.
+- title: A descriptive title based on the actual data. If multiple destinations are part of one trip, combine them (e.g. "Bulgaria & Serbia"). Do NOT invent flowery names — use the real place names from the data.
 - dates: ONLY if dates exist in the data. Otherwise use null.
 - days: ONLY if duration is in the data or calculable from dates. Otherwise use null.
 - cost: ONLY if budget/cost/price data exists in the spreadsheet. Otherwise use null.
 - status: Default to "Completed" unless the data clearly indicates a future trip.
 - progress: 100 for completed, 0 for planning
-- destinations: Array of destination strings from the data like ["Paris, France"]
-- destination_type: One of: "city", "beach", "mountain", "historic", "nature", "desert", "coastal", "urban"
-- seasonality: JSON object with factual destination reference info:
+- destinations: Array of ALL destination strings from ALL tabs that belong to this journey, e.g. ["Sofia, Bulgaria", "Belgrade, Serbia", "Nis, Serbia"]. Include every specific place, city, or stop mentioned.
+- destination_type: One of: "city", "beach", "mountain", "historic", "nature", "desert", "coastal", "urban" (pick the dominant type)
+- seasonality: JSON object with factual destination reference info for the primary destination:
   - best_months: array of best month names to visit
   - peak_season: string describing peak season
   - shoulder_season: string describing shoulder season
@@ -317,13 +319,13 @@ JOURNEY fields:
 - logistics: JSON object with factual destination reference info:
   - travel_tips: array of 2-3 practical travel tips
   - visa: visa requirements for US travelers
-  - currency: local currency name and code
-  - timezone: timezone string
-  - language: primary language spoken
+  - currency: local currency name(s) and code(s) — list all if the journey spans multiple countries
+  - timezone: timezone string(s)
+  - language: primary language(s) spoken
   - budget_notes: ONLY include if budget info exists in the spreadsheet data. Otherwise omit this field entirely.
 - notes: ONLY include notes/comments/ratings that are actually in the spreadsheet data. Do NOT fabricate notes.
 
-PAST TRIP fields (for map pins):
+PAST TRIP fields (for map pins — create one per unique city/place):
 - destination: The city or place name from the data (required)
 - country: The country (infer from city if obvious)
 - startDate: ONLY if in the data, otherwise null
@@ -339,7 +341,8 @@ Return a JSON object with two arrays:
 }
 
 Rules:
-- Every imported row should create BOTH a journey AND a past trip entry
+- Consolidate related tabs/destinations into ONE journey when they are clearly part of the same trip
+- Create a SEPARATE past trip entry (map pin) for each unique city/destination mentioned across all tabs
 - NEVER fabricate costs, budgets, dates, durations, or personal notes
 - Preserve ALL data from the original spreadsheet exactly as it appears
 - Seasonality and logistics are factual reference data about destinations — these are OK to include
