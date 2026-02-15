@@ -54,7 +54,7 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with PostgreSQL dialect
 - **Connection**: `node-postgres` (pg) Pool via `DATABASE_URL` environment variable
 - **Schema** (in `shared/`):
-  - `users` — User profiles (required for Replit Auth)
+  - `users` — User profiles with preferences, social accounts, and publish blog toggle (required for Replit Auth)
   - `sessions` — Session storage (required for Replit Auth)
   - `journeys` — Trip/journey records with JSONB fields for seasonality, price alerts, logistics
   - `past_trips` — Historical trip records with lat/lng coordinates
