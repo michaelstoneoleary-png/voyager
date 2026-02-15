@@ -208,31 +208,77 @@ export async function registerRoutes(
         return res.status(400).json({ message: "csvText is required" });
       }
 
-      const parsed_csv = Papa.parse(csvText.trim(), {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: false,
-      });
+      const hasMultipleTabs = csvText.includes("=== Tab:");
+      let truncated: string;
 
-      const rows = parsed_csv.data as Record<string, string>[];
-      if (!rows || rows.length === 0) {
-        return res.status(400).json({ message: "No data rows found in the file." });
+      if (hasMultipleTabs) {
+        const tabSections = csvText.split(/(?==== Tab:)/).filter(s => s.trim());
+        const cleanedTabs: string[] = [];
+        let totalRows = 0;
+
+        for (const section of tabSections) {
+          const lines = section.trim().split("\n");
+          const tabHeader = lines[0];
+          const tabCsv = lines.slice(1).join("\n").trim();
+          if (!tabCsv) continue;
+
+          const parsed_csv = Papa.parse(tabCsv, {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: false,
+          });
+
+          const rows = (parsed_csv.data as Record<string, string>[]).filter(row =>
+            Object.values(row).some(v => v && String(v).trim() !== "")
+          );
+          if (rows.length === 0) continue;
+          totalRows += rows.length;
+
+          const headers = parsed_csv.meta.fields || Object.keys(rows[0] || {});
+          const maxRows = Math.min(rows.length, 100);
+          const sampledRows = rows.slice(0, maxRows);
+          const rebuilt = [
+            tabHeader,
+            headers.join(","),
+            ...sampledRows.map(row => headers.map(h => {
+              const val = String(row[h] || "").trim();
+              return val.includes(",") ? `"${val}"` : val;
+            }).join(","))
+          ].join("\n");
+          cleanedTabs.push(rebuilt);
+        }
+
+        truncated = cleanedTabs.join("\n\n").slice(0, 80000);
+        console.log(`AI Parse: multi-tab spreadsheet, ${tabSections.length} tabs, ${totalRows} total rows, sending ${truncated.length} chars to AI`);
+      } else {
+        const parsed_csv = Papa.parse(csvText.trim(), {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false,
+        });
+
+        const rows = (parsed_csv.data as Record<string, string>[]).filter(row =>
+          Object.values(row).some(v => v && String(v).trim() !== "")
+        );
+        if (!rows || rows.length === 0) {
+          return res.status(400).json({ message: "No data rows found in the file." });
+        }
+
+        const headers = parsed_csv.meta.fields || Object.keys(rows[0] || {});
+        const maxRows = Math.min(rows.length, 200);
+        const sampledRows = rows.slice(0, maxRows);
+
+        const csvSummary = [
+          headers.join(","),
+          ...sampledRows.map(row => headers.map(h => {
+            const val = String(row[h] || "").trim();
+            return val.includes(",") ? `"${val}"` : val;
+          }).join(","))
+        ].join("\n");
+
+        truncated = csvSummary.slice(0, 80000);
+        console.log(`AI Parse: single sheet, ${rows.length} total rows, sending ${sampledRows.length} rows (${truncated.length} chars) to AI`);
       }
-
-      const headers = parsed_csv.meta.fields || Object.keys(rows[0] || {});
-      const maxRows = Math.min(rows.length, 200);
-      const sampledRows = rows.slice(0, maxRows);
-
-      const csvSummary = [
-        headers.join(","),
-        ...sampledRows.map(row => headers.map(h => {
-          const val = String(row[h] || "").trim();
-          return val.includes(",") ? `"${val}"` : val;
-        }).join(","))
-      ].join("\n");
-
-      const truncated = csvSummary.slice(0, 50000);
-      console.log(`AI Parse: ${rows.length} total rows, sending ${sampledRows.length} rows (${truncated.length} chars) to AI`);
 
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
@@ -240,9 +286,11 @@ export async function registerRoutes(
         messages: [
           {
             role: "user",
-            content: `You are a travel data extraction assistant. Parse the following spreadsheet/CSV data and extract travel trip information.
+            content: `You are a travel data extraction assistant. Parse the following spreadsheet data and extract travel trip information.
 
-The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", "Budget", "Cost", "Notes", "Comments", etc.
+The data may come from a spreadsheet with MULTIPLE TABS (marked with "=== Tab: TabName ==="). Each tab may contain different destinations or trip details. Process ALL tabs.
+
+The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", "Budget", "Cost", "Notes", "Comments", etc. The tab names themselves may indicate the destination or trip.
 
 CRITICAL RULE: Only use data that is ACTUALLY PRESENT in the spreadsheet. Do NOT invent, fabricate, or estimate any values. If a field is not in the data, use null or omit it. The only exceptions are:
 - lat/lng coordinates for well-known cities (these are factual, not estimates)

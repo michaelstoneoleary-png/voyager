@@ -70,8 +70,15 @@ export default function PastJourneys() {
     if (ext === "xlsx" || ext === "xls") {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      return XLSX.utils.sheet_to_csv(firstSheet);
+      const parts: string[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(sheet);
+        if (csv.trim()) {
+          parts.push(`=== Tab: ${sheetName} ===\n${csv}`);
+        }
+      }
+      return parts.join("\n\n");
     }
     return await file.text();
   };
