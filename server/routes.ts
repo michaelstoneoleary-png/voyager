@@ -151,27 +151,39 @@ export async function registerRoutes(
             role: "user",
             content: `You are a premium travel curator data extraction assistant. Parse the following spreadsheet/CSV data and extract travel trip information.
 
-The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", etc.
+The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", "Budget", "Cost", "Notes", "Comments", etc.
 
 For EACH trip found, create a JSON object with these fields:
 
 JOURNEY fields (for creating a full trip plan):
-- title: A compelling journey title, e.g. "Journey to Paris" or "Mediterranean Escape" (required)
+- title: A compelling, editorial journey title, e.g. "Parisian Sojourn" or "Mediterranean Escape" (required)
 - dates: Date range string like "Jun 15 - Jun 22, 2024" or "Flexible (7 days)" if no exact dates
-- days: Number of days (integer, estimate from dates or default to 5)
-- cost: Budget estimate string like "$2,500" — estimate based on destination if not in data
-- status: "Planning" for future trips, "Completed" for past trips
-- progress: 0 for planning, 100 for completed
+- days: Number of days (integer, calculate from dates if possible, or estimate based on destination)
+- cost: Budget string like "$2,500" — use any budget/cost/price data from the spreadsheet, or provide a realistic estimate for the destination and duration
+- status: "Completed" for past trips, "Planning" for future trips
+- progress: 100 for completed, 0 for planning
 - destinations: Array of destination strings like ["Paris, France", "Lyon, France"]
-- seasonality: JSON object with best_months (array of month names), peak_season, shoulder_season, and a tip string about the destination
-- logistics: JSON object with travel tips, visa info, currency, and timezone for the destination
+- destination_type: One of these categories that best describes the destination: "city", "beach", "mountain", "historic", "nature", "desert", "coastal", "urban" (used to select a matching photo)
+- seasonality: JSON object with:
+  - best_months: array of best month names to visit
+  - peak_season: string describing peak season
+  - shoulder_season: string describing shoulder season
+  - tip: A curated insider tip about when to visit
+- logistics: JSON object with:
+  - travel_tips: array of 2-3 practical travel tips
+  - visa: visa requirements for US travelers
+  - currency: local currency name and code
+  - timezone: timezone string
+  - language: primary language spoken
+  - budget_notes: any budget-related notes, deals, or cost warnings from the data
+- notes: any special notes, comments, ratings, or personal annotations from the spreadsheet data
 
-PAST TRIP fields (for the travel history timeline):
+PAST TRIP fields (for the travel history timeline and map):
 - destination: The city or place name (required)
 - country: The country
 - startDate: When the trip started
 - endDate: When the trip ended
-- notes: Any additional details
+- notes: Any notes, comments, ratings, or special details from the data
 - lat: Latitude (provide for well-known cities even if not in data)
 - lng: Longitude (provide for well-known cities even if not in data)
 
@@ -183,9 +195,11 @@ Return a JSON object with two arrays:
 
 Rules:
 - Every imported row should create BOTH a journey AND a past trip entry
+- ALWAYS preserve any budget, cost, price, notes, comments, ratings, or special annotations from the original data
 - For well-known cities, always provide lat/lng coordinates
 - For seasonality, use your knowledge of the destination's climate and tourism patterns
-- For logistics, include practical travel information
+- For logistics, include practical, actionable travel information
+- For destination_type, choose the category that best represents the primary vibe of the destination
 - Skip rows that don't appear to be travel destinations
 - Return ONLY the JSON object, no other text
 
@@ -217,8 +231,27 @@ ${truncated}`,
       const createdPastTrips: any[] = [];
 
       if (Array.isArray(parsed.journeys) && parsed.journeys.length > 0) {
+        const DESTINATION_IMAGES: Record<string, string> = {
+          city: "/images/destinations/city.jpg",
+          beach: "/images/destinations/beach.jpg",
+          mountain: "/images/destinations/mountain.jpg",
+          historic: "/images/destinations/historic.jpg",
+          nature: "/images/destinations/nature.jpg",
+          desert: "/images/destinations/desert.jpg",
+          coastal: "/images/destinations/coastal.jpg",
+          urban: "/images/destinations/urban.jpg",
+        };
+
         const journeyRecords: any[] = [];
         for (const j of parsed.journeys) {
+          const destType = String(j.destination_type || "city").toLowerCase();
+          const image = DESTINATION_IMAGES[destType] || DESTINATION_IMAGES.city;
+
+          const budgetNotes = j.logistics?.budget_notes || j.notes || null;
+          const logistics = typeof j.logistics === "object" && j.logistics !== null
+            ? { ...j.logistics, budget_notes: budgetNotes ? String(budgetNotes) : j.logistics.budget_notes || null }
+            : null;
+
           const candidate = {
             userId,
             title: j.title ? String(j.title).trim() : "",
@@ -227,10 +260,11 @@ ${truncated}`,
             cost: j.cost ? String(j.cost).trim() : "TBD",
             status: ["Planning", "Completed", "Confirmed"].includes(j.status) ? j.status : "Completed",
             progress: j.status === "Completed" || j.progress === 100 ? 100 : Math.max(0, Math.min(100, Number(j.progress) || 0)),
+            image,
             destinations: Array.isArray(j.destinations) ? j.destinations.map(String) : [],
             seasonality: typeof j.seasonality === "object" && j.seasonality !== null ? j.seasonality : null,
             priceAlert: null,
-            logistics: typeof j.logistics === "object" && j.logistics !== null ? j.logistics : null,
+            logistics,
           };
           if (!candidate.title) continue;
           try {

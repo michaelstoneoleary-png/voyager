@@ -25,6 +25,8 @@ import { NewTripDialog } from "@/components/NewTripDialog";
 import { Link } from "wouter";
 import { useTrips } from "@/lib/TripContext";
 
+const DEFAULT_IMAGE = "/images/destinations/city.jpg";
+
 export default function Journeys() {
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
   const { trips } = useTrips();
@@ -75,7 +77,7 @@ export default function Journeys() {
                     <Card className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors flex flex-col h-full text-left">
                       <div className="aspect-[16/9] relative overflow-hidden">
                         <img 
-                          src={trip.image} 
+                          src={trip.image || DEFAULT_IMAGE} 
                           alt={trip.title} 
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
@@ -125,7 +127,7 @@ export default function Journeys() {
                   <DialogContent className="sm:max-w-[600px] overflow-hidden p-0">
                     <div className="relative h-48 w-full">
                       <img 
-                        src={trip.image} 
+                        src={trip.image || DEFAULT_IMAGE} 
                         alt={trip.title} 
                         className="absolute inset-0 w-full h-full object-cover"
                       />
@@ -145,23 +147,40 @@ export default function Journeys() {
                     <div className="p-6 space-y-6">
                       {/* Seasonality Insight */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {trip.seasonality && (
                         <div className="bg-muted/30 rounded-xl p-4 border border-border">
                            <div className="flex items-center justify-between mb-2">
                              <h4 className="font-medium flex items-center gap-2 text-primary">
                                <Info className="h-4 w-4" /> Seasonality
                              </h4>
-                             <Badge variant={trip.seasonality.type === "Peak Season" ? "destructive" : "secondary"} className="font-mono text-[10px]">
-                               {trip.seasonality.weatherIcon} {trip.seasonality.type}
-                             </Badge>
+                             {(trip.seasonality as any).peak_season ? (
+                               <Badge variant="secondary" className="font-mono text-[10px]">
+                                 {(trip.seasonality as any).peak_season}
+                               </Badge>
+                             ) : (trip.seasonality as any).type && (
+                               <Badge variant={(trip.seasonality as any).type === "Peak Season" ? "destructive" : "secondary"} className="font-mono text-[10px]">
+                                 {(trip.seasonality as any).weatherIcon} {(trip.seasonality as any).type}
+                               </Badge>
+                             )}
                            </div>
                            <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
-                             {trip.seasonality.description}
+                             {(trip.seasonality as any).tip || (trip.seasonality as any).description || ""}
                            </p>
-                           <div className="flex items-center gap-2 text-xs font-medium bg-background/50 p-2 rounded-lg w-fit">
-                             <Users className="h-3 w-3 text-muted-foreground" />
-                             Crowds: <span className={trip.seasonality.crowdLevel.includes("High") ? "text-orange-600" : "text-emerald-600"}>{trip.seasonality.crowdLevel}</span>
-                           </div>
+                           {(trip.seasonality as any).best_months && (
+                             <div className="flex flex-wrap gap-1 mb-2">
+                               {((trip.seasonality as any).best_months as string[]).slice(0, 4).map((m: string) => (
+                                 <Badge key={m} variant="outline" className="text-[10px]">{m}</Badge>
+                               ))}
+                             </div>
+                           )}
+                           {(trip.seasonality as any).crowdLevel && (
+                             <div className="flex items-center gap-2 text-xs font-medium bg-background/50 p-2 rounded-lg w-fit">
+                               <Users className="h-3 w-3 text-muted-foreground" />
+                               Crowds: <span className={(trip.seasonality as any).crowdLevel?.includes("High") ? "text-orange-600" : "text-emerald-600"}>{(trip.seasonality as any).crowdLevel}</span>
+                             </div>
+                           )}
                         </div>
+                        )}
 
                         <div className="space-y-4">
                            {/* Price Alert Widget */}
@@ -189,15 +208,57 @@ export default function Journeys() {
 
                            {/* Logistics Mini-Grid */}
                            {trip.logistics && (
-                             <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                                  <span className="text-[10px] uppercase text-muted-foreground font-bold">Visa</span>
-                                  <p className="text-sm font-medium">{trip.logistics?.visa}</p>
-                                </div>
-                                <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                                  <span className="text-[10px] uppercase text-muted-foreground font-bold">Health</span>
-                                  <p className="text-sm font-medium">{trip.logistics?.health}</p>
-                                </div>
+                             <div className="space-y-3">
+                               <div className="grid grid-cols-2 gap-3">
+                                  {(trip.logistics as any)?.visa && (
+                                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Visa</span>
+                                      <p className="text-sm font-medium">{(trip.logistics as any).visa}</p>
+                                    </div>
+                                  )}
+                                  {(trip.logistics as any)?.currency && (
+                                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Currency</span>
+                                      <p className="text-sm font-medium">{(trip.logistics as any).currency}</p>
+                                    </div>
+                                  )}
+                                  {(trip.logistics as any)?.timezone && (
+                                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Timezone</span>
+                                      <p className="text-sm font-medium">{(trip.logistics as any).timezone}</p>
+                                    </div>
+                                  )}
+                                  {(trip.logistics as any)?.language && (
+                                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Language</span>
+                                      <p className="text-sm font-medium">{(trip.logistics as any).language}</p>
+                                    </div>
+                                  )}
+                                  {(trip.logistics as any)?.health && (
+                                    <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Health</span>
+                                      <p className="text-sm font-medium">{(trip.logistics as any).health}</p>
+                                    </div>
+                                  )}
+                               </div>
+                               {(trip.logistics as any)?.budget_notes && (
+                                 <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                                   <span className="text-[10px] uppercase text-amber-700 dark:text-amber-400 font-bold">Budget Notes</span>
+                                   <p className="text-sm text-amber-900 dark:text-amber-200">{(trip.logistics as any).budget_notes}</p>
+                                 </div>
+                               )}
+                               {Array.isArray((trip.logistics as any)?.travel_tips) && (trip.logistics as any).travel_tips.length > 0 && (
+                                 <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                   <span className="text-[10px] uppercase text-muted-foreground font-bold mb-2 block">Travel Tips</span>
+                                   <ul className="text-sm text-muted-foreground space-y-1">
+                                     {((trip.logistics as any).travel_tips as string[]).map((tip: string, idx: number) => (
+                                       <li key={idx} className="flex items-start gap-2">
+                                         <span className="text-primary mt-0.5">•</span> {tip}
+                                       </li>
+                                     ))}
+                                   </ul>
+                                 </div>
+                               )}
                              </div>
                            )}
                         </div>
@@ -246,7 +307,7 @@ export default function Journeys() {
                 <Card key={trip.id} className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-80 hover:opacity-100">
                   <div className="aspect-[16/9] relative overflow-hidden">
                     <img 
-                      src={trip.image} 
+                      src={trip.image || DEFAULT_IMAGE} 
                       alt={trip.title} 
                       className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
                     />
