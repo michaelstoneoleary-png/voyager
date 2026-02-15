@@ -66,8 +66,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => {
             const isActive = location === item.href;
             return (
-              <Link key={item.href} href={item.href}>
-                <a className={cn(
+              <Link key={item.href} href={item.href} className={cn(
                   "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group",
                   isActive 
                     ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
@@ -75,7 +74,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 )}>
                   <item.icon className={cn("h-5 w-5", isActive ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
                   {item.label}
-                </a>
               </Link>
             );
           })}
