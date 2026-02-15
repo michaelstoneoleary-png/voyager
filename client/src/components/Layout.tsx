@@ -11,7 +11,8 @@ import {
   Globe,
   Thermometer,
   Users,
-  History
+  History,
+  LogOut
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -27,11 +28,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useUser } from "@/lib/UserContext";
+import { useAuth } from "@/hooks/use-auth";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { settings, updateSettings } = useUser();
+  const { user, logout } = useAuth();
+
+  const userInitials = user
+    ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
+    : "U";
+  const userName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || "Traveler"
+    : "Traveler";
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -48,7 +58,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-sidebar/50 backdrop-blur-md sticky top-0 z-50">
         <h1 className="font-serif text-xl font-bold tracking-tight text-primary">VOYAGER</h1>
-        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} data-testid="button-mobile-menu">
           {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
       </div>
@@ -84,58 +94,75 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 px-4 py-3">
-            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-serif font-bold">
-              JE
-            </div>
-            <div className="text-sm">
-              <p className="font-medium text-foreground">Jennifer Eztler</p>
-              <p className="text-xs text-muted-foreground">Pro Member</p>
+            {user?.profileImageUrl ? (
+              <img
+                src={user.profileImageUrl}
+                alt={userName}
+                className="h-8 w-8 rounded-full object-cover"
+                data-testid="img-avatar"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-serif font-bold" data-testid="text-avatar-initials">
+                {userInitials}
+              </div>
+            )}
+            <div className="text-sm flex-1 min-w-0">
+              <p className="font-medium text-foreground truncate" data-testid="text-username">{userName}</p>
+              <p className="text-xs text-muted-foreground">Member</p>
             </div>
             
-            <Dialog>
-              <DialogTrigger asChild>
-                <Settings className="ml-auto h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground" />
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle className="font-serif">Settings</DialogTitle>
-                  <DialogDescription>
-                    Customize your Voyager experience.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-4">
-                    <h4 className="font-medium leading-none flex items-center gap-2">
-                      <Thermometer className="h-4 w-4" /> Temperature Unit
-                    </h4>
-                    <RadioGroup 
-                      defaultValue={settings.temperatureUnit} 
-                      onValueChange={(val) => updateSettings({ temperatureUnit: val as 'C' | 'F' })}
-                      className="grid grid-cols-2 gap-4"
-                    >
-                      <div>
-                        <RadioGroupItem value="C" id="celsius" className="peer sr-only" />
-                        <Label
-                          htmlFor="celsius"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <span className="text-lg font-bold">Celsius (°C)</span>
-                        </Label>
-                      </div>
-                      <div>
-                        <RadioGroupItem value="F" id="fahrenheit" className="peer sr-only" />
-                        <Label
-                          htmlFor="fahrenheit"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <span className="text-lg font-bold">Fahrenheit (°F)</span>
-                        </Label>
-                      </div>
-                    </RadioGroup>
+            <div className="flex items-center gap-1">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button data-testid="button-settings">
+                    <Settings className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle className="font-serif">Settings</DialogTitle>
+                    <DialogDescription>
+                      Customize your Voyager experience.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-4">
+                      <h4 className="font-medium leading-none flex items-center gap-2">
+                        <Thermometer className="h-4 w-4" /> Temperature Unit
+                      </h4>
+                      <RadioGroup 
+                        defaultValue={settings.temperatureUnit} 
+                        onValueChange={(val) => updateSettings({ temperatureUnit: val as 'C' | 'F' })}
+                        className="grid grid-cols-2 gap-4"
+                      >
+                        <div>
+                          <RadioGroupItem value="C" id="celsius" className="peer sr-only" />
+                          <Label
+                            htmlFor="celsius"
+                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          >
+                            <span className="text-lg font-bold">Celsius (°C)</span>
+                          </Label>
+                        </div>
+                        <div>
+                          <RadioGroupItem value="F" id="fahrenheit" className="peer sr-only" />
+                          <Label
+                            htmlFor="fahrenheit"
+                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                          >
+                            <span className="text-lg font-bold">Fahrenheit (°F)</span>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+
+              <button onClick={() => logout()} data-testid="button-logout" title="Log out">
+                <LogOut className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-destructive transition-colors" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>

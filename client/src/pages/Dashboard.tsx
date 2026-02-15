@@ -18,6 +18,7 @@ import {
   ArrowUpRight
 } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
+import { useAuth } from "@/hooks/use-auth";
 import { useTrips } from "@/lib/TripContext";
 import heroTravel from "@/assets/hero-travel.png";
 import { NewTripDialog } from "@/components/NewTripDialog";
@@ -25,10 +26,11 @@ import { useState } from "react";
 
 export default function Dashboard() {
   const { formatTemp } = useUser();
+  const { user } = useAuth();
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
   const { trips } = useTrips();
 
-  // Find the first upcoming trip to feature
+  const firstName = user?.firstName || "Traveler";
   const activeTrip = trips.find(t => t.status === "Upcoming" || t.status === "Planning") || trips[0];
 
   return (
@@ -43,13 +45,14 @@ export default function Dashboard() {
           {/* Header with Start New Trip */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="font-serif text-3xl font-bold">Welcome back, Jennifer</h1>
+              <h1 className="font-serif text-3xl font-bold" data-testid="text-welcome">Welcome back, {firstName}</h1>
               <p className="text-muted-foreground text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
             <Button 
               size="lg" 
               className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
               onClick={() => setIsNewTripOpen(true)}
+              data-testid="button-new-journey"
             >
                <Plus className="mr-2 h-5 w-5" /> Start New Journey
             </Button>
@@ -87,7 +90,7 @@ export default function Dashboard() {
               <Card className="overflow-hidden border-sidebar-border shadow-md group relative">
                 <div className="absolute top-0 right-0 w-1/2 h-full">
                    <img 
-                     src={activeTrip.image} 
+                     src={activeTrip.image || heroTravel} 
                      alt="Travel" 
                      className="w-full h-full object-cover opacity-60 mask-image-linear-to-l" 
                    />
@@ -100,7 +103,7 @@ export default function Dashboard() {
                        <Badge className="mb-2 bg-accent text-accent-foreground border-0">
                          {activeTrip.status === "Upcoming" ? "12 Days to Departure" : "In Planning Phase"}
                        </Badge>
-                       <h2 className="font-serif text-4xl font-bold text-foreground mb-2">
+                       <h2 className="font-serif text-4xl font-bold text-foreground mb-2" data-testid="text-active-trip-title">
                          {activeTrip.title}
                        </h2>
                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -141,7 +144,7 @@ export default function Dashboard() {
                     <h3 className="text-lg font-medium">No Active Journeys</h3>
                     <p className="text-muted-foreground">Start planning your next adventure today.</p>
                   </div>
-                  <Button onClick={() => setIsNewTripOpen(true)}>Create New Journey</Button>
+                  <Button onClick={() => setIsNewTripOpen(true)} data-testid="button-create-journey">Create New Journey</Button>
                 </div>
               </Card>
             )}

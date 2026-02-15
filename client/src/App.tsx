@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
+import LandingPage from "@/pages/LandingPage";
 import TripPlanner from "@/pages/TripPlanner";
 import PackingList from "@/pages/PackingList";
 import Intel from "@/pages/Intel";
@@ -14,19 +15,57 @@ import Community from "@/pages/Community";
 import PastJourneys from "@/pages/PastJourneys";
 import { UserProvider } from "@/lib/UserContext";
 import { TripProvider } from "@/lib/TripContext";
+import { useAuth } from "@/hooks/use-auth";
+import { Loader2 } from "lucide-react";
+
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    window.location.href = "/api/login";
+    return null;
+  }
+
+  return <Component />;
+}
+
+function HomePage() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
+
+  return <Dashboard />;
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/planner" component={TripPlanner} />
-      <Route path="/packing" component={PackingList} />
-      <Route path="/intel" component={Intel} />
-      <Route path="/journeys" component={Journeys} />
-      <Route path="/community" component={Community} />
-      <Route path="/explore" component={Explore} />
-      <Route path="/history" component={PastJourneys} />
-      {/* Fallback to 404 */}
+      <Route path="/" component={HomePage} />
+      <Route path="/planner">{() => <ProtectedRoute component={TripPlanner} />}</Route>
+      <Route path="/packing">{() => <ProtectedRoute component={PackingList} />}</Route>
+      <Route path="/intel">{() => <ProtectedRoute component={Intel} />}</Route>
+      <Route path="/journeys">{() => <ProtectedRoute component={Journeys} />}</Route>
+      <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
+      <Route path="/explore">{() => <ProtectedRoute component={Explore} />}</Route>
+      <Route path="/history">{() => <ProtectedRoute component={PastJourneys} />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
