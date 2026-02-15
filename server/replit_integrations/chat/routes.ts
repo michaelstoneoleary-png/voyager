@@ -3,6 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { chatStorage } from "./storage";
 import { isAuthenticated, getUserId } from "../auth";
+import { storage } from "../../storage";
+import type { User } from "@shared/schema";
 
 const createConversationSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -43,7 +45,35 @@ Guidelines:
 - When making recommendations, explain WHY something is great, not just that it is
 - If you don't know something specific (like current prices), say so honestly and suggest where to check
 - Always consider the traveler's safety and comfort
-- Be culturally sensitive and respectful in all recommendations`;
+- Be culturally sensitive and respectful in all recommendations
+- Use the traveler's preferred units, currency, and date format when giving specific information`;
+
+function buildPersonalizedPrompt(user: User | undefined): string {
+  if (!user) return TRAVEL_ADVISOR_SYSTEM_PROMPT;
+
+  const details: string[] = [];
+
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  if (name) details.push(`Name: ${name}`);
+  if (user.homeLocation) details.push(`Home location: ${user.homeLocation}`);
+  if (user.passportCountry) details.push(`Passport country: ${user.passportCountry}`);
+  if (user.temperatureUnit) details.push(`Preferred temperature unit: ${user.temperatureUnit === "C" ? "Celsius" : "Fahrenheit"}`);
+  if (user.currency) details.push(`Preferred currency: ${user.currency}`);
+  if (user.distanceUnit) details.push(`Preferred distance unit: ${user.distanceUnit === "km" ? "kilometers" : "miles"}`);
+  if (user.dateFormat) details.push(`Preferred date format: ${user.dateFormat}`);
+  if (user.travelStyles && Array.isArray(user.travelStyles) && user.travelStyles.length > 0) {
+    details.push(`Travel style preferences: ${user.travelStyles.join(", ")}`);
+  }
+
+  if (details.length === 0) return TRAVEL_ADVISOR_SYSTEM_PROMPT;
+
+  return `${TRAVEL_ADVISOR_SYSTEM_PROMPT}
+
+## About This Traveler
+${details.join("\n")}
+
+Use this information to personalize your recommendations. For example, suggest destinations reachable from their home location, use their preferred currency for cost estimates, tailor suggestions to their travel style, and consider their passport for visa requirements. Address them by their first name naturally in conversation.`;
+}
 
 export function registerChatRoutes(app: Express): void {
   app.get("/api/conversations", isAuthenticated, async (req: Request, res: Response) => {
@@ -121,11 +151,16 @@ export function registerChatRoutes(app: Express): void {
 
       await chatStorage.createMessage(conversationId, "user", content);
 
-      const messages = await chatStorage.getMessagesByConversation(conversationId);
+      const [messages, user] = await Promise.all([
+        chatStorage.getMessagesByConversation(conversationId),
+        storage.getUser(userId),
+      ]);
       const chatMessages = messages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       }));
+
+      const systemPrompt = buildPersonalizedPrompt(user);
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -134,7 +169,7 @@ export function registerChatRoutes(app: Express): void {
       const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-5",
         max_tokens: 4096,
-        system: TRAVEL_ADVISOR_SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: chatMessages,
       });
 
