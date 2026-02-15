@@ -16,6 +16,7 @@ import { useTrips } from "@/lib/TripContext";
 import heroTravel from "@/assets/hero-travel.png";
 import { NewTripDialog } from "@/components/NewTripDialog";
 import { useState } from "react";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -23,7 +24,8 @@ export default function Dashboard() {
   const { trips } = useTrips();
 
   const firstName = user?.firstName || "Traveler";
-  const activeTrip = trips.find(t => t.status === "Upcoming" || t.status === "Planning") || trips[0];
+  const planningTrip = trips.find(t => t.status === "Upcoming" || t.status === "Planning");
+  const activeTrip = planningTrip || trips[0];
 
   return (
     <>
@@ -57,7 +59,7 @@ export default function Dashboard() {
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between">
                <h3 className="font-serif text-xl font-bold flex items-center gap-2">
-                 <MapPin className="h-5 w-5 text-primary" /> Current Focus
+                 <MapPin className="h-5 w-5 text-primary" /> {planningTrip ? "Current Focus" : "Recent Journey"}
                </h3>
                <div className="text-xs text-muted-foreground">
                  Last edited 2 hours ago
@@ -78,8 +80,8 @@ export default function Dashboard() {
                 <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row gap-8">
                   <div className="flex-1 space-y-6">
                      <div>
-                       <Badge className="mb-2 bg-accent text-accent-foreground border-0">
-                         {activeTrip.status === "Upcoming" ? "12 Days to Departure" : "In Planning Phase"}
+                       <Badge className={`mb-2 border-0 ${activeTrip.status === "Completed" ? "bg-emerald-100 text-emerald-800" : "bg-accent text-accent-foreground"}`}>
+                         {activeTrip.status === "Completed" ? "Completed Journey" : activeTrip.status === "Upcoming" ? "Upcoming Trip" : "In Planning Phase"}
                        </Badge>
                        <h2 className="font-serif text-4xl font-bold text-foreground mb-2" data-testid="text-active-trip-title">
                          {activeTrip.title}
@@ -100,14 +102,23 @@ export default function Dashboard() {
                         <div className="bg-muted/30 p-3 rounded-lg border border-border">
                           <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</span>
                           <div className="font-medium flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-primary" /> {activeTrip.progress}% Ready
+                            <CheckCircle2 className="h-4 w-4 text-primary" /> {activeTrip.status === "Completed" ? "Completed" : `${activeTrip.progress}% Ready`}
                           </div>
                         </div>
                      </div>
 
                      <div className="flex gap-3 pt-2">
-                       <Button className="shadow-sm">Open Itinerary</Button>
-                       <Button variant="outline">View Packing List</Button>
+                       {activeTrip.status === "Completed" ? (
+                         <>
+                           <Link href="/journeys"><Button className="shadow-sm">View Journey</Button></Link>
+                           <Button variant="outline" onClick={() => setIsNewTripOpen(true)}>Plan New Trip</Button>
+                         </>
+                       ) : (
+                         <>
+                           <Button className="shadow-sm">Open Itinerary</Button>
+                           <Button variant="outline">View Packing List</Button>
+                         </>
+                       )}
                      </div>
                   </div>
                 </div>
