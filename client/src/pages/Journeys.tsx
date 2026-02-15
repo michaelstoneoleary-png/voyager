@@ -23,6 +23,8 @@ import {
 import { useState } from "react";
 import { NewTripDialog } from "@/components/NewTripDialog";
 
+import { Link } from "wouter";
+
 // Assets - using what we have available
 import kyotoImg from "@/assets/kyoto.png";
 import tuscanyImg from "@/assets/tuscany.png";
@@ -32,7 +34,7 @@ import heroTravel from "@/assets/hero-travel.png";
 export default function Journeys() {
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
 
-  const upcomingTrips = [
+  const upcomingJourneys = [
     {
       id: "trip-1",
       title: "Balkan Odyssey",
@@ -116,7 +118,7 @@ export default function Journeys() {
     }
   ];
 
-  const pastTrips = [
+  const pastJourneys = [
     {
       id: "trip-4",
       title: "Patagonia Trek",
@@ -167,12 +169,12 @@ export default function Journeys() {
         <Tabs defaultValue="upcoming" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
             <TabsTrigger value="upcoming">Upcoming & Planning</TabsTrigger>
-            <TabsTrigger value="past">Past Trips</TabsTrigger>
+            <TabsTrigger value="past">Past Journeys</TabsTrigger>
           </TabsList>
 
           <TabsContent value="upcoming" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingTrips.map(trip => (
+              {upcomingJourneys.map(trip => (
                 <Dialog key={trip.id}>
                   <DialogTrigger asChild>
                     <Card className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors flex flex-col h-full text-left">
@@ -330,8 +332,18 @@ export default function Journeys() {
           </TabsContent>
 
           <TabsContent value="past" className="space-y-6">
+            <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg border border-border">
+               <div>
+                 <h3 className="font-medium">Manage Your Travel History</h3>
+                 <p className="text-sm text-muted-foreground">Import trips from spreadsheets, visualize your world map, and see your travel stats.</p>
+               </div>
+               <Link href="/history">
+                 <Button variant="outline">Manage Past Journeys</Button>
+               </Link>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pastTrips.map(trip => (
+              {pastJourneys.map(trip => (
                 <Card key={trip.id} className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-80 hover:opacity-100">
                   <div className="aspect-[16/9] relative overflow-hidden">
                     <img 
