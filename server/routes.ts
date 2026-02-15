@@ -215,43 +215,49 @@ export async function registerRoutes(
         messages: [
           {
             role: "user",
-            content: `You are a premium travel curator data extraction assistant. Parse the following spreadsheet/CSV data and extract travel trip information.
+            content: `You are a travel data extraction assistant. Parse the following spreadsheet/CSV data and extract travel trip information.
 
 The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", "Budget", "Cost", "Notes", "Comments", etc.
 
+CRITICAL RULE: Only use data that is ACTUALLY PRESENT in the spreadsheet. Do NOT invent, fabricate, or estimate any values. If a field is not in the data, use null or omit it. The only exceptions are:
+- lat/lng coordinates for well-known cities (these are factual, not estimates)
+- destination_type category (factual classification)
+- country name if clearly implied by the city name
+- seasonality and logistics fields (these are factual reference information about the destination, not personal data)
+
 For EACH trip found, create a JSON object with these fields:
 
-JOURNEY fields (for creating a full trip plan):
-- title: A compelling, editorial journey title, e.g. "Parisian Sojourn" or "Mediterranean Escape" (required)
-- dates: Date range string like "Jun 15 - Jun 22, 2024" or "Flexible (7 days)" if no exact dates
-- days: Number of days (integer, calculate from dates if possible, or estimate based on destination)
-- cost: Budget string like "$2,500" — use any budget/cost/price data from the spreadsheet, or provide a realistic estimate for the destination and duration
-- status: Default to "Completed" unless the data clearly indicates a future trip. When in doubt, use "Completed" since users are importing their travel history.
+JOURNEY fields:
+- title: Use the destination name from the data as-is, e.g. "Paris, France" or "Tokyo, Japan" (required). Do NOT invent creative titles.
+- dates: ONLY if dates exist in the data. Otherwise use null.
+- days: ONLY if duration is in the data or calculable from dates. Otherwise use null.
+- cost: ONLY if budget/cost/price data exists in the spreadsheet. Otherwise use null.
+- status: Default to "Completed" unless the data clearly indicates a future trip.
 - progress: 100 for completed, 0 for planning
-- destinations: Array of destination strings like ["Paris, France", "Lyon, France"]
-- destination_type: One of these categories that best describes the destination: "city", "beach", "mountain", "historic", "nature", "desert", "coastal", "urban" (used to select a matching photo)
-- seasonality: JSON object with:
+- destinations: Array of destination strings from the data like ["Paris, France"]
+- destination_type: One of: "city", "beach", "mountain", "historic", "nature", "desert", "coastal", "urban"
+- seasonality: JSON object with factual destination reference info:
   - best_months: array of best month names to visit
   - peak_season: string describing peak season
   - shoulder_season: string describing shoulder season
-  - tip: A curated insider tip about when to visit
-- logistics: JSON object with:
+  - tip: A practical tip about when to visit
+- logistics: JSON object with factual destination reference info:
   - travel_tips: array of 2-3 practical travel tips
   - visa: visa requirements for US travelers
   - currency: local currency name and code
   - timezone: timezone string
   - language: primary language spoken
-  - budget_notes: any budget-related notes, deals, or cost warnings from the data
-- notes: any special notes, comments, ratings, or personal annotations from the spreadsheet data
+  - budget_notes: ONLY include if budget info exists in the spreadsheet data. Otherwise omit this field entirely.
+- notes: ONLY include notes/comments/ratings that are actually in the spreadsheet data. Do NOT fabricate notes.
 
-PAST TRIP fields (for the travel history timeline and map):
-- destination: The city or place name (required)
-- country: The country
-- startDate: When the trip started
-- endDate: When the trip ended
-- notes: Any notes, comments, ratings, or special details from the data
-- lat: Latitude (provide for well-known cities even if not in data)
-- lng: Longitude (provide for well-known cities even if not in data)
+PAST TRIP fields (for map pins):
+- destination: The city or place name from the data (required)
+- country: The country (infer from city if obvious)
+- startDate: ONLY if in the data, otherwise null
+- endDate: ONLY if in the data, otherwise null
+- notes: ONLY if in the data, otherwise null
+- lat: Latitude for well-known cities (factual)
+- lng: Longitude for well-known cities (factual)
 
 Return a JSON object with two arrays:
 {
@@ -261,11 +267,9 @@ Return a JSON object with two arrays:
 
 Rules:
 - Every imported row should create BOTH a journey AND a past trip entry
-- ALWAYS preserve any budget, cost, price, notes, comments, ratings, or special annotations from the original data
-- For well-known cities, always provide lat/lng coordinates
-- For seasonality, use your knowledge of the destination's climate and tourism patterns
-- For logistics, include practical, actionable travel information
-- For destination_type, choose the category that best represents the primary vibe of the destination
+- NEVER fabricate costs, budgets, dates, durations, or personal notes
+- Preserve ALL data from the original spreadsheet exactly as it appears
+- Seasonality and logistics are factual reference data about destinations — these are OK to include
 - Skip rows that don't appear to be travel destinations
 - Return ONLY the JSON object, no other text
 
@@ -318,9 +322,9 @@ ${truncated}`,
           const candidate = {
             userId,
             title: j.title ? String(j.title).trim() : "",
-            dates: j.dates ? String(j.dates).trim() : "TBD",
-            days: Math.max(1, Math.min(365, Number(j.days) || 5)),
-            cost: j.cost ? String(j.cost).trim() : "TBD",
+            dates: j.dates ? String(j.dates).trim() : null,
+            days: j.days ? Math.max(1, Math.min(365, Number(j.days))) : null,
+            cost: j.cost ? String(j.cost).trim() : null,
             status: ["Planning", "Completed", "Confirmed"].includes(j.status) ? j.status : "Completed",
             progress: j.status === "Completed" || j.progress === 100 ? 100 : Math.max(0, Math.min(100, Number(j.progress) || 0)),
             image,

@@ -105,11 +105,11 @@ export default function Journeys() {
                         
                         <div className="text-sm text-muted-foreground mb-4 space-y-1">
                            <div className="flex items-center gap-2">
-                             <Calendar className="h-3.5 w-3.5" /> {trip.dates}
+                             <Calendar className="h-3.5 w-3.5" /> {trip.dates || "No dates"}
                            </div>
                            <div className="flex items-center gap-4">
-                              <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {trip.days} Days</span>
-                              <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {trip.cost}</span>
+                              {trip.days && <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {trip.days} Days</span>}
+                              {trip.cost && <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {trip.cost}</span>}
                            </div>
                         </div>
 
@@ -138,8 +138,8 @@ export default function Journeys() {
                         </Badge>
                         <DialogTitle className="font-serif text-3xl font-bold text-white">{trip.title}</DialogTitle>
                         <div className="flex items-center gap-4 text-sm mt-1 opacity-90">
-                           <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {trip.dates}</span>
-                           <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {trip.days} Days</span>
+                           <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {trip.dates || "No dates"}</span>
+                           {trip.days && <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {trip.days} Days</span>}
                         </div>
                       </div>
                     </div>
@@ -314,12 +314,12 @@ export default function Journeys() {
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
                     <div className="absolute bottom-3 left-3 text-white">
                       <h4 className="font-serif text-lg font-bold">{trip.title}</h4>
-                      <p className="text-xs opacity-80">{trip.dates}</p>
+                      <p className="text-xs opacity-80">{trip.dates || ""}</p>
                     </div>
                   </div>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{trip.days} Days</span> • {trip.cost}
+                      {trip.days && <span className="font-medium text-foreground">{trip.days} Days</span>}{trip.days && trip.cost && " • "}{trip.cost || ""}
                     </div>
                     <Badge variant="outline" className="text-xs">
                       {trip.status}
