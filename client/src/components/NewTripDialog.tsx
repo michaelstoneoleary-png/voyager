@@ -400,7 +400,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
             {step === 1 ? "Cancel" : <><ArrowLeft className="mr-2 h-4 w-4" /> Back</>}
           </Button>
           
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 mr-4">
               {[1, 2, 3].map((i) => (
                 <div 
