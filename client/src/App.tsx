@@ -93,7 +93,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/onboarding" component={OnboardingRoute} />
-      <Route path="/planner">{() => <ProtectedRoute component={TripPlanner} />}</Route>
+      <Route path="/planner/:id">{() => <ProtectedRoute component={TripPlanner} />}</Route>
       <Route path="/packing">{() => <ProtectedRoute component={PackingList} />}</Route>
       <Route path="/intel">{() => <ProtectedRoute component={Intel} />}</Route>
       <Route path="/journeys">{() => <ProtectedRoute component={Journeys} />}</Route>

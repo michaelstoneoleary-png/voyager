@@ -37,7 +37,7 @@ export interface Trip {
 
 interface TripContextType {
   trips: Trip[];
-  addTrip: (trip: Omit<Trip, 'id' | 'image' | 'progress' | 'seasonality' | 'priceAlert' | 'logistics'>) => void;
+  addTrip: (trip: Omit<Trip, 'id' | 'image' | 'progress' | 'seasonality' | 'priceAlert' | 'logistics'>, onSuccess?: (journey: Trip) => void) => void;
   deleteTrip: (id: string) => void;
   isLoading: boolean;
 }
@@ -121,8 +121,12 @@ export function TripProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const addTrip = (tripData: Omit<Trip, 'id' | 'image' | 'progress' | 'seasonality' | 'priceAlert' | 'logistics'>) => {
-    addMutation.mutate(tripData);
+  const addTrip = (tripData: Omit<Trip, 'id' | 'image' | 'progress' | 'seasonality' | 'priceAlert' | 'logistics'>, onSuccess?: (journey: Trip) => void) => {
+    addMutation.mutate(tripData, {
+      onSuccess: (data) => {
+        if (onSuccess) onSuccess(data);
+      }
+    });
   };
 
   const deleteTrip = (id: string) => {

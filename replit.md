@@ -30,9 +30,9 @@ Preferred communication style: Simple, everyday language.
 - **Key Pages**: 
   - Landing page (public, unauthenticated)
   - Dashboard (authenticated home)
-  - Trip Planner (itinerary builder with map)
-  - Smart Pack (packing list manager)
-  - Travel Intel (cultural/safety info)
+  - Trip Planner at `/planner/:id` (AI-generated itinerary builder with interactive map, per-journey)
+  - Smart Pack (standalone AI-powered packing list generator)
+  - Travel Intel (cultural/safety info, accessible from journey details)
   - Journeys (trip management)
   - Past Journeys (trip history with file upload and map)
   - Explore (discover destinations)
@@ -56,7 +56,8 @@ Preferred communication style: Simple, everyday language.
 - **Schema** (in `shared/`):
   - `users` — User profiles with preferences, social accounts, and publish blog toggle (required for Replit Auth)
   - `sessions` — Session storage (required for Replit Auth)
-  - `journeys` — Trip/journey records with JSONB fields for seasonality, price alerts, logistics
+  - `journeys` — Trip/journey records with JSONB fields for seasonality, price alerts, logistics, itinerary
+  - `bookmarks` — User-saved community feed articles
   - `past_trips` — Historical trip records with lat/lng coordinates
   - `conversations` — Chat conversation records
   - `messages` — Chat messages linked to conversations
@@ -70,7 +71,7 @@ Preferred communication style: Simple, everyday language.
 
 3. **JSONB columns for flexible data**: Journey records use JSONB for seasonality, price alerts, and logistics data, allowing flexible schema evolution without migrations.
 
-4. **Mock data for prototyping**: `client/src/lib/mock-data.ts` contains detailed mock trip data used for UI development. Real data flows through the API.
+4. **AI-generated itineraries**: Trip Planner uses Claude 3.5 Sonnet to generate structured day-by-day itineraries with real place coordinates, stored as JSONB in the journeys table. The `mock-data.ts` file is legacy and no longer used by TripPlanner.
 
 5. **Context + React Query hybrid**: React Context handles local UI state (temperature units, etc.) while React Query manages server-synchronized data with caching.
 

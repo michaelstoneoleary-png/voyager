@@ -201,6 +201,94 @@ export async function registerRoutes(
     }
   });
 
+  // Generate AI Itinerary
+  app.post("/api/journeys/:id/generate-itinerary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const user = await storage.getUser(userId);
+      const destinations = journey.destinations?.join(", ") || "unspecified destination";
+      const days = journey.days || 7;
+      const budget = journey.cost || "flexible";
+      const currency = user?.currency || "USD";
+
+      const anthropicClient = new Anthropic({
+        apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+      });
+
+      const response = await anthropicClient.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 4096,
+        messages: [{
+          role: "user",
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip to ${destinations}. Budget: ${budget} ${currency}.
+
+Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
+{
+  "days": [
+    {
+      "day": 1,
+      "date_label": "Day 1",
+      "location": "City Name",
+      "activities": [
+        {
+          "time": "09:00",
+          "title": "Activity Name",
+          "type": "culture|food|logistics|nature|shopping|nightlife|relaxation",
+          "duration": "2 hours",
+          "description": "Brief description",
+          "cost": "Free or estimated cost",
+          "tip": "Optional insider tip",
+          "lat": 42.6977,
+          "lng": 23.3219
+        }
+      ]
+    }
+  ],
+  "summary": "Brief trip summary"
+}
+
+Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, and local experiences. Use the actual correct coordinates for each place.`
+        }],
+      });
+
+      const textContent = response.content.find(c => c.type === "text");
+      if (!textContent || textContent.type !== "text") {
+        return res.status(500).json({ message: "No response from AI" });
+      }
+
+      let itinerary;
+      try {
+        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        itinerary = JSON.parse(cleaned);
+      } catch {
+        return res.status(422).json({ message: "AI returned an invalid itinerary format. Please try again." });
+      }
+
+      if (!itinerary?.days || !Array.isArray(itinerary.days) || itinerary.days.length === 0) {
+        return res.status(422).json({ message: "AI itinerary is missing day data. Please try again." });
+      }
+
+      for (const day of itinerary.days) {
+        if (!day.activities || !Array.isArray(day.activities)) {
+          day.activities = [];
+        }
+        if (!day.location) day.location = "Unknown";
+        if (!day.day) day.day = itinerary.days.indexOf(day) + 1;
+        if (!day.date_label) day.date_label = `Day ${day.day}`;
+      }
+
+      const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error generating itinerary:", error);
+      res.status(500).json({ message: "Failed to generate itinerary" });
+    }
+  });
+
   // Past Trips CRUD
   app.get("/api/past-trips", isAuthenticated, async (req: any, res) => {
     try {

@@ -112,7 +112,6 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   };
 
   const handleFinish = () => {
-    // Generate dates string
     let datesStr = "TBD";
     if (formData.dateType === "fixed" && formData.startDate) {
       const start = new Date(formData.startDate);
@@ -122,7 +121,6 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       datesStr = `Flexible (${formData.duration} days)`;
     }
 
-    // Add trip to context
     addTrip({
       title: formData.destinations.length > 0 ? `Journey to ${formData.destinations[0]}` : "New Adventure",
       dates: datesStr,
@@ -130,20 +128,17 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
       status: "Planning",
       destinations: formData.destinations
+    }, (journey) => {
+      onOpenChange(false);
+      toast({
+        title: "Journey Created",
+        description: "Redirecting you to the trip planner...",
+      });
+      setTimeout(() => {
+        setStep(1);
+        setLocation(`/planner/${journey.id}`);
+      }, 300);
     });
-
-    onOpenChange(false);
-    
-    toast({
-      title: "Journey Created",
-      description: "Redirecting you to the trip planner...",
-    });
-
-    // Reset form for next time
-    setTimeout(() => {
-      setStep(1);
-      setLocation("/planner");
-    }, 300); 
   };
 
   return (

@@ -265,9 +265,11 @@ export default function Journeys() {
                       </div>
 
                       <div className="flex gap-3 pt-2">
-                        <Button className="flex-1 bg-primary hover:bg-primary/90">
-                          Edit Itinerary
-                        </Button>
+                        <Link href={`/planner/${trip.id}`}>
+                          <Button className="flex-1 bg-primary hover:bg-primary/90">
+                            Edit Itinerary
+                          </Button>
+                        </Link>
                         <Button variant="outline" className="flex-1">View Bookings</Button>
                       </div>
                     </div>

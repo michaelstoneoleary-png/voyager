@@ -186,7 +186,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {recentJourneys.map((journey) => {
                 const isPlanning = journey.status !== "Completed";
                 return (
-                  <Link key={journey.id} href={isPlanning ? "/journeys" : "/history"}>
+                  <Link key={journey.id} href={isPlanning ? `/planner/${journey.id}` : "/history"}>
                     <div
                       className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md transition-all duration-200 cursor-pointer group"
                       onClick={() => setIsMobileMenuOpen(false)}
