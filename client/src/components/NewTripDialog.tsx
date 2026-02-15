@@ -73,7 +73,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
     // Step 2: Budget & Prefs
     budgetType: "estimated", // estimated | fixed | later
-    budgetAmount: 2500,
+    budgetAmount: "" as string | number,
     preferences: { ...USER_DEFAULTS.preferences },
 
     // Step 3: Destinations
@@ -127,7 +127,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       title: formData.destinations.length > 0 ? `Journey to ${formData.destinations[0]}` : "New Adventure",
       dates: datesStr,
       days: formData.duration,
-      cost: formData.budgetType === "later" ? "TBD" : `$${formData.budgetAmount}`,
+      cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
       status: "Planning",
       destinations: formData.destinations
     });
@@ -327,8 +327,9 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
                      <Input 
                        type="number" 
                        className="pl-9" 
+                       placeholder="2500"
                        value={formData.budgetAmount}
-                       onChange={(e) => setFormData({...formData, budgetAmount: parseInt(e.target.value) || 0})}
+                       onChange={(e) => setFormData({...formData, budgetAmount: e.target.value === "" ? "" : parseInt(e.target.value)})}
                      />
                    </div>
                  </div>

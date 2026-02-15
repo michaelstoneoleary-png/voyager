@@ -21,6 +21,7 @@ export const journeys = pgTable("journeys", {
   seasonality: jsonb("seasonality"),
   priceAlert: jsonb("price_alert"),
   logistics: jsonb("logistics"),
+  itinerary: jsonb("itinerary"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
