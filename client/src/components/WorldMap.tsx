@@ -15,7 +15,7 @@ const DefaultIcon = new Icon({
 
 export function WorldMap({ places = [] }: { places?: { lat: number; lng: number; name: string; date?: string }[] }) {
   return (
-    <div className="h-[400px] w-full rounded-lg overflow-hidden border border-border shadow-sm relative z-0">
+    <div className="h-full w-full rounded-lg overflow-hidden border border-border shadow-sm relative z-0">
       <MapContainer 
         center={[20, 0]} 
         zoom={2} 

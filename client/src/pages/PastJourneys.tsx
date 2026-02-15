@@ -57,11 +57,81 @@ export default function PastJourneys() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Map Area */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="overflow-hidden border-sidebar-border">
-              <CardHeader className="pb-2">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="overview">Overview & Timeline</TabsTrigger>
+            <TabsTrigger value="map">World Map</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column: Stats & Import */}
+              <div className="space-y-6">
+                 <Card>
+                   <CardHeader>
+                     <CardTitle className="text-lg font-serif">Travel Stats</CardTitle>
+                   </CardHeader>
+                   <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <span className="text-sm text-muted-foreground">Continents</span>
+                        <span className="font-bold">4 / 7</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <span className="text-sm text-muted-foreground">Countries</span>
+                        <span className="font-bold">12</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <span className="text-sm text-muted-foreground">Total Distance</span>
+                        <span className="font-bold">42,503 km</span>
+                      </div>
+                   </CardContent>
+                 </Card>
+
+                <Card className="border-sidebar-border">
+                  <CardHeader>
+                    <CardTitle className="font-serif text-lg">Import History</CardTitle>
+                    <CardDescription>Add trips from spreadsheets</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FileUpload onUploadComplete={handleUploadComplete} />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right Column: Timeline */}
+              <div className="lg:col-span-2">
+                <Card className="border-sidebar-border h-full flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="font-serif text-lg">Timeline</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 p-0">
+                    <ScrollArea className="h-[600px]">
+                      <div className="px-6 pb-6 space-y-6">
+                        {[...visitedPlaces].sort((a, b) => (a.date > b.date ? -1 : 1)).map((place, i) => (
+                          <div key={i} className="relative pl-8 border-l border-border last:border-0 pb-8 last:pb-0">
+                             <div className="absolute left-[-5px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
+                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                               <div className="text-lg font-medium">{place.name}</div>
+                               <Badge variant="outline" className="w-fit flex items-center gap-1">
+                                 <Calendar className="h-3 w-3" /> {place.date}
+                               </Badge>
+                             </div>
+                             <p className="text-sm text-muted-foreground">
+                               Trip to {place.name}. Imported from travel history.
+                             </p>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="map" className="space-y-6">
+            <Card className="overflow-hidden border-sidebar-border h-[600px] flex flex-col">
+              <CardHeader className="pb-2 flex-none">
                  <div className="flex items-center justify-between">
                    <CardTitle className="font-serif text-xl flex items-center gap-2">
                      <Globe className="h-5 w-5 text-primary" /> World Map
@@ -69,68 +139,14 @@ export default function PastJourneys() {
                    <Badge variant="secondary" className="font-mono">{visitedPlaces.length} Cities Visited</Badge>
                  </div>
               </CardHeader>
-              <CardContent className="p-0">
-                <WorldMap places={visitedPlaces} />
+              <CardContent className="p-0 flex-1 relative">
+                <div className="absolute inset-0">
+                  <WorldMap places={visitedPlaces} />
+                </div>
               </CardContent>
             </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <Card>
-                 <CardHeader>
-                   <CardTitle className="text-lg font-serif">Travel Stats</CardTitle>
-                 </CardHeader>
-                 <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Continents</span>
-                      <span className="font-bold">4 / 7</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Countries</span>
-                      <span className="font-bold">12</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Total Distance</span>
-                      <span className="font-bold">42,503 km</span>
-                    </div>
-                 </CardContent>
-               </Card>
-            </div>
-          </div>
-
-          {/* Sidebar: Upload & List */}
-          <div className="space-y-6">
-            <Card className="border-sidebar-border">
-              <CardHeader>
-                <CardTitle className="font-serif text-lg">Import History</CardTitle>
-                <CardDescription>Add trips from spreadsheets</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FileUpload onUploadComplete={handleUploadComplete} />
-              </CardContent>
-            </Card>
-
-            <Card className="border-sidebar-border h-[400px] flex flex-col">
-              <CardHeader>
-                <CardTitle className="font-serif text-lg">Timeline</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 p-0">
-                <ScrollArea className="h-[300px]">
-                  <div className="px-6 pb-6 space-y-6">
-                    {[...visitedPlaces].sort((a, b) => (a.date > b.date ? -1 : 1)).map((place, i) => (
-                      <div key={i} className="relative pl-6 border-l border-border last:border-0">
-                         <div className="absolute left-[-5px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
-                         <div className="mb-1 text-sm font-medium">{place.name}</div>
-                         <div className="text-xs text-muted-foreground flex items-center gap-1">
-                           <Calendar className="h-3 w-3" /> {place.date}
-                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
