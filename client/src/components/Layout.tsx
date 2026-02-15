@@ -7,7 +7,8 @@ import {
   LayoutDashboard, 
   Settings,
   Menu,
-  X
+  X,
+  Globe
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/packing", label: "Smart Pack", icon: Luggage },
     { href: "/intel", label: "Travel Intel", icon: Info },
     { href: "/explore", label: "Explore", icon: Compass },
+    { href: "/journeys", label: "Your Journeys", icon: Globe },
   ];
 
   return (
