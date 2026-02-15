@@ -9,6 +9,7 @@ import TripPlanner from "@/pages/TripPlanner";
 import PackingList from "@/pages/PackingList";
 import Intel from "@/pages/Intel";
 import Journeys from "@/pages/Journeys";
+import Explore from "@/pages/Explore";
 import { UserProvider } from "@/lib/UserContext";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/packing" component={PackingList} />
       <Route path="/intel" component={Intel} />
       <Route path="/journeys" component={Journeys} />
+      <Route path="/explore" component={Explore} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
