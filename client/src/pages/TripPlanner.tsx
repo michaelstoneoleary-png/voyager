@@ -8,18 +8,35 @@ import { TRIP_DATA } from "@/lib/mock-data";
 import { 
   MapPin, 
   Calendar, 
-  Clock, 
-  Navigation, 
   Car, 
-  Plane, 
-  Utensils, 
-  Camera, 
   Info,
-  ChevronRight,
   Plus
 } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+
+// Fix leaflet icon issue
+import L from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
+
+function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  map.setView(center, zoom);
+  return null;
+}
 
 export default function TripPlanner() {
+  const defaultCenter: [number, number] = [42.6977, 23.3219]; // Sofia
+
   return (
     <Layout>
       <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -103,18 +120,29 @@ export default function TripPlanner() {
 
           {/* Right Column: Map & Details */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-             {/* Map Placeholder */}
+             {/* Map Container */}
              <div className="flex-1 bg-muted rounded-xl border border-border relative overflow-hidden group min-h-[300px]">
-               <div className="absolute inset-0 bg-[url('https://api.mapbox.com/styles/v1/mapbox/outdoors-v11/static/23.3219,42.6977,12,0/800x600@2x?access_token=pk.eyJ1IjoibW9ja3VwIiwiYSI6ImNrdjR6b3F4djJ4aDIydnBtcjR4b3F4djIifQ.mockup')] bg-cover bg-center opacity-80 mix-blend-multiply grayscale-[20%] transition-all duration-700 group-hover:grayscale-0 group-hover:scale-105" />
-               <div className="absolute inset-0 bg-gradient-to-t from-background/50 to-transparent" />
-               
-               {/* Map Markers Overlay (Mock) */}
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-primary rounded-full ring-4 ring-white shadow-lg animate-pulse" />
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -mt-8 bg-white px-3 py-1 rounded shadow-lg text-xs font-bold transform -translate-x-1/2">
-                 Alexander Nevsky Cathedral
-               </div>
-
-               <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg shadow text-xs">
+               <MapContainer center={defaultCenter} zoom={13} scrollWheelZoom={false} className="h-full w-full z-0">
+                  <ChangeView center={defaultCenter} zoom={13} />
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  {/* Sofia Marker */}
+                  <Marker position={[42.6977, 23.3219]}>
+                    <Popup>
+                      <div className="font-serif font-bold">Alexander Nevsky Cathedral</div>
+                      <div className="text-xs">St. Alexander Nevsky Square</div>
+                    </Popup>
+                  </Marker>
+                  
+                  {/* Mock other markers for context */}
+                  <Marker position={[42.693, 23.322]}>
+                    <Popup>Vitosha Blvd</Popup>
+                  </Marker>
+                </MapContainer>
+                
+               <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg shadow text-xs z-[400]">
                  <div className="font-bold">Sofia City Center</div>
                  <div className="text-muted-foreground">Showing Day 1 Route</div>
                </div>

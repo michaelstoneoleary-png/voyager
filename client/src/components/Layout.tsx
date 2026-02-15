@@ -69,10 +69,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-serif font-bold">
-              JD
+              JE
             </div>
             <div className="text-sm">
-              <p className="font-medium text-foreground">Jennifer Doe</p>
+              <p className="font-medium text-foreground">Jennifer Eztler</p>
               <p className="text-xs text-muted-foreground">Pro Member</p>
             </div>
             <Settings className="ml-auto h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground" />
