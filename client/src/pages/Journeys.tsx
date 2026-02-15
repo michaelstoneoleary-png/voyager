@@ -136,7 +136,7 @@ export default function Journeys() {
   ];
 
   return (
-    <Layout>
+    <>
       <NewTripDialog 
         open={isNewTripOpen} 
         onOpenChange={(open) => {
@@ -145,23 +145,24 @@ export default function Journeys() {
         }} 
       />
       
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-3xl font-bold">Your Journeys</h1>
-            <p className="text-muted-foreground">Manage your upcoming adventures and relive past memories.</p>
+      <Layout>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-serif text-3xl font-bold">Your Journeys</h1>
+              <p className="text-muted-foreground">Manage your upcoming adventures and relive past memories.</p>
+            </div>
+            <Button 
+              size="lg" 
+              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              onClick={() => {
+                console.log("Opening new trip dialog");
+                setIsNewTripOpen(true);
+              }}
+            >
+               <Plus className="mr-2 h-5 w-5" /> Start New Journey
+            </Button>
           </div>
-          <Button 
-            size="lg" 
-            className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-            onClick={() => {
-              console.log("Opening new trip dialog");
-              setIsNewTripOpen(true);
-            }}
-          >
-             <Plus className="mr-2 h-5 w-5" /> Start New Journey
-          </Button>
-        </div>
 
         <Tabs defaultValue="upcoming" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
@@ -358,6 +359,7 @@ export default function Journeys() {
           </TabsContent>
         </Tabs>
       </div>
-    </Layout>
+      </Layout>
+    </>
   );
 }
