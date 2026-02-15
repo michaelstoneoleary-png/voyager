@@ -1,172 +1,170 @@
 import { Layout } from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  Wallet,
-  MoreHorizontal,
-  Plus
+  Map, 
+  Heart, 
+  MessageCircle, 
+  Share2,
+  Copy,
+  ArrowRight
 } from "lucide-react";
-import kyotoImg from "@/assets/kyoto.png";
-import tuscanyImg from "@/assets/tuscany.png";
-import patagoniaImg from "@/assets/patagonia.png";
-import heroTravel from "@/assets/hero-travel.png";
+
+// Assets
+import kotor from "@/assets/kotor.png";
+import transylvania from "@/assets/transylvania.png";
+import albania from "@/assets/albania.png";
+
+const JOURNEYS = [
+  {
+    id: 1,
+    title: "Balkan Coastline Explorer",
+    author: {
+      name: "Elena R.",
+      avatar: "https://i.pravatar.cc/150?u=elena",
+      handle: "@elenatravels"
+    },
+    route: "Dubrovnik → Kotor → Budva → Tirana",
+    days: 10,
+    budget: "$$",
+    likes: 1243,
+    image: kotor,
+    tags: ["Coastal", "Relaxing", "History"],
+    description: "A slow travel itinerary along the Adriatic coast, focusing on Venetian architecture and seafood."
+  },
+  {
+    id: 2,
+    title: "Transylvania Roadtrip",
+    author: {
+      name: "Marko J.",
+      avatar: "https://i.pravatar.cc/150?u=marko",
+      handle: "@markoontheroad"
+    },
+    route: "Bucharest → Brasov → Sibiu → Cluj",
+    days: 7,
+    budget: "$",
+    likes: 856,
+    image: transylvania,
+    tags: ["Roadtrip", "Castles", "Nature"],
+    description: "Driving through the heart of Romania. Must-see castles, bear sanctuaries, and scenic mountain roads."
+  },
+  {
+    id: 3,
+    title: "Albanian Riviera Secrets",
+    author: {
+      name: "Sarah & Tom",
+      avatar: "https://i.pravatar.cc/150?u=sarah",
+      handle: "@wanderingduo"
+    },
+    route: "Vlorë → Himarë → Sarandë → Ksamil",
+    days: 14,
+    budget: "$$",
+    likes: 2105,
+    image: albania,
+    tags: ["Beaches", "Summer", "Foodie"],
+    description: "The ultimate guide to the best beaches in Albania, including hidden coves accessible only by boat."
+  }
+];
 
 export default function Journeys() {
-  const upcomingTrips = [
-    {
-      id: "trip-1",
-      title: "Balkan Odyssey",
-      dates: "Oct 12 - Oct 22, 2026",
-      image: heroTravel,
-      days: 10,
-      cost: "$1,850",
-      progress: 85,
-      status: "Upcoming"
-    },
-    {
-      id: "trip-2",
-      title: "Kyoto: Autumn Colors",
-      dates: "Nov 15 - Nov 24, 2026",
-      image: kyotoImg,
-      days: 10,
-      cost: "$3,200",
-      progress: 30,
-      status: "Planning"
-    },
-    {
-      id: "trip-3",
-      title: "Tuscan Wine Tour",
-      dates: "May 20 - May 30, 2027",
-      image: tuscanyImg,
-      days: 11,
-      cost: "$4,500",
-      progress: 10,
-      status: "Dreaming"
-    }
-  ];
-
-  const pastTrips = [
-    {
-      id: "trip-4",
-      title: "Patagonia Trek",
-      dates: "Jan 10 - Jan 24, 2025",
-      image: patagoniaImg,
-      days: 14,
-      cost: "$2,800",
-      progress: 100,
-      status: "Completed"
-    }
-  ];
-
   return (
     <Layout>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-3xl font-bold">Your Journeys</h1>
-            <p className="text-muted-foreground">Manage your upcoming adventures and relive past memories.</p>
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+          <div className="max-w-xl">
+            <h1 className="font-serif text-4xl font-bold mb-3">Community Journeys</h1>
+            <p className="text-muted-foreground text-lg">
+              Explore itineraries crafted by the Voyager community. Clone their routes or find inspiration for your next adventure.
+            </p>
           </div>
-          <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm">
-             <Plus className="mr-2 h-5 w-5" /> Start New Journey
+          <Button>
+            <Map className="h-4 w-4 mr-2" /> Share Your Trip
           </Button>
         </div>
 
-        <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
-            <TabsTrigger value="upcoming">Upcoming & Planning</TabsTrigger>
-            <TabsTrigger value="past">Past Trips</TabsTrigger>
-          </TabsList>
+        {/* Featured Feed */}
+        <div className="grid grid-cols-1 gap-8">
+          {JOURNEYS.map((journey) => (
+            <Card key={journey.id} className="overflow-hidden border-0 bg-card/50 hover:bg-card transition-colors">
+              <div className="flex flex-col md:flex-row">
+                {/* Image Section */}
+                <div className="md:w-2/5 relative h-64 md:h-auto min-h-[300px]">
+                  <img 
+                    src={journey.image} 
+                    alt={journey.title} 
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  <div className="absolute top-4 left-4">
+                     <Badge className="bg-white/90 text-black hover:bg-white backdrop-blur-md">
+                        {journey.days} Days
+                     </Badge>
+                  </div>
+                </div>
 
-          <TabsContent value="upcoming" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingTrips.map(trip => (
-                <Card key={trip.id} className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors flex flex-col h-full">
-                  <div className="aspect-[16/9] relative overflow-hidden">
-                    <img 
-                      src={trip.image} 
-                      alt={trip.title} 
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
-                      <Badge variant="secondary" className="text-[10px] h-5 bg-white/20 text-white border-0 backdrop-blur-sm shadow-sm">
-                        {trip.status}
+                {/* Content Section */}
+                <div className="flex-1 p-6 md:p-8 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarImage src={journey.author.avatar} />
+                          <AvatarFallback>{journey.author.name[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-medium leading-none">{journey.author.name}</p>
+                          <p className="text-xs text-muted-foreground">{journey.author.handle}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="font-mono">
+                        {journey.budget}
                       </Badge>
                     </div>
+
+                    <h3 className="font-serif text-2xl font-bold mb-2">{journey.title}</h3>
+                    <p className="text-muted-foreground mb-4">{journey.description}</p>
+
+                    <div className="flex items-center gap-2 text-sm text-primary font-medium mb-6 bg-primary/5 p-3 rounded-lg w-fit">
+                      <Map className="h-4 w-4" />
+                      {journey.route}
+                    </div>
+
+                    <div className="flex gap-2 mb-6">
+                      {journey.tags.map(tag => (
+                        <Badge key={tag} variant="secondary" className="font-normal">
+                          #{tag}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                  <CardContent className="p-5 flex-1 flex flex-col">
-                    <div className="flex justify-between items-start mb-2">
-                       <h3 className="font-serif text-xl font-bold leading-tight group-hover:text-primary transition-colors">{trip.title}</h3>
-                       <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-1 text-muted-foreground">
-                         <MoreHorizontal className="h-4 w-4" />
-                       </Button>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <div className="flex gap-4 text-muted-foreground text-sm">
+                      <button className="flex items-center gap-1 hover:text-red-500 transition-colors">
+                        <Heart className="h-4 w-4" /> {journey.likes}
+                      </button>
+                      <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                        <MessageCircle className="h-4 w-4" /> 42
+                      </button>
+                      <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                        <Share2 className="h-4 w-4" />
+                      </button>
                     </div>
                     
-                    <div className="text-sm text-muted-foreground mb-4 space-y-1">
-                       <div className="flex items-center gap-2">
-                         <Calendar className="h-3.5 w-3.5" /> {trip.dates}
-                       </div>
-                       <div className="flex items-center gap-4">
-                          <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {trip.days} Days</span>
-                          <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {trip.cost}</span>
-                       </div>
-                    </div>
-
-                    <div className="mt-auto space-y-1.5">
-                      <div className="flex justify-between text-xs text-muted-foreground font-medium">
-                        <span>Planning Progress</span>
-                        <span>{trip.progress}%</span>
-                      </div>
-                      <Progress value={trip.progress} className="h-1.5" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              
-              <Button variant="outline" className="h-full min-h-[300px] flex flex-col gap-4 border-dashed text-muted-foreground hover:text-foreground hover:bg-muted/30">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  <Plus className="h-6 w-6" />
-                </div>
-                <span className="font-medium text-lg">Create New Plan</span>
-              </Button>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="past" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pastTrips.map(trip => (
-                <Card key={trip.id} className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-80 hover:opacity-100">
-                  <div className="aspect-[16/9] relative overflow-hidden">
-                    <img 
-                      src={trip.image} 
-                      alt={trip.title} 
-                      className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                    />
-                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-                    <div className="absolute bottom-3 left-3 text-white">
-                      <h4 className="font-serif text-lg font-bold">{trip.title}</h4>
-                      <p className="text-xs opacity-80">{trip.dates}</p>
-                    </div>
+                    <Button className="group">
+                      <Copy className="h-4 w-4 mr-2 group-hover:hidden" />
+                      <ArrowRight className="h-4 w-4 mr-2 hidden group-hover:block" />
+                      Clone Trip
+                    </Button>
                   </div>
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{trip.days} Days</span> • {trip.cost}
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {trip.status}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     </Layout>
   );
