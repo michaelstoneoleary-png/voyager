@@ -11,6 +11,7 @@ import { Download, Globe, Calendar, Loader2, Trash2, Sparkles } from "lucide-rea
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isUnauthorizedError } from "@/lib/auth-utils";
+import * as XLSX from "xlsx";
 
 interface PastTrip {
   id: string;
@@ -64,6 +65,17 @@ export default function PastJourneys() {
 
   const uniqueCountries = new Set(pastTrips.map(t => t.country).filter(Boolean));
 
+  const fileToCSV = async (file: File): Promise<string> => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xlsx" || ext === "xls") {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      return XLSX.utils.sheet_to_csv(firstSheet);
+    }
+    return await file.text();
+  };
+
   const handleUploadComplete = async (files: File[]) => {
     if (files.length === 0) return;
 
@@ -71,7 +83,7 @@ export default function PastJourneys() {
     setAiParsing(true);
 
     try {
-      const text = await file.text();
+      const text = await fileToCSV(file);
 
       const res = await fetch("/api/past-trips/ai-parse", {
         method: "POST",

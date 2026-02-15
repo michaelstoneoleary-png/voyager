@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { insertJourneySchema, insertPastTripSchema } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
+import Papa from "papaparse";
 
 const anthropic = new Anthropic({
   apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
@@ -207,7 +208,31 @@ export async function registerRoutes(
         return res.status(400).json({ message: "csvText is required" });
       }
 
-      const truncated = csvText.slice(0, 15000);
+      const parsed_csv = Papa.parse(csvText.trim(), {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+      });
+
+      const rows = parsed_csv.data as Record<string, string>[];
+      if (!rows || rows.length === 0) {
+        return res.status(400).json({ message: "No data rows found in the file." });
+      }
+
+      const headers = parsed_csv.meta.fields || Object.keys(rows[0] || {});
+      const maxRows = Math.min(rows.length, 200);
+      const sampledRows = rows.slice(0, maxRows);
+
+      const csvSummary = [
+        headers.join(","),
+        ...sampledRows.map(row => headers.map(h => {
+          const val = String(row[h] || "").trim();
+          return val.includes(",") ? `"${val}"` : val;
+        }).join(","))
+      ].join("\n");
+
+      const truncated = csvSummary.slice(0, 50000);
+      console.log(`AI Parse: ${rows.length} total rows, sending ${sampledRows.length} rows (${truncated.length} chars) to AI`);
 
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
