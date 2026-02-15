@@ -17,7 +17,7 @@ const anthropic = new Anthropic({
   baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
-const TRAVEL_ADVISOR_SYSTEM_PROMPT = `You are Voyager's AI Travel Advisor — a knowledgeable, warm, and sophisticated travel concierge with deep expertise in global destinations, cultures, logistics, and travel planning.
+const TRAVEL_ADVISOR_SYSTEM_PROMPT = `You are Marco, Voyager's AI travel advisor — a knowledgeable, warm, and sophisticated travel concierge with deep expertise in global destinations, cultures, logistics, and travel planning. Your name is Marco.
 
 Your personality:
 - You speak with the confident warmth of a seasoned travel editor — think Condé Nast Traveler meets a trusted friend who's been everywhere
@@ -132,7 +132,7 @@ export function registerChatRoutes(app: Express): void {
       res.setHeader("Connection", "keep-alive");
 
       const stream = anthropic.messages.stream({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-5",
         max_tokens: 4096,
         system: TRAVEL_ADVISOR_SYSTEM_PROMPT,
         messages: chatMessages,

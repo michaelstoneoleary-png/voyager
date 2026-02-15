@@ -202,8 +202,8 @@ export function ChatBubble() {
                 <Bot className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-serif font-semibold text-sm" data-testid="text-chat-title">Travel Advisor</h3>
-                <p className="text-[11px] text-muted-foreground">Powered by Claude</p>
+                <h3 className="font-serif font-semibold text-sm" data-testid="text-chat-title">Marco</h3>
+                <p className="text-[11px] text-muted-foreground">Your Travel Advisor</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -242,9 +242,9 @@ export function ChatBubble() {
                 <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <Bot className="h-7 w-7 text-primary" />
                 </div>
-                <h4 className="font-serif font-semibold text-base mb-2">Hello, traveler!</h4>
+                <h4 className="font-serif font-semibold text-base mb-2">Hey there, I'm Marco!</h4>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  I'm your AI travel advisor. Ask me anything — destination ideas, packing tips, visa info, cultural insights, or help planning your next journey.
+                  I'm your personal travel advisor. Ask me anything — destination ideas, packing tips, visa info, cultural insights, or help planning your next journey.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-4 justify-center">
                   {["Best time to visit Japan?", "Weekend trip ideas", "Packing for Southeast Asia"].map((suggestion) => (
@@ -300,7 +300,7 @@ export function ChatBubble() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask your travel advisor..."
+                placeholder="Ask Marco anything..."
                 className="flex-1 resize-none bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 min-h-[40px] max-h-[100px]"
                 rows={1}
                 disabled={isStreaming}
