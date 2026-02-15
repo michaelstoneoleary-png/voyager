@@ -10,6 +10,72 @@ const anthropic = new Anthropic({
   baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
+const DESTINATION_FALLBACK_IMAGES: Record<string, string> = {
+  city: "/images/destinations/city.jpg",
+  beach: "/images/destinations/beach.jpg",
+  mountain: "/images/destinations/mountain.jpg",
+  historic: "/images/destinations/historic.jpg",
+  nature: "/images/destinations/nature.jpg",
+  desert: "/images/destinations/desert.jpg",
+  coastal: "/images/destinations/coastal.jpg",
+  urban: "/images/destinations/urban.jpg",
+};
+
+const imageCache = new Map<string, string>();
+
+async function fetchDestinationImage(destinationName: string, fallbackType: string): Promise<string> {
+  const fallback = DESTINATION_FALLBACK_IMAGES[fallbackType] || DESTINATION_FALLBACK_IMAGES.city;
+  try {
+    const searchTerm = destinationName.split(",")[0].trim();
+    if (!searchTerm) return fallback;
+
+    if (imageCache.has(searchTerm.toLowerCase())) {
+      return imageCache.get(searchTerm.toLowerCase())!;
+    }
+
+    const encoded = encodeURIComponent(searchTerm);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const resp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`, {
+      headers: { "User-Agent": "Voyager-Travel-App/1.0" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!resp.ok) return fallback;
+    const data = await resp.json() as any;
+    const isPhoto = (url: string) => /\.(jpg|jpeg|png)/i.test(url);
+    const origUrl = data.originalimage?.source;
+    const thumbUrl = data.thumbnail?.source;
+    let result = fallback;
+    if (origUrl && isPhoto(origUrl)) result = origUrl;
+    else if (thumbUrl && isPhoto(thumbUrl)) result = thumbUrl;
+
+    imageCache.set(searchTerm.toLowerCase(), result);
+    return result;
+  } catch {
+    return fallback;
+  }
+}
+
+async function fetchDestinationImages(
+  destinations: Array<{ name: string; type: string }>
+): Promise<string[]> {
+  const CONCURRENCY = 5;
+  const results: string[] = new Array(destinations.length);
+  for (let i = 0; i < destinations.length; i += CONCURRENCY) {
+    const batch = destinations.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map((d) => fetchDestinationImage(d.name, d.type))
+    );
+    for (let j = 0; j < batchResults.length; j++) {
+      results[i + j] = batchResults[j];
+    }
+  }
+  return results;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -231,21 +297,18 @@ ${truncated}`,
       const createdPastTrips: any[] = [];
 
       if (Array.isArray(parsed.journeys) && parsed.journeys.length > 0) {
-        const DESTINATION_IMAGES: Record<string, string> = {
-          city: "/images/destinations/city.jpg",
-          beach: "/images/destinations/beach.jpg",
-          mountain: "/images/destinations/mountain.jpg",
-          historic: "/images/destinations/historic.jpg",
-          nature: "/images/destinations/nature.jpg",
-          desert: "/images/destinations/desert.jpg",
-          coastal: "/images/destinations/coastal.jpg",
-          urban: "/images/destinations/urban.jpg",
-        };
+        const destLookups = parsed.journeys.map((j: any) => ({
+          name: Array.isArray(j.destinations) && j.destinations.length > 0
+            ? String(j.destinations[0])
+            : j.title || "",
+          type: String(j.destination_type || "city").toLowerCase(),
+        }));
+        const images = await fetchDestinationImages(destLookups);
 
         const journeyRecords: any[] = [];
-        for (const j of parsed.journeys) {
-          const destType = String(j.destination_type || "city").toLowerCase();
-          const image = DESTINATION_IMAGES[destType] || DESTINATION_IMAGES.city;
+        for (let idx = 0; idx < parsed.journeys.length; idx++) {
+          const j = parsed.journeys[idx];
+          const image = images[idx];
 
           const budgetNotes = j.logistics?.budget_notes || j.notes || null;
           const logistics = typeof j.logistics === "object" && j.logistics !== null
