@@ -207,7 +207,8 @@ export default function Dashboard() {
           </div>
 
         </div>
-      </Layout>
-    </>
-  );
+      </div>
+    </Layout>
+  </>
+);
 }
