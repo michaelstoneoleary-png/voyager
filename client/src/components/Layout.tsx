@@ -70,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               JD
             </div>
             <div className="text-sm">
-              <p className="font-medium text-foreground">John Doe</p>
+              <p className="font-medium text-foreground">Jennifer Doe</p>
               <p className="text-xs text-muted-foreground">Pro Member</p>
             </div>
             <Settings className="ml-auto h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground" />
