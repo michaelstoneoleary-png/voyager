@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { TRIP_DATA } from "@/lib/mock-data";
 import { 
@@ -8,13 +9,22 @@ import {
   Banknote, 
   Languages, 
   BookOpen, 
-  Phone
+  Phone,
+  Volume2,
+  TrendingUp,
+  RefreshCw
 } from "lucide-react";
 
 export default function Intel() {
+  const playAudio = (text: string) => {
+    // In a real app, this would play an audio file.
+    // For prototype, we'll just log it or show a toast if we had one here.
+    console.log(`Playing audio for: ${text}`);
+  };
+
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="text-center md:text-left">
           <h1 className="font-serif text-3xl font-bold mb-2">Travel Intelligence</h1>
           <p className="text-muted-foreground">Cultural norms, safety alerts, and essential knowledge for your trip.</p>
@@ -25,12 +35,30 @@ export default function Intel() {
           <Card className="bg-primary/5 border-primary/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-medium flex items-center gap-2 text-primary">
-                <Banknote className="h-4 w-4" /> Currency
+                <Banknote className="h-4 w-4" /> Currency & Rates
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-serif mb-1">{TRIP_DATA.intel.currency}</p>
-              <p className="text-xs text-muted-foreground">Cash is king in smaller towns. ATMs widely available in Sofia.</p>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <p className="text-2xl font-bold font-serif mb-1">{TRIP_DATA.intel.currency.code}</p>
+                  <p className="text-xs text-muted-foreground">Cash preferred in rural areas.</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              </div>
+              
+              <div className="space-y-2 bg-background/50 p-3 rounded-lg border border-primary/10">
+                {TRIP_DATA.intel.currency.rates.map((rate, idx) => (
+                  <div key={idx} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{rate.pair}</span>
+                    <span className="font-mono font-medium flex items-center gap-1">
+                      {rate.rate} <TrendingUp className="h-3 w-3 text-emerald-500" />
+                    </span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
@@ -101,33 +129,45 @@ export default function Intel() {
                    <Languages className="h-4 w-4" /> Essential Phrases
                  </CardTitle>
                </CardHeader>
-               <CardContent className="space-y-4">
-                 <div className="space-y-2">
-                   <h4 className="text-xs font-bold uppercase text-muted-foreground">Bulgarian (Cyrillic)</h4>
-                   <div className="flex justify-between text-sm border-b border-border pb-1">
-                     <span>Hello</span>
-                     <span className="font-medium">Здравейте (Zdraveyte)</span>
-                   </div>
-                   <div className="flex justify-between text-sm border-b border-border pb-1">
-                     <span>Thank you</span>
-                     <span className="font-medium">Благодаря (Blagodarya)</span>
-                   </div>
-                   <div className="flex justify-between text-sm border-b border-border pb-1">
-                     <span>Yes/No</span>
-                     <span className="font-medium">Да/Не (Da/Ne)</span>
-                   </div>
+               <CardContent className="space-y-6">
+                 <div className="space-y-3">
+                   <h4 className="text-xs font-bold uppercase text-muted-foreground border-b border-border pb-1">Bulgarian</h4>
+                   {TRIP_DATA.intel.phrases.bulgarian.map((phrase, idx) => (
+                     <div key={idx} className="flex justify-between items-center group">
+                       <div>
+                         <div className="text-sm font-medium">{phrase.local}</div>
+                         <div className="text-xs text-muted-foreground">{phrase.english} • {phrase.transliteration}</div>
+                       </div>
+                       <Button 
+                         variant="ghost" 
+                         size="icon" 
+                         className="h-8 w-8 opacity-50 group-hover:opacity-100 hover:bg-background hover:text-primary transition-all"
+                         onClick={() => playAudio(phrase.local)}
+                       >
+                         <Volume2 className="h-4 w-4" />
+                       </Button>
+                     </div>
+                   ))}
                  </div>
 
-                 <div className="space-y-2 pt-2">
-                   <h4 className="text-xs font-bold uppercase text-muted-foreground">Serbian</h4>
-                   <div className="flex justify-between text-sm border-b border-border pb-1">
-                     <span>Hello</span>
-                     <span className="font-medium">Здраво (Zdravo)</span>
-                   </div>
-                   <div className="flex justify-between text-sm border-b border-border pb-1">
-                     <span>Cheers</span>
-                     <span className="font-medium">Живели (Živeli)</span>
-                   </div>
+                 <div className="space-y-3">
+                   <h4 className="text-xs font-bold uppercase text-muted-foreground border-b border-border pb-1">Serbian</h4>
+                   {TRIP_DATA.intel.phrases.serbian.map((phrase, idx) => (
+                     <div key={idx} className="flex justify-between items-center group">
+                       <div>
+                         <div className="text-sm font-medium">{phrase.local}</div>
+                         <div className="text-xs text-muted-foreground">{phrase.english} • {phrase.transliteration}</div>
+                       </div>
+                       <Button 
+                         variant="ghost" 
+                         size="icon" 
+                         className="h-8 w-8 opacity-50 group-hover:opacity-100 hover:bg-background hover:text-primary transition-all"
+                         onClick={() => playAudio(phrase.local)}
+                       >
+                         <Volume2 className="h-4 w-4" />
+                       </Button>
+                     </div>
+                   ))}
                  </div>
                </CardContent>
              </Card>

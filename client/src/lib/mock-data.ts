@@ -91,12 +91,33 @@ export const TRIP_DATA = {
     ]
   },
   intel: {
-    currency: "BGN (Lev) & RSD (Dinar)",
+    currency: {
+      code: "BGN (Lev) & RSD (Dinar)",
+      rates: [
+        { pair: "USD/BGN", rate: "1.78" },
+        { pair: "EUR/BGN", rate: "1.96" },
+        { pair: "USD/RSD", rate: "107.50" },
+        { pair: "EUR/RSD", rate: "117.20" }
+      ]
+    },
     etiquette: [
       "Remove hats when entering Orthodox churches",
       "Tipping 10% is standard in restaurants",
       "Handshakes are firm; eye contact is important"
     ],
+    phrases: {
+      bulgarian: [
+        { english: "Hello", local: "Здравейте", transliteration: "Zdraveyte" },
+        { english: "Thank you", local: "Благодаря", transliteration: "Blagodarya" },
+        { english: "Yes", local: "Да", transliteration: "Da" },
+        { english: "No", local: "Не", transliteration: "Ne" }
+      ],
+      serbian: [
+        { english: "Hello", local: "Здраво", transliteration: "Zdravo" },
+        { english: "Cheers", local: "Живели", transliteration: "Živeli" },
+        { english: "Thank you", local: "Хвала", transliteration: "Hvala" }
+      ]
+    },
     safety: [
       "Watch for pickpockets in crowded tourist areas",
       "Taxi scams can occur at airports - use official apps"

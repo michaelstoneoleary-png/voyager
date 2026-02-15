@@ -168,7 +168,7 @@ export default function Dashboard() {
                      <span className="text-xs font-bold text-primary">Currency</span>
                      <span className="text-[10px] text-muted-foreground">Live</span>
                    </div>
-                   <p className="text-sm text-muted-foreground">1 USD = 1.78 BGN. Favorable rate compared to last month.</p>
+                   <p className="text-sm text-muted-foreground">1 USD = {TRIP_DATA.intel.currency.rates[0].rate} BGN. Favorable rate compared to last month.</p>
                 </div>
               </CardContent>
             </Card>
