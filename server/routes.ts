@@ -2,9 +2,33 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { insertJourneySchema, insertPastTripSchema, updateUserSettingsSchema } from "@shared/schema";
+import { insertJourneySchema, insertPastTripSchema, updateUserSettingsSchema, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
+
+function formatUserSettings(user: User) {
+  return {
+    displayName: user.displayName || user.firstName || "",
+    email: user.email || "",
+    profileImageUrl: user.profileImageUrl || "",
+    firstName: user.firstName || "",
+    lastName: user.lastName || "",
+    homeLocation: user.homeLocation || "",
+    passportCountry: user.passportCountry || "",
+    temperatureUnit: user.temperatureUnit || "F",
+    currency: user.currency || "USD",
+    distanceUnit: user.distanceUnit || "mi",
+    dateFormat: user.dateFormat || "MM/DD/YYYY",
+    travelStyles: user.travelStyles || [],
+    onboardingCompleted: user.onboardingCompleted || false,
+    socialInstagram: user.socialInstagram || "",
+    socialBlogUrl: user.socialBlogUrl || "",
+    socialYoutube: user.socialYoutube || "",
+    socialTiktok: user.socialTiktok || "",
+    socialTwitter: user.socialTwitter || "",
+    publishBlog: user.publishBlog || false,
+  };
+}
 
 const anthropic = new Anthropic({
   apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
@@ -89,21 +113,7 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
-      res.json({
-        displayName: user.displayName || user.firstName || "",
-        email: user.email || "",
-        profileImageUrl: user.profileImageUrl || "",
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        homeLocation: user.homeLocation || "",
-        passportCountry: user.passportCountry || "",
-        temperatureUnit: user.temperatureUnit || "F",
-        currency: user.currency || "USD",
-        distanceUnit: user.distanceUnit || "mi",
-        dateFormat: user.dateFormat || "MM/DD/YYYY",
-        travelStyles: user.travelStyles || [],
-        onboardingCompleted: user.onboardingCompleted || false,
-      });
+      res.json(formatUserSettings(user));
     } catch (error) {
       console.error("Error fetching user settings:", error);
       res.status(500).json({ message: "Failed to fetch settings" });
@@ -116,21 +126,7 @@ export async function registerRoutes(
       const validated = updateUserSettingsSchema.parse(req.body);
       const updated = await storage.updateUser(userId, validated);
       if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({
-        displayName: updated.displayName || updated.firstName || "",
-        email: updated.email || "",
-        profileImageUrl: updated.profileImageUrl || "",
-        firstName: updated.firstName || "",
-        lastName: updated.lastName || "",
-        homeLocation: updated.homeLocation || "",
-        passportCountry: updated.passportCountry || "",
-        temperatureUnit: updated.temperatureUnit || "F",
-        currency: updated.currency || "USD",
-        distanceUnit: updated.distanceUnit || "mi",
-        dateFormat: updated.dateFormat || "MM/DD/YYYY",
-        travelStyles: updated.travelStyles || [],
-        onboardingCompleted: updated.onboardingCompleted || false,
-      });
+      res.json(formatUserSettings(updated));
     } catch (error) {
       console.error("Error updating user settings:", error);
       res.status(500).json({ message: "Failed to update settings" });

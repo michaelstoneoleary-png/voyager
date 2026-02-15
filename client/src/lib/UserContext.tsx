@@ -15,6 +15,12 @@ export interface UserSettings {
   dateFormat: string;
   travelStyles: string[];
   onboardingCompleted: boolean;
+  socialInstagram: string;
+  socialBlogUrl: string;
+  socialYoutube: string;
+  socialTiktok: string;
+  socialTwitter: string;
+  publishBlog: boolean;
 }
 
 interface UserContextType {
@@ -39,6 +45,12 @@ const defaultSettings: UserSettings = {
   dateFormat: "MM/DD/YYYY",
   travelStyles: [],
   onboardingCompleted: false,
+  socialInstagram: "",
+  socialBlogUrl: "",
+  socialYoutube: "",
+  socialTiktok: "",
+  socialTwitter: "",
+  publishBlog: false,
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);

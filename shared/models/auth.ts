@@ -30,6 +30,12 @@ export const users = pgTable("users", {
   dateFormat: varchar("date_format").default("MM/DD/YYYY"),
   travelStyles: text("travel_styles").array(),
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  socialInstagram: varchar("social_instagram"),
+  socialBlogUrl: varchar("social_blog_url"),
+  socialYoutube: varchar("social_youtube"),
+  socialTiktok: varchar("social_tiktok"),
+  socialTwitter: varchar("social_twitter"),
+  publishBlog: boolean("publish_blog").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

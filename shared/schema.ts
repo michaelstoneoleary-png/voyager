@@ -73,6 +73,12 @@ export const updateUserSettingsSchema = z.object({
   dateFormat: z.enum(["MM/DD/YYYY", "DD/MM/YYYY"]).optional(),
   travelStyles: z.array(z.string()).optional(),
   onboardingCompleted: z.boolean().optional(),
+  socialInstagram: z.string().optional(),
+  socialBlogUrl: z.string().optional(),
+  socialYoutube: z.string().optional(),
+  socialTiktok: z.string().optional(),
+  socialTwitter: z.string().optional(),
+  publishBlog: z.boolean().optional(),
 });
 
 export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;
