@@ -64,6 +64,9 @@ function buildPersonalizedPrompt(user: User | undefined): string {
   if (user.travelStyles && Array.isArray(user.travelStyles) && user.travelStyles.length > 0) {
     details.push(`Travel style preferences: ${user.travelStyles.join(", ")}`);
   }
+  if (user.gender && user.gender !== "prefer-not-to-say") {
+    details.push(`Gender: ${user.gender} (use this to tailor cultural dress code advice and packing recommendations where culturally relevant)`);
+  }
 
   if (details.length === 0) return TRAVEL_ADVISOR_SYSTEM_PROMPT;
 

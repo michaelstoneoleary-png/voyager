@@ -38,9 +38,21 @@ export const pastTrips = pgTable("past_trips", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const bookmarks = pgTable("bookmarks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  source: text("source"),
+  imageUrl: text("image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
   pastTrips: many(pastTrips),
+  bookmarks: many(bookmarks),
 }));
 
 export const journeysRelations = relations(journeys, ({ one, many }) => ({
@@ -51,6 +63,10 @@ export const journeysRelations = relations(journeys, ({ one, many }) => ({
 export const pastTripsRelations = relations(pastTrips, ({ one }) => ({
   user: one(users, { fields: [pastTrips.userId], references: [users.id] }),
   journey: one(journeys, { fields: [pastTrips.journeyId], references: [journeys.id] }),
+}));
+
+export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
+  user: one(users, { fields: [bookmarks.userId], references: [users.id] }),
 }));
 
 export const insertJourneySchema = createInsertSchema(journeys).omit({
@@ -73,6 +89,8 @@ export const updateUserSettingsSchema = z.object({
   dateFormat: z.enum(["MM/DD/YYYY", "DD/MM/YYYY"]).optional(),
   travelStyles: z.array(z.string()).optional(),
   onboardingCompleted: z.boolean().optional(),
+  gender: z.string().optional(),
+  phoneNumber: z.string().optional(),
   socialInstagram: z.string().optional(),
   socialBlogUrl: z.string().optional(),
   socialYoutube: z.string().optional(),
@@ -81,8 +99,15 @@ export const updateUserSettingsSchema = z.object({
   publishBlog: z.boolean().optional(),
 });
 
+export const insertBookmarkSchema = createInsertSchema(bookmarks).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;
 export type InsertJourney = z.infer<typeof insertJourneySchema>;
 export type Journey = typeof journeys.$inferSelect;
 export type InsertPastTrip = z.infer<typeof insertPastTripSchema>;
 export type PastTrip = typeof pastTrips.$inferSelect;
+export type InsertBookmark = z.infer<typeof insertBookmarkSchema>;
+export type Bookmark = typeof bookmarks.$inferSelect;

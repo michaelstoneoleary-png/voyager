@@ -38,6 +38,8 @@ export const users = pgTable("users", {
   socialYoutube: varchar("social_youtube"),
   socialTiktok: varchar("social_tiktok"),
   socialTwitter: varchar("social_twitter"),
+  gender: varchar("gender"),
+  phoneNumber: varchar("phone_number"),
   publishBlog: boolean("publish_blog").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

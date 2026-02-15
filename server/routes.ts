@@ -3,9 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { insertJourneySchema, insertPastTripSchema, updateUserSettingsSchema, type User } from "@shared/schema";
+import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
+import Parser from "rss-parser";
 
 function formatUserSettings(user: User) {
   return {
@@ -27,6 +28,8 @@ function formatUserSettings(user: User) {
     socialYoutube: user.socialYoutube || "",
     socialTiktok: user.socialTiktok || "",
     socialTwitter: user.socialTwitter || "",
+    gender: user.gender || "",
+    phoneNumber: user.phoneNumber || "",
     publishBlog: user.publishBlog || false,
   };
 }
@@ -512,6 +515,183 @@ ${truncated}`,
     } catch (error: any) {
       console.error("Error in AI parse:", error);
       res.status(500).json({ message: "Failed to parse file with AI. Please try again." });
+    }
+  });
+
+  // RSS Feed cache
+  const rssParser = new Parser();
+  const feedCache = new Map<string, { data: any[]; timestamp: number }>();
+  const FEED_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  const RSS_FEEDS = [
+    { url: "https://www.nomadicmatt.com/travel-blog/feed/", source: "Nomadic Matt" },
+    { url: "https://thepointsguy.com/feed/", source: "The Points Guy" },
+    { url: "https://www.adventurouskate.com/feed/", source: "Adventurous Kate" },
+  ];
+
+  function stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  app.get("/api/community/feed", isAuthenticated, async (_req, res) => {
+    try {
+      const cacheKey = "community_feed";
+      const cached = feedCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < FEED_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const allItems: any[] = [];
+      const feedPromises = RSS_FEEDS.map(async ({ url, source }) => {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 10000);
+          const feed = await rssParser.parseURL(url);
+          clearTimeout(timeout);
+          return (feed.items || []).map((item: any) => {
+            const description = item.contentSnippet || item.content || item.summary || "";
+            const strippedDesc = stripHtml(description).slice(0, 200);
+            let imageUrl = null;
+            if (item.enclosure?.url) {
+              imageUrl = item.enclosure.url;
+            } else if (item["media:content"]?.$.url) {
+              imageUrl = item["media:content"].$.url;
+            } else {
+              const imgMatch = (item.content || item["content:encoded"] || "").match(/<img[^>]+src=["']([^"']+)["']/);
+              if (imgMatch) imageUrl = imgMatch[1];
+            }
+            return {
+              title: item.title || "",
+              link: item.link || "",
+              description: strippedDesc,
+              pubDate: item.pubDate || item.isoDate || "",
+              source,
+              imageUrl,
+            };
+          });
+        } catch (err) {
+          console.error(`Failed to fetch RSS from ${source}:`, err);
+          return [];
+        }
+      });
+
+      const results = await Promise.all(feedPromises);
+      for (const items of results) {
+        allItems.push(...items);
+      }
+
+      allItems.sort((a, b) => {
+        const dateA = new Date(a.pubDate).getTime() || 0;
+        const dateB = new Date(b.pubDate).getTime() || 0;
+        return dateB - dateA;
+      });
+
+      const limited = allItems.slice(0, 30);
+      feedCache.set(cacheKey, { data: limited, timestamp: Date.now() });
+      res.json(limited);
+    } catch (error) {
+      console.error("Error fetching community feed:", error);
+      res.status(500).json({ message: "Failed to fetch community feed" });
+    }
+  });
+
+  // Bookmarks CRUD
+  app.get("/api/bookmarks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const results = await storage.getBookmarks(userId);
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching bookmarks:", error);
+      res.status(500).json({ message: "Failed to fetch bookmarks" });
+    }
+  });
+
+  app.post("/api/bookmarks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const parsed = insertBookmarkSchema.parse({ ...req.body, userId });
+      const bookmark = await storage.createBookmark(parsed);
+      res.status(201).json(bookmark);
+    } catch (error: any) {
+      console.error("Error creating bookmark:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid bookmark data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create bookmark" });
+    }
+  });
+
+  app.delete("/api/bookmarks/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const deleted = await storage.deleteBookmark(req.params.id, userId);
+      if (!deleted) return res.status(404).json({ message: "Bookmark not found" });
+      res.json({ message: "Bookmark deleted" });
+    } catch (error) {
+      console.error("Error deleting bookmark:", error);
+      res.status(500).json({ message: "Failed to delete bookmark" });
+    }
+  });
+
+  app.post("/api/packing-list/generate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { destination, origin, dates, duration, activities, gender } = req.body;
+      if (!destination) {
+        return res.status(400).json({ message: "Destination is required" });
+      }
+
+      const userId = getUserId(req)!;
+      const user = await storage.getUser(userId);
+
+      const contextParts: string[] = [];
+      if (origin) contextParts.push(`Traveling from: ${origin}`);
+      contextParts.push(`Destination: ${destination}`);
+      if (dates) contextParts.push(`Travel dates: ${dates}`);
+      if (duration) contextParts.push(`Duration: ${duration} days`);
+      if (activities && activities.length > 0) contextParts.push(`Activities: ${activities.join(", ")}`);
+      if (gender && gender !== "prefer-not-to-say") contextParts.push(`Traveler gender: ${gender}`);
+      if (user?.temperatureUnit) contextParts.push(`Preferred temperature unit: ${user.temperatureUnit === "C" ? "Celsius" : "Fahrenheit"}`);
+
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: `You are a smart packing assistant. Generate a comprehensive, personalized packing checklist for this trip:
+
+${contextParts.join("\n")}
+
+Return a JSON object with a "categories" array. Each category has:
+- name: category name (Clothing, Toiletries, Electronics, Documents, Health, Accessories)
+- icon: icon identifier (shirt, droplets, zap, file-text, heart, watch)
+- items: array of items, each with:
+  - name: item name
+  - quantity: number to pack
+  - reason: brief reason why this item is needed for THIS specific trip
+
+Tailor items to the destination's climate, culture, and planned activities. Be specific (e.g., "Light rain jacket" not just "Jacket"). Include destination-specific items (power adapters, modest clothing for temples, etc.).
+
+Return ONLY the JSON object, no other text.`,
+          },
+        ],
+      });
+
+      const content = message.content[0];
+      const responseText = content.type === "text" ? content.text : "";
+
+      const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const rawJson = codeBlockMatch ? codeBlockMatch[1].trim() : responseText.trim();
+      const jsonMatch = rawJson.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.status(422).json({ message: "Failed to generate packing list. Please try again." });
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      res.json(parsed);
+    } catch (error) {
+      console.error("Error generating packing list:", error);
+      res.status(500).json({ message: "Failed to generate packing list" });
     }
   });
 

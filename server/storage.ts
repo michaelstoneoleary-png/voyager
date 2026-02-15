@@ -2,9 +2,10 @@ import {
   users, type User,
   journeys, type Journey, type InsertJourney,
   pastTrips, type PastTrip, type InsertPastTrip,
+  bookmarks, type Bookmark, type InsertBookmark,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -21,6 +22,10 @@ export interface IStorage {
   createPastTrip(trip: InsertPastTrip): Promise<PastTrip>;
   createPastTrips(trips: InsertPastTrip[]): Promise<PastTrip[]>;
   deletePastTrip(id: string, userId: string): Promise<boolean>;
+
+  getBookmarks(userId: string): Promise<Bookmark[]>;
+  createBookmark(bookmark: InsertBookmark): Promise<Bookmark>;
+  deleteBookmark(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -92,6 +97,22 @@ export class DatabaseStorage implements IStorage {
     const [existing] = await db.select().from(pastTrips).where(eq(pastTrips.id, id));
     if (!existing || existing.userId !== userId) return false;
     await db.delete(pastTrips).where(eq(pastTrips.id, id));
+    return true;
+  }
+
+  async getBookmarks(userId: string): Promise<Bookmark[]> {
+    return db.select().from(bookmarks).where(eq(bookmarks.userId, userId)).orderBy(desc(bookmarks.createdAt));
+  }
+
+  async createBookmark(bookmark: InsertBookmark): Promise<Bookmark> {
+    const [created] = await db.insert(bookmarks).values(bookmark).returning();
+    return created;
+  }
+
+  async deleteBookmark(id: string, userId: string): Promise<boolean> {
+    const [existing] = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
+    if (!existing || existing.userId !== userId) return false;
+    await db.delete(bookmarks).where(eq(bookmarks.id, id));
     return true;
   }
 }

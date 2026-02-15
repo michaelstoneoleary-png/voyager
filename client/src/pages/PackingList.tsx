@@ -1,247 +1,514 @@
 import { Layout } from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  Shirt, 
-  Smartphone, 
-  FileText, 
-  Plus, 
-  Info,
-  CheckCircle2,
-  Cloud,
-  Thermometer,
-  Briefcase,
-  Zap,
-  Cross,
-  Droplets,
-  ShoppingBag
-} from "lucide-react";
-import { useState } from "react";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import {
+  Shirt,
+  Droplets,
+  Zap,
+  FileText,
+  Heart,
+  Watch,
+  Luggage,
+  RotateCcw,
+  Sparkles,
+  MapPin,
+  Calendar,
+  Clock,
+  Globe,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+} from "lucide-react";
 
-// Mock Data for Comprehensive List
-const INITIAL_PACKING_LIST = {
-  clothing: [
-    { id: "c1", item: "T-Shirts / Tops", quantity: 5, packed: true, reason: "Daily wear" },
-    { id: "c2", item: "Long Sleeve Shirt", quantity: 2, packed: false, reason: "Cool evenings" },
-    { id: "c3", item: "Light Jacket", quantity: 1, packed: false, reason: "Mountain trip" },
-    { id: "c4", item: "Jeans / Trousers", quantity: 3, packed: true, reason: "City walking" },
-    { id: "c5", item: "Walking Shoes", quantity: 1, packed: true, reason: "Cobblestone streets" },
-    { id: "c6", item: "Underwear", quantity: 7, packed: true, reason: "Daily + spare" },
-    { id: "c7", item: "Socks", quantity: 7, packed: true, reason: "Daily + spare" },
-    { id: "c8", item: "Scarf", quantity: 1, packed: false, reason: "Modesty for churches" },
-    { id: "c9", item: "Sleepwear", quantity: 2, packed: false, reason: "Comfort" },
-  ],
-  toiletries: [
-    { id: "t1", item: "Toothbrush & Paste", quantity: 1, packed: true, reason: "Essential" },
-    { id: "t2", item: "Shampoo / Conditioner", quantity: 1, packed: false, reason: "Travel size" },
-    { id: "t3", item: "Deodorant", quantity: 1, packed: true, reason: "Essential" },
-    { id: "t4", item: "Sunscreen", quantity: 1, packed: false, reason: "Sunny days forecast" },
-    { id: "t5", item: "Prescription Meds", quantity: 1, packed: false, reason: "Daily supply + 2 days" },
-  ],
-  electronics: [
-    { id: "e1", item: "Phone Charger", quantity: 1, packed: true, reason: "Essential" },
-    { id: "e2", item: "Power Bank", quantity: 1, packed: false, reason: "Long day trips" },
-    { id: "e3", item: "Type C/F Adapter", quantity: 2, packed: true, reason: "Bulgaria/Serbia standard" },
-    { id: "e4", item: "Headphones", quantity: 1, packed: true, reason: "Travel comfort" },
-    { id: "e5", item: "Camera + SD Card", quantity: 1, packed: false, reason: "Photography" },
-  ],
-  documents: [
-    { id: "d1", item: "Passport", quantity: 1, packed: true, reason: "Required" },
-    { id: "d2", item: "Travel Insurance", quantity: 1, packed: true, reason: "Printed copy" },
-    { id: "d3", item: "Boarding Passes", quantity: 1, packed: false, reason: "Digital & Print" },
-    { id: "d4", item: "Hotel Reservations", quantity: 1, packed: false, reason: "Reference" },
-  ]
+const ACTIVITY_OPTIONS = [
+  "Beach",
+  "City",
+  "Adventure",
+  "Business",
+  "Winter Sports",
+  "Hiking",
+  "Cultural",
+  "Nightlife",
+  "Wellness",
+  "Road Trip",
+];
+
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  clothing: Shirt,
+  toiletries: Droplets,
+  electronics: Zap,
+  documents: FileText,
+  health: Heart,
+  accessories: Watch,
 };
 
-export default function PackingList() {
-  const { formatTemp } = useUser();
-  const [list, setList] = useState(INITIAL_PACKING_LIST);
-  
-  // Calculate Progress
-  const allItems = Object.values(list).flat();
-  const totalItems = allItems.length;
-  const packedItems = allItems.filter(i => i.packed).length;
-  const progress = Math.round((packedItems / totalItems) * 100);
+const CATEGORY_STYLES: Record<string, { color: string; bg: string }> = {
+  clothing: { color: "text-blue-600", bg: "bg-blue-500/10" },
+  toiletries: { color: "text-teal-600", bg: "bg-teal-500/10" },
+  electronics: { color: "text-amber-600", bg: "bg-amber-500/10" },
+  documents: { color: "text-purple-600", bg: "bg-purple-500/10" },
+  health: { color: "text-rose-600", bg: "bg-rose-500/10" },
+  accessories: { color: "text-emerald-600", bg: "bg-emerald-500/10" },
+};
 
-  const toggleItem = (category: keyof typeof list, id: string) => {
-    setList(prev => ({
+interface PackingItem {
+  name: string;
+  quantity: number;
+  reason: string;
+  packed: boolean;
+}
+
+interface PackingCategory {
+  name: string;
+  icon: string;
+  items: PackingItem[];
+}
+
+interface FormData {
+  destination: string;
+  origin: string;
+  startDate: string;
+  endDate: string;
+  activities: string[];
+}
+
+export default function PackingList() {
+  const { settings } = useUser();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [form, setForm] = useState<FormData>({
+    destination: "",
+    origin: "",
+    startDate: "",
+    endDate: "",
+    activities: [],
+  });
+  const [categories, setCategories] = useState<PackingCategory[] | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [isCreatingJourney, setIsCreatingJourney] = useState(false);
+  const [journeyCreated, setJourneyCreated] = useState(false);
+
+  const duration = useMemo(() => {
+    if (!form.startDate || !form.endDate) return 0;
+    const start = new Date(form.startDate);
+    const end = new Date(form.endDate);
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+  }, [form.startDate, form.endDate]);
+
+  const toggleActivity = (activity: string) => {
+    setForm((prev) => ({
       ...prev,
-      [category]: prev[category].map(item => 
-        item.id === id ? { ...item, packed: !item.packed } : item
-      )
+      activities: prev.activities.includes(activity)
+        ? prev.activities.filter((a) => a !== activity)
+        : [...prev.activities, activity],
     }));
   };
 
-  const categories = [
-    { id: "clothing", label: "Clothing", icon: Shirt, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { id: "toiletries", label: "Toiletries", icon: Droplets, color: "text-teal-500", bg: "bg-teal-500/10" },
-    { id: "electronics", label: "Electronics", icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { id: "documents", label: "Documents", icon: FileText, color: "text-purple-500", bg: "bg-purple-500/10" },
-  ];
+  const handleGenerate = async () => {
+    if (!form.destination || !form.startDate || !form.endDate) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in destination and travel dates.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (duration <= 0) {
+      toast({
+        title: "Invalid dates",
+        description: "End date must be after start date.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  return (
-    <Layout>
-      <div className="flex flex-col h-[calc(100vh-8rem)] animate-in fade-in slide-in-from-bottom-4 duration-500">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
-          <div>
+    setIsGenerating(true);
+    try {
+      const res = await apiRequest("POST", "/api/packing-list/generate", {
+        destination: form.destination,
+        origin: form.origin || undefined,
+        dates: { start: form.startDate, end: form.endDate },
+        duration,
+        activities: form.activities,
+        gender: settings.gender || undefined,
+      });
+      const data = await res.json();
+      const cats: PackingCategory[] = (data.categories || []).map((cat: any) => ({
+        ...cat,
+        items: cat.items.map((item: any) => ({ ...item, packed: false })),
+      }));
+      setCategories(cats);
+      setCollapsedCategories(new Set());
+      setJourneyCreated(false);
+    } catch (err: any) {
+      toast({
+        title: "Generation failed",
+        description: err.message || "Could not generate packing list. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const togglePacked = (catIndex: number, itemIndex: number) => {
+    setCategories((prev) => {
+      if (!prev) return prev;
+      return prev.map((cat, ci) =>
+        ci === catIndex
+          ? {
+              ...cat,
+              items: cat.items.map((item, ii) =>
+                ii === itemIndex ? { ...item, packed: !item.packed } : item
+              ),
+            }
+          : cat
+      );
+    });
+  };
+
+  const toggleCategory = (catName: string) => {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(catName)) next.delete(catName);
+      else next.add(catName);
+      return next;
+    });
+  };
+
+  const handleStartOver = () => {
+    setCategories(null);
+    setJourneyCreated(false);
+    setCollapsedCategories(new Set());
+  };
+
+  const handleCreateJourney = async () => {
+    setIsCreatingJourney(true);
+    try {
+      await apiRequest("POST", "/api/journeys", {
+        title: `Trip to ${form.destination}`,
+        destination: form.destination,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        status: "Planning",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
+      setJourneyCreated(true);
+      toast({ title: "Journey created!", description: `Your trip to ${form.destination} has been added to your journeys.` });
+    } catch (err: any) {
+      toast({
+        title: "Could not create journey",
+        description: err.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingJourney(false);
+    }
+  };
+
+  const { totalItems, packedItems, progress } = useMemo(() => {
+    if (!categories) return { totalItems: 0, packedItems: 0, progress: 0 };
+    const all = categories.flatMap((c) => c.items);
+    const total = all.length;
+    const packed = all.filter((i) => i.packed).length;
+    return { totalItems: total, packedItems: packed, progress: total > 0 ? Math.round((packed / total) * 100) : 0 };
+  }, [categories]);
+
+  const getCategoryIcon = (iconName: string) => {
+    const key = iconName.toLowerCase();
+    return CATEGORY_ICONS[key] || Luggage;
+  };
+
+  const getCategoryStyle = (iconName: string) => {
+    const key = iconName.toLowerCase();
+    return CATEGORY_STYLES[key] || { color: "text-stone-600", bg: "bg-stone-500/10" };
+  };
+
+  if (isGenerating) {
+    return (
+      <Layout>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="mb-8">
             <h1 className="font-serif text-3xl font-bold mb-2">Smart Packing</h1>
-            <p className="text-muted-foreground">Comprehensive checklist for your 10-day trip to Bulgaria & Serbia.</p>
+            <p className="text-muted-foreground">Generating your personalized packing list…</p>
           </div>
-          
-          <Card className="min-w-[240px] border-primary/20 bg-primary/5">
+          <div className="flex items-center gap-3 mb-8">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Our AI is analyzing weather, activities, and local customs for <strong>{form.destination}</strong>…</span>
+          </div>
+          <div className="space-y-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[1, 2, 3, 4].map((j) => (
+                    <div key={j} className="flex items-center gap-3">
+                      <Skeleton className="h-5 w-5 rounded" />
+                      <Skeleton className="h-4 flex-1" />
+                      <Skeleton className="h-5 w-12" />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (categories) {
+    return (
+      <Layout>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+            <div>
+              <h1 className="font-serif text-3xl font-bold mb-1">Smart Packing</h1>
+              <p className="text-muted-foreground">
+                {form.destination} · {duration} days · {form.activities.length > 0 ? form.activities.join(", ") : "General travel"}
+              </p>
+            </div>
+            <Button variant="outline" onClick={handleStartOver} data-testid="button-start-over">
+              <RotateCcw className="h-4 w-4 mr-2" /> Start Over
+            </Button>
+          </div>
+
+          <Card className="mb-6 border-primary/20 bg-primary/5">
             <CardContent className="p-4">
               <div className="flex justify-between items-end mb-2">
                 <div>
-                   <span className="text-xs font-bold uppercase tracking-wider text-primary">Bag Status</span>
-                   <div className="text-2xl font-bold text-foreground">{progress}% Ready</div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Packing Progress</span>
+                  <div className="text-2xl font-bold text-foreground" data-testid="text-progress">{progress}% Packed</div>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                  <Briefcase className="h-4 w-4" />
-                </div>
+                <span className="text-sm text-muted-foreground" data-testid="text-packed-count">{packedItems} of {totalItems} items</span>
               </div>
-              <Progress value={progress} className="h-2 bg-primary/20" />
+              <Progress value={progress} className="h-2 bg-primary/20" data-testid="progress-bar" />
             </CardContent>
           </Card>
-        </div>
 
-        {/* AI Insight Alert */}
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 flex items-start gap-3 mb-6">
-          <Info className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <h4 className="font-medium text-amber-900 dark:text-amber-100 text-sm">Weather Adaptation</h4>
-            <p className="text-amber-800 dark:text-amber-200 text-sm">
-              Temp drop to {formatTemp(10)} on Oct 14. We've added a <strong>Light Jacket</strong> and <strong>Scarf</strong> to your list.
-            </p>
+          {!journeyCreated && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6" data-testid="banner-create-journey">
+              <div className="flex items-start gap-3 flex-1">
+                <Globe className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-amber-900 dark:text-amber-100 text-sm">Want to track this trip?</h4>
+                  <p className="text-amber-800 dark:text-amber-200 text-sm">Create a Journey to save itinerary, notes, and more.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleCreateJourney}
+                disabled={isCreatingJourney}
+                data-testid="button-create-journey"
+              >
+                {isCreatingJourney ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />}
+                Create a Journey
+              </Button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {categories.map((cat, catIndex) => {
+              const IconComp = getCategoryIcon(cat.icon || cat.name);
+              const style = getCategoryStyle(cat.icon || cat.name);
+              const isCollapsed = collapsedCategories.has(cat.name);
+              const catPacked = cat.items.filter((i) => i.packed).length;
+
+              return (
+                <Card key={cat.name} data-testid={`card-category-${cat.name.toLowerCase().replace(/\s/g, "-")}`}>
+                  <button
+                    className="w-full text-left"
+                    onClick={() => toggleCategory(cat.name)}
+                    data-testid={`button-toggle-category-${cat.name.toLowerCase().replace(/\s/g, "-")}`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="font-serif text-lg flex items-center gap-2">
+                          <div className={`h-8 w-8 rounded-lg ${style.bg} flex items-center justify-center`}>
+                            <IconComp className={`h-4 w-4 ${style.color}`} />
+                          </div>
+                          {cat.name}
+                          <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                            {catPacked}/{cat.items.length}
+                          </Badge>
+                        </CardTitle>
+                        {isCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                    </CardHeader>
+                  </button>
+
+                  {!isCollapsed && (
+                    <CardContent className="pt-0 space-y-1">
+                      {cat.items.map((item, itemIndex) => (
+                        <div
+                          key={`${cat.name}-${itemIndex}`}
+                          className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
+                            item.packed
+                              ? "bg-muted/30 border-transparent opacity-60"
+                              : "bg-card border-border hover:border-primary/50 hover:shadow-sm"
+                          }`}
+                          onClick={() => togglePacked(catIndex, itemIndex)}
+                          data-testid={`item-${cat.name.toLowerCase().replace(/\s/g, "-")}-${itemIndex}`}
+                        >
+                          <Checkbox
+                            checked={item.packed}
+                            className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            data-testid={`checkbox-${cat.name.toLowerCase().replace(/\s/g, "-")}-${itemIndex}`}
+                          />
+                          <div className="flex-1 select-none min-w-0">
+                            <div className="flex justify-between items-start gap-2">
+                              <span className={`font-medium text-sm ${item.packed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                {item.name}
+                              </span>
+                              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground flex-shrink-0">
+                                Qty: {item.quantity}
+                              </Badge>
+                            </div>
+                            {item.reason && (
+                              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                                <Info className="h-3 w-3 opacity-50 flex-shrink-0" /> {item.reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         </div>
+      </Layout>
+    );
+  }
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-8">
-           {/* Main List Column */}
-           <div className="lg:col-span-2 flex flex-col min-h-0">
-             <Tabs defaultValue="clothing" className="flex-1 flex flex-col min-h-0">
-                <ScrollArea className="w-full pb-2">
-                  <TabsList className="w-full justify-start h-auto p-1 bg-muted/50 rounded-lg mb-4 inline-flex">
-                    {categories.map((cat) => (
-                      <TabsTrigger 
-                        key={cat.id} 
-                        value={cat.id}
-                        className="flex-1 py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
-                      >
-                        <cat.icon className={`h-4 w-4 mr-2 ${cat.color}`} />
-                        {cat.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </ScrollArea>
-
-                <div className="flex-1 overflow-y-auto min-h-0 pr-2">
-                  {categories.map((cat) => (
-                    <TabsContent key={cat.id} value={cat.id} className="mt-0 space-y-4">
-                      {/* Add Item Button */}
-                      <Button variant="outline" className="w-full border-dashed text-muted-foreground hover:text-foreground">
-                        <Plus className="mr-2 h-4 w-4" /> Add Item to {cat.label}
-                      </Button>
-
-                      {/* List Items */}
-                      <div className="space-y-2">
-                        {list[cat.id as keyof typeof list].map((item: any) => (
-                          <div 
-                            key={item.id} 
-                            className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 group ${item.packed ? 'bg-muted/30 border-transparent opacity-60' : 'bg-card border-border hover:border-primary/50 hover:shadow-sm'}`}
-                            onClick={() => toggleItem(cat.id as any, item.id)}
-                          >
-                            <Checkbox 
-                              checked={item.packed} 
-                              className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-                            <div className="flex-1 cursor-pointer select-none">
-                              <div className="flex justify-between items-start">
-                                <span className={`font-medium text-sm ${item.packed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                  {item.item}
-                                </span>
-                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground">
-                                  Qty: {item.quantity}
-                                </Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                                 {item.reason && <span className="flex items-center gap-1"><Info className="h-3 w-3 opacity-50" /> {item.reason}</span>}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </TabsContent>
-                  ))}
-                </div>
-             </Tabs>
-           </div>
-
-           {/* Right Column: Bag Summary */}
-           <div className="hidden lg:flex flex-col gap-6">
-              <Card className="bg-sidebar border-sidebar-border h-full max-h-[600px] flex flex-col">
-                <CardHeader>
-                  <CardTitle className="font-serif text-lg flex items-center gap-2">
-                    <ShoppingBag className="h-5 w-5" /> In Your Bag
-                  </CardTitle>
-                  <CardDescription>
-                    {packedItems} of {totalItems} items packed
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-y-auto pr-2">
-                   {packedItems === 0 ? (
-                     <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
-                       <Briefcase className="h-12 w-12 mb-2 opacity-20" />
-                       <p className="text-sm">Your bag is empty.<br/>Start checking off items!</p>
-                     </div>
-                   ) : (
-                     <div className="space-y-4">
-                       {categories.map(cat => {
-                         const items = list[cat.id as keyof typeof list].filter((i: any) => i.packed);
-                         if (items.length === 0) return null;
-                         
-                         return (
-                           <div key={cat.id}>
-                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
-                               <cat.icon className={`h-3 w-3 ${cat.color}`} /> {cat.label}
-                             </h4>
-                             <ul className="space-y-1">
-                               {items.map((item: any) => (
-                                 <li key={item.id} className="text-sm flex justify-between items-center p-1.5 rounded hover:bg-muted/50">
-                                   <span className="truncate">{item.item}</span>
-                                   <span className="text-xs text-muted-foreground">x{item.quantity}</span>
-                                 </li>
-                               ))}
-                             </ul>
-                             <Separator className="my-2 opacity-50" />
-                           </div>
-                         );
-                       })}
-                     </div>
-                   )}
-                </CardContent>
-                <div className="p-4 border-t border-border bg-muted/20">
-                   <div className="flex justify-between items-center text-sm font-medium">
-                     <span>Total Weight (Est.)</span>
-                     <span>~8.5 kg</span>
-                   </div>
-                   <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                     <span>Carry-on limit</span>
-                     <span>10 kg</span>
-                   </div>
-                   <Progress value={85} className="h-1.5 mt-2" />
-                </div>
-              </Card>
-           </div>
+  return (
+    <Layout>
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-primary/10 mb-4">
+            <Luggage className="h-7 w-7 text-primary" />
+          </div>
+          <h1 className="font-serif text-3xl font-bold mb-2">Smart Packing</h1>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            Tell us about your trip and we'll generate a personalized packing list powered by AI.
+          </p>
         </div>
+
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="destination" className="text-sm font-medium flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" /> Destination
+              </Label>
+              <Input
+                id="destination"
+                placeholder="e.g. Tokyo, Japan"
+                value={form.destination}
+                onChange={(e) => setForm((p) => ({ ...p, destination: e.target.value }))}
+                data-testid="input-destination"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="origin" className="text-sm font-medium flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" /> Origin <span className="text-xs text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="origin"
+                placeholder="e.g. New York, US"
+                value={form.origin}
+                onChange={(e) => setForm((p) => ({ ...p, origin: e.target.value }))}
+                data-testid="input-origin"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startDate" className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" /> Start Date
+                </Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+                  data-testid="input-start-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate" className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" /> End Date
+                </Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                  data-testid="input-end-date"
+                />
+              </div>
+            </div>
+
+            {duration > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2" data-testid="text-duration">
+                <Clock className="h-4 w-4" />
+                <span>Trip duration: <strong className="text-foreground">{duration} {duration === 1 ? "day" : "days"}</strong></span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Trip Activities</Label>
+              <div className="flex flex-wrap gap-2">
+                {ACTIVITY_OPTIONS.map((activity) => {
+                  const isSelected = form.activities.includes(activity);
+                  return (
+                    <Badge
+                      key={activity}
+                      variant={isSelected ? "default" : "outline"}
+                      className={`cursor-pointer transition-all text-sm py-1.5 px-3 ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                          : "hover:bg-muted"
+                      }`}
+                      onClick={() => toggleActivity(activity)}
+                      data-testid={`badge-activity-${activity.toLowerCase().replace(/\s/g, "-")}`}
+                    >
+                      {activity}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Button
+              className="w-full h-12 text-base"
+              onClick={handleGenerate}
+              disabled={!form.destination || !form.startDate || !form.endDate || duration <= 0}
+              data-testid="button-generate"
+            >
+              <Sparkles className="h-5 w-5 mr-2" /> Generate My Packing List
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

@@ -21,6 +21,8 @@ export default function Onboarding() {
     displayName: user?.firstName || "",
     homeLocation: "",
     passportCountry: "",
+    gender: "",
+    phoneNumber: "",
     temperatureUnit: "F",
     currency: "USD",
     distanceUnit: "mi",
@@ -35,7 +37,12 @@ export default function Onboarding() {
         ...formData,
         onboardingCompleted: true,
       });
-      await queryClient.invalidateQueries({ queryKey: ["/api/user-settings"] });
+      queryClient.setQueryData(["/api/user-settings"], (old: any) => ({
+        ...old,
+        ...formData,
+        onboardingCompleted: true,
+      }));
+      await queryClient.refetchQueries({ queryKey: ["/api/user-settings"] });
       setLocation("/");
     } catch (error) {
       toast({

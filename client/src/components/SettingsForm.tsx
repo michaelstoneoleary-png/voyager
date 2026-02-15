@@ -10,12 +10,16 @@ import {
   MapPin,
   BookOpen,
   Compass,
+  Phone,
+  User,
 } from "lucide-react";
 
 export interface SettingsFormData {
   displayName: string;
   homeLocation: string;
   passportCountry: string;
+  gender: string;
+  phoneNumber: string;
   temperatureUnit: string;
   currency: string;
   distanceUnit: string;
@@ -117,6 +121,54 @@ export function SettingsForm({ data, onChange, step }: SettingsFormProps) {
               data-testid="input-passport-country"
             />
             <p className="text-xs text-muted-foreground">For accurate visa requirement lookups</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="gender" className="flex items-center gap-2 text-sm font-medium">
+              <User className="h-4 w-4 text-primary" /> Gender
+              <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <RadioGroup
+              value={data.gender || ""}
+              onValueChange={(val) => update({ gender: val })}
+              className="grid grid-cols-4 gap-2"
+            >
+              {[
+                { value: "male", label: "Male" },
+                { value: "female", label: "Female" },
+                { value: "non-binary", label: "Non-binary" },
+                { value: "prefer-not-to-say", label: "Prefer not to say" },
+              ].map((opt) => (
+                <div key={opt.value}>
+                  <RadioGroupItem value={opt.value} id={`gender-${opt.value}`} className="peer sr-only" />
+                  <Label
+                    htmlFor={`gender-${opt.value}`}
+                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2.5 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer text-xs font-medium text-center"
+                  >
+                    {opt.label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+            <p className="text-xs text-muted-foreground">
+              Helps us customize cultural tips (dress codes, local customs) and packing suggestions for your destinations. This is completely optional and never shared publicly.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber" className="flex items-center gap-2 text-sm font-medium">
+              <Phone className="h-4 w-4 text-primary" /> Phone Number
+              <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input
+              id="phoneNumber"
+              type="tel"
+              value={data.phoneNumber}
+              onChange={(e) => update({ phoneNumber: e.target.value })}
+              placeholder="e.g., +1 555-123-4567"
+              data-testid="input-phone-number"
+            />
+            <p className="text-xs text-muted-foreground">For SMS packing list links and travel alerts. We'll never share your number.</p>
           </div>
         </div>
       )}

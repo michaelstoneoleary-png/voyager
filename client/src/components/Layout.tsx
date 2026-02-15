@@ -1,7 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { 
   Luggage, 
-  Info, 
   LayoutDashboard, 
   Settings,
   Menu,
@@ -64,7 +63,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const bottomNavItems = [
     { href: "/packing", label: "Smart Pack", icon: Luggage },
-    { href: "/intel", label: "Travel Intel", icon: Info },
     { href: "/explore", label: "Explore", icon: Compass },
     { href: "/community", label: "Community", icon: Users },
   ];

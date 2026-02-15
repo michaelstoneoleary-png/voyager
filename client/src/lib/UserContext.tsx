@@ -20,6 +20,8 @@ export interface UserSettings {
   socialYoutube: string;
   socialTiktok: string;
   socialTwitter: string;
+  gender: string;
+  phoneNumber: string;
   publishBlog: boolean;
 }
 
@@ -50,6 +52,8 @@ const defaultSettings: UserSettings = {
   socialYoutube: "",
   socialTiktok: "",
   socialTwitter: "",
+  gender: "",
+  phoneNumber: "",
   publishBlog: false,
 };
 
