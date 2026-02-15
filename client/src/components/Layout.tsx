@@ -43,7 +43,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col md:flex-row">
+    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col md:flex-row relative">
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-sidebar/50 backdrop-blur-md sticky top-0 z-50">
         <h1 className="font-serif text-xl font-bold tracking-tight text-primary">VOYAGER</h1>
