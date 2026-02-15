@@ -15,6 +15,8 @@ export const TRIP_DATA = {
   id: "trip-1",
   title: "Balkan Odyssey: Bulgaria & Serbia",
   dates: "Oct 12 - Oct 22, 2026",
+  origin: "New York (JFK)",
+  timeDifference: "+7h",
   status: "Upcoming",
   destinations: [
     {
