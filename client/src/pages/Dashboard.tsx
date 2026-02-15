@@ -42,7 +42,7 @@ export default function Dashboard() {
              <Sparkles className="h-4 w-4 text-amber-500 fill-amber-500/20" />
              <span className="font-medium">Synergy Detected:</span>
              <span className="text-muted-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
-               Combine <span className="underline decoration-amber-300/50 underline-offset-2">Tuscany</span> + <span className="underline decoration-amber-300/50 underline-offset-2">Cinque Terre</span>: Save ~$850, add 2 days to your trip
+               Opportunity: Add <span className="font-semibold text-amber-900 dark:text-amber-100">Cinque Terre</span> (+2 days). Costs +$350 now, but saves <span className="font-bold">$1,200</span> on future flights.
              </span>
            </div>
            <Button variant="ghost" size="sm" className="h-6 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-full px-3">
@@ -69,7 +69,7 @@ export default function Dashboard() {
                  <img 
                    src={heroTravel} 
                    alt="Travel" 
-                   className="w-full h-full object-cover opacity-20 mask-image-linear-to-l" 
+                   className="w-full h-full object-cover opacity-60 mask-image-linear-to-l" 
                  />
                  <div className="absolute inset-0 bg-gradient-to-l from-transparent to-background" />
               </div>
