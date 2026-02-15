@@ -36,21 +36,16 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {/* Compact Synergy Alert */}
-        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg p-4 flex items-start gap-4 shadow-sm">
-           <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-full text-amber-700 dark:text-amber-400 flex-shrink-0">
-             <Sparkles className="h-5 w-5" />
+        {/* Ultra-Compact Synergy Alert */}
+        <div className="flex items-center justify-between bg-amber-50/50 dark:bg-amber-950/10 border border-amber-200/50 dark:border-amber-900/30 rounded-full px-4 py-2 text-sm shadow-sm hover:shadow-md transition-all cursor-pointer group">
+           <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+             <Sparkles className="h-4 w-4 text-amber-500 fill-amber-500/20" />
+             <span className="font-medium">Synergy Detected:</span>
+             <span className="text-muted-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+               Combine <span className="underline decoration-amber-300/50 underline-offset-2">Tuscany</span> + <span className="underline decoration-amber-300/50 underline-offset-2">Cinque Terre</span> to save $850
+             </span>
            </div>
-           <div className="flex-1">
-             <div className="flex items-center gap-2 mb-1">
-               <h3 className="font-serif font-bold text-amber-900 dark:text-amber-100 text-sm">Trip Synergy Detected</h3>
-               <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-100/50 text-[10px] h-5 px-1.5">Opportunity</Badge>
-             </div>
-             <p className="text-amber-800 dark:text-amber-200 text-xs md:text-sm">
-               Combine <strong>Tuscan Wine Tour</strong> with <strong>Cinque Terre</strong> to save ~$850.
-             </p>
-           </div>
-           <Button variant="ghost" size="sm" className="text-amber-700 hover:text-amber-900 hover:bg-amber-100/50 h-8 text-xs">
+           <Button variant="ghost" size="sm" className="h-6 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-full px-3">
              View Details <ArrowRight className="ml-1 h-3 w-3" />
            </Button>
         </div>
