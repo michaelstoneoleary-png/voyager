@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { insertJourneySchema, insertPastTripSchema } from "@shared/schema";
+import { insertJourneySchema, insertPastTripSchema, updateUserSettingsSchema } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
 
@@ -83,6 +83,59 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  app.get("/api/user-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json({
+        displayName: user.displayName || user.firstName || "",
+        email: user.email || "",
+        profileImageUrl: user.profileImageUrl || "",
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        homeLocation: user.homeLocation || "",
+        passportCountry: user.passportCountry || "",
+        temperatureUnit: user.temperatureUnit || "F",
+        currency: user.currency || "USD",
+        distanceUnit: user.distanceUnit || "mi",
+        dateFormat: user.dateFormat || "MM/DD/YYYY",
+        travelStyles: user.travelStyles || [],
+        onboardingCompleted: user.onboardingCompleted || false,
+      });
+    } catch (error) {
+      console.error("Error fetching user settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.put("/api/user-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validated = updateUserSettingsSchema.parse(req.body);
+      const updated = await storage.updateUser(userId, validated);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({
+        displayName: updated.displayName || updated.firstName || "",
+        email: updated.email || "",
+        profileImageUrl: updated.profileImageUrl || "",
+        firstName: updated.firstName || "",
+        lastName: updated.lastName || "",
+        homeLocation: updated.homeLocation || "",
+        passportCountry: updated.passportCountry || "",
+        temperatureUnit: updated.temperatureUnit || "F",
+        currency: updated.currency || "USD",
+        distanceUnit: updated.distanceUnit || "mi",
+        dateFormat: updated.dateFormat || "MM/DD/YYYY",
+        travelStyles: updated.travelStyles || [],
+        onboardingCompleted: updated.onboardingCompleted || false,
+      });
+    } catch (error) {
+      console.error("Error updating user settings:", error);
+      res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
 
   // Journeys CRUD
   app.get("/api/journeys", isAuthenticated, async (req: any, res) => {

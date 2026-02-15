@@ -63,6 +63,19 @@ export const insertPastTripSchema = createInsertSchema(pastTrips).omit({
   createdAt: true,
 });
 
+export const updateUserSettingsSchema = z.object({
+  displayName: z.string().optional(),
+  homeLocation: z.string().optional(),
+  passportCountry: z.string().optional(),
+  temperatureUnit: z.enum(["F", "C"]).optional(),
+  currency: z.string().optional(),
+  distanceUnit: z.enum(["mi", "km"]).optional(),
+  dateFormat: z.enum(["MM/DD/YYYY", "DD/MM/YYYY"]).optional(),
+  travelStyles: z.array(z.string()).optional(),
+  onboardingCompleted: z.boolean().optional(),
+});
+
+export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;
 export type InsertJourney = z.infer<typeof insertJourneySchema>;
 export type Journey = typeof journeys.$inferSelect;
 export type InsertPastTrip = z.infer<typeof insertPastTripSchema>;

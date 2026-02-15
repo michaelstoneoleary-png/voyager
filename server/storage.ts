@@ -8,6 +8,7 @@ import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
 
   getJourneys(userId: string): Promise<Journey[]>;
   getJourney(id: string, userId: string): Promise<Journey | undefined>;
@@ -26,6 +27,15 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
+  }
+
+  async updateUser(id: string, data: Partial<User>): Promise<User | undefined> {
+    const { id: _, createdAt, ...updateData } = data as any;
+    const [updated] = await db.update(users)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async getJourneys(userId: string): Promise<Journey[]> {

@@ -1,27 +1,71 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-type TemperatureUnit = 'C' | 'F';
-
-interface UserSettings {
-  temperatureUnit: TemperatureUnit;
+export interface UserSettings {
+  displayName: string;
+  email: string;
+  profileImageUrl: string;
+  firstName: string;
+  lastName: string;
+  homeLocation: string;
+  passportCountry: string;
+  temperatureUnit: string;
+  currency: string;
+  distanceUnit: string;
+  dateFormat: string;
+  travelStyles: string[];
+  onboardingCompleted: boolean;
 }
 
 interface UserContextType {
   settings: UserSettings;
+  isLoading: boolean;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   convertTemp: (celsius: number) => number;
   formatTemp: (celsius: number) => string;
 }
 
+const defaultSettings: UserSettings = {
+  displayName: "",
+  email: "",
+  profileImageUrl: "",
+  firstName: "",
+  lastName: "",
+  homeLocation: "",
+  passportCountry: "",
+  temperatureUnit: "F",
+  currency: "USD",
+  distanceUnit: "mi",
+  dateFormat: "MM/DD/YYYY",
+  travelStyles: [],
+  onboardingCompleted: false,
+};
+
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<UserSettings>({
-    temperatureUnit: 'F', // Default for Jennifer (US)
+export function UserProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+
+  const { data: settings = defaultSettings, isLoading } = useQuery<UserSettings>({
+    queryKey: ["/api/user-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/user-settings", { credentials: "include" });
+      if (res.status === 401) {
+        return defaultSettings;
+      }
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${res.statusText}`);
+      }
+      return res.json();
+    },
+    retry: false,
   });
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    queryClient.setQueryData(["/api/user-settings"], (old: UserSettings) => ({
+      ...(old || defaultSettings),
+      ...newSettings,
+    }));
   };
 
   const convertTemp = (celsius: number) => {
@@ -35,7 +79,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <UserContext.Provider value={{ settings, updateSettings, convertTemp, formatTemp }}>
+    <UserContext.Provider value={{ settings, isLoading, updateSettings, convertTemp, formatTemp }}>
       {children}
     </UserContext.Provider>
   );

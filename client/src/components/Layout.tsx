@@ -9,31 +9,19 @@ import {
   Menu,
   X,
   Globe,
-  Thermometer,
   Users,
-  History,
   LogOut
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useUser } from "@/lib/UserContext";
 import { useAuth } from "@/hooks/use-auth";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { settings, updateSettings } = useUser();
+  const { settings } = useUser();
   const { user, logout } = useAuth();
 
   const userInitials = user
@@ -112,52 +100,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             
             <div className="flex items-center gap-1">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <button data-testid="button-settings">
-                    <Settings className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
-                  </button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle className="font-serif">Settings</DialogTitle>
-                    <DialogDescription>
-                      Customize your Voyager experience.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-4">
-                      <h4 className="font-medium leading-none flex items-center gap-2">
-                        <Thermometer className="h-4 w-4" /> Temperature Unit
-                      </h4>
-                      <RadioGroup 
-                        defaultValue={settings.temperatureUnit} 
-                        onValueChange={(val) => updateSettings({ temperatureUnit: val as 'C' | 'F' })}
-                        className="grid grid-cols-2 gap-4"
-                      >
-                        <div>
-                          <RadioGroupItem value="C" id="celsius" className="peer sr-only" />
-                          <Label
-                            htmlFor="celsius"
-                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                          >
-                            <span className="text-lg font-bold">Celsius (°C)</span>
-                          </Label>
-                        </div>
-                        <div>
-                          <RadioGroupItem value="F" id="fahrenheit" className="peer sr-only" />
-                          <Label
-                            htmlFor="fahrenheit"
-                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                          >
-                            <span className="text-lg font-bold">Fahrenheit (°F)</span>
-                          </Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Link href="/settings">
+                <button data-testid="button-settings">
+                  <Settings className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
+                </button>
+              </Link>
 
               <button onClick={() => logout()} data-testid="button-logout" title="Log out">
                 <LogOut className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-destructive transition-colors" />
