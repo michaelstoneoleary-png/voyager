@@ -45,6 +45,17 @@ export default function Journeys() {
         description: "Great choice! October offers cooler temperatures and fewer crowds compared to summer. You'll catch the beautiful autumn foliage in the Rila mountains.",
         crowdLevel: "Low",
         weatherIcon: "🍂"
+      },
+      priceAlert: {
+        status: "Price Drop",
+        amount: "-$120",
+        trend: "down",
+        currentPrice: "$850 (Flights)",
+        recommendation: "Book Now"
+      },
+      logistics: {
+        visa: "Visa Free",
+        health: "Standard"
       }
     },
     {
@@ -61,6 +72,17 @@ export default function Journeys() {
         description: "You are visiting during the famous Momiji (maple leaf) season. Expect heavy crowds at major temples, but the scenery will be breathtaking.",
         crowdLevel: "Very High",
         weatherIcon: "🍁"
+      },
+      priceAlert: {
+        status: "Tracking",
+        amount: "+$50",
+        trend: "stable",
+        currentPrice: "$1,200 (Flights)",
+        recommendation: "Wait"
+      },
+      logistics: {
+        visa: "e-Visa Required",
+        health: "None"
       }
     },
     {
@@ -77,6 +99,17 @@ export default function Journeys() {
         description: "Late May is perfect. The rolling hills are vibrant green, poppies are in bloom, and it's warm enough for al fresco dining without the intense summer heat.",
         crowdLevel: "Moderate",
         weatherIcon: "🌤️"
+      },
+      priceAlert: {
+        status: "High Demand",
+        amount: "+$200",
+        trend: "up",
+        currentPrice: "$1,400 (Flights)",
+        recommendation: "Book Soon"
+      },
+      logistics: {
+        visa: "Schengen",
+        health: "Standard"
       }
     }
   ];
@@ -132,6 +165,13 @@ export default function Journeys() {
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute top-3 left-3 flex gap-2">
+                           {trip.priceAlert?.status === "Price Drop" && (
+                             <Badge className="bg-emerald-500/90 hover:bg-emerald-500 border-0 text-white backdrop-blur-sm animate-pulse">
+                               <TrendingUp className="h-3 w-3 mr-1 rotate-180" /> Price Drop
+                             </Badge>
+                           )}
+                        </div>
                         <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
                           <Badge variant="secondary" className="text-[10px] h-5 bg-white/20 text-white border-0 backdrop-blur-sm shadow-sm">
                             {trip.status}
@@ -189,27 +229,66 @@ export default function Journeys() {
 
                     <div className="p-6 space-y-6">
                       {/* Seasonality Insight */}
-                      <div className="bg-muted/30 rounded-xl p-4 border border-border">
-                         <div className="flex items-center justify-between mb-2">
-                           <h4 className="font-medium flex items-center gap-2 text-primary">
-                             <Info className="h-4 w-4" /> Seasonality Insight
-                           </h4>
-                           <Badge variant={trip.seasonality.type === "Peak Season" ? "destructive" : "secondary"} className="font-mono">
-                             {trip.seasonality.weatherIcon} {trip.seasonality.type}
-                           </Badge>
-                         </div>
-                         <p className="text-sm text-muted-foreground mb-3">
-                           {trip.seasonality.description}
-                         </p>
-                         <div className="flex items-center gap-2 text-xs font-medium bg-background/50 p-2 rounded-lg w-fit">
-                           <Users className="h-3 w-3 text-muted-foreground" />
-                           Expected Crowds: <span className={trip.seasonality.crowdLevel.includes("High") ? "text-orange-600" : "text-emerald-600"}>{trip.seasonality.crowdLevel}</span>
-                         </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-muted/30 rounded-xl p-4 border border-border">
+                           <div className="flex items-center justify-between mb-2">
+                             <h4 className="font-medium flex items-center gap-2 text-primary">
+                               <Info className="h-4 w-4" /> Seasonality
+                             </h4>
+                             <Badge variant={trip.seasonality.type === "Peak Season" ? "destructive" : "secondary"} className="font-mono text-[10px]">
+                               {trip.seasonality.weatherIcon} {trip.seasonality.type}
+                             </Badge>
+                           </div>
+                           <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                             {trip.seasonality.description}
+                           </p>
+                           <div className="flex items-center gap-2 text-xs font-medium bg-background/50 p-2 rounded-lg w-fit">
+                             <Users className="h-3 w-3 text-muted-foreground" />
+                             Crowds: <span className={trip.seasonality.crowdLevel.includes("High") ? "text-orange-600" : "text-emerald-600"}>{trip.seasonality.crowdLevel}</span>
+                           </div>
+                        </div>
+
+                        <div className="space-y-4">
+                           {/* Price Alert Widget */}
+                           <div className="bg-background rounded-xl p-4 border border-border shadow-sm">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-medium flex items-center gap-2">
+                                  <TrendingUp className="h-4 w-4 text-emerald-500" /> Price Watch
+                                </h4>
+                                <Badge variant="outline" className={trip.priceAlert?.trend === "down" ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-orange-600 border-orange-200 bg-orange-50"}>
+                                  {trip.priceAlert?.recommendation}
+                                </Badge>
+                              </div>
+                              <div className="flex items-baseline justify-between">
+                                 <div>
+                                   <p className="text-2xl font-bold font-mono">{trip.priceAlert?.currentPrice}</p>
+                                   <p className="text-xs text-muted-foreground">Checked today</p>
+                                 </div>
+                                 <div className={`text-sm font-bold ${trip.priceAlert?.trend === "down" ? "text-emerald-600" : "text-orange-600"}`}>
+                                   {trip.priceAlert?.amount}
+                                 </div>
+                              </div>
+                           </div>
+
+                           {/* Logistics Mini-Grid */}
+                           <div className="grid grid-cols-2 gap-3">
+                              <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                <span className="text-[10px] uppercase text-muted-foreground font-bold">Visa</span>
+                                <p className="text-sm font-medium">{trip.logistics?.visa}</p>
+                              </div>
+                              <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                                <span className="text-[10px] uppercase text-muted-foreground font-bold">Health</span>
+                                <p className="text-sm font-medium">{trip.logistics?.health}</p>
+                              </div>
+                           </div>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <Button className="w-full">Continue Planning</Button>
-                        <Button variant="outline" className="w-full">Edit Details</Button>
+                      <div className="flex gap-3 pt-2">
+                        <Button className="flex-1 bg-primary hover:bg-primary/90">
+                          Edit Itinerary
+                        </Button>
+                        <Button variant="outline" className="flex-1">View Bookings</Button>
                       </div>
                     </div>
                   </DialogContent>
