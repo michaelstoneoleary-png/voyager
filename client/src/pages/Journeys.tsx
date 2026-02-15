@@ -137,7 +137,13 @@ export default function Journeys() {
 
   return (
     <Layout>
-      <NewTripDialog open={isNewTripOpen} onOpenChange={setIsNewTripOpen} />
+      <NewTripDialog 
+        open={isNewTripOpen} 
+        onOpenChange={(open) => {
+          console.log("Dialog open change:", open);
+          setIsNewTripOpen(open);
+        }} 
+      />
       
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex items-center justify-between">
@@ -148,7 +154,10 @@ export default function Journeys() {
           <Button 
             size="lg" 
             className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-            onClick={() => setIsNewTripOpen(true)}
+            onClick={() => {
+              console.log("Opening new trip dialog");
+              setIsNewTripOpen(true);
+            }}
           >
              <Plus className="mr-2 h-5 w-5" /> Start New Journey
           </Button>
@@ -305,8 +314,11 @@ export default function Journeys() {
               
               <Button 
                 variant="outline" 
-                className="h-full min-h-[300px] flex flex-col gap-4 border-dashed text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                onClick={() => setIsNewTripOpen(true)}
+                className="h-full min-h-[300px] flex flex-col gap-4 border-dashed text-muted-foreground hover:text-foreground hover:bg-muted/30 cursor-pointer w-full"
+                onClick={() => {
+                  console.log("Opening new trip dialog from card");
+                  setIsNewTripOpen(true);
+                }}
               >
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
                   <Plus className="h-6 w-6" />
