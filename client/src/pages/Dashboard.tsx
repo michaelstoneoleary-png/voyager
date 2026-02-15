@@ -20,23 +20,36 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
 import heroTravel from "@/assets/hero-travel.png";
+import { NewTripDialog } from "@/components/NewTripDialog";
+import { useState } from "react";
 
 export default function Dashboard() {
   const { formatTemp } = useUser();
+  const [isNewTripOpen, setIsNewTripOpen] = useState(false);
+
   return (
-    <Layout>
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        
-        {/* Header with Start New Trip */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-3xl font-bold">Welcome back, Jennifer</h1>
-            <p className="text-muted-foreground text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+    <>
+      <NewTripDialog 
+        open={isNewTripOpen} 
+        onOpenChange={setIsNewTripOpen} 
+      />
+      <Layout>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
+          {/* Header with Start New Trip */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="font-serif text-3xl font-bold">Welcome back, Jennifer</h1>
+              <p className="text-muted-foreground text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+            <Button 
+              size="lg" 
+              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              onClick={() => setIsNewTripOpen(true)}
+            >
+               <Plus className="mr-2 h-5 w-5" /> Start New Journey
+            </Button>
           </div>
-          <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm">
-             <Plus className="mr-2 h-5 w-5" /> Start New Journey
-          </Button>
-        </div>
 
         {/* Ultra-Compact Synergy Alert */}
         <div className="flex items-center justify-between bg-amber-50/50 dark:bg-amber-950/10 border border-amber-200/50 dark:border-amber-900/30 rounded-full px-4 py-2 text-sm shadow-sm hover:shadow-md transition-all cursor-pointer group">
@@ -194,7 +207,7 @@ export default function Dashboard() {
           </div>
 
         </div>
-      </div>
-    </Layout>
+      </Layout>
+    </>
   );
 }
