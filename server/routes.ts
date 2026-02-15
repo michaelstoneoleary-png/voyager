@@ -149,24 +149,45 @@ export async function registerRoutes(
         messages: [
           {
             role: "user",
-            content: `You are a data extraction assistant. Parse the following spreadsheet/CSV data and extract travel trip information.
+            content: `You are a premium travel curator data extraction assistant. Parse the following spreadsheet/CSV data and extract travel trip information.
 
-Extract each trip as a JSON object with these fields:
-- destination: the city or place name (required)
-- country: the country (if identifiable)
-- startDate: when the trip started (any format found in the data)
-- endDate: when the trip ended (if available)
-- notes: any additional details, ratings, or comments
-- lat: latitude if available or if you know the coordinates for the city
-- lng: longitude if available or if you know the coordinates for the city
+The data may have ANY column names or format. Figure out which columns contain relevant travel data. Columns might be named "Place", "City", "Location", "Where", "Destination", etc.
 
-Important:
-- The data may have ANY column names or format. Figure out which columns contain relevant travel data.
-- If columns are named things like "Place", "City", "Location", "Where", etc., treat those as destinations.
-- If there are date columns, use them for startDate/endDate.
-- For well-known cities, provide the lat/lng coordinates even if not in the data.
-- Skip any rows that don't appear to be travel destinations.
-- Return ONLY a JSON array of trip objects, no other text.
+For EACH trip found, create a JSON object with these fields:
+
+JOURNEY fields (for creating a full trip plan):
+- title: A compelling journey title, e.g. "Journey to Paris" or "Mediterranean Escape" (required)
+- dates: Date range string like "Jun 15 - Jun 22, 2024" or "Flexible (7 days)" if no exact dates
+- days: Number of days (integer, estimate from dates or default to 5)
+- cost: Budget estimate string like "$2,500" — estimate based on destination if not in data
+- status: "Planning" for future trips, "Completed" for past trips
+- progress: 0 for planning, 100 for completed
+- destinations: Array of destination strings like ["Paris, France", "Lyon, France"]
+- seasonality: JSON object with best_months (array of month names), peak_season, shoulder_season, and a tip string about the destination
+- logistics: JSON object with travel tips, visa info, currency, and timezone for the destination
+
+PAST TRIP fields (for the travel history timeline):
+- destination: The city or place name (required)
+- country: The country
+- startDate: When the trip started
+- endDate: When the trip ended
+- notes: Any additional details
+- lat: Latitude (provide for well-known cities even if not in data)
+- lng: Longitude (provide for well-known cities even if not in data)
+
+Return a JSON object with two arrays:
+{
+  "journeys": [ ...journey objects... ],
+  "pastTrips": [ ...pastTrip objects... ]
+}
+
+Rules:
+- Every imported row should create BOTH a journey AND a past trip entry
+- For well-known cities, always provide lat/lng coordinates
+- For seasonality, use your knowledge of the destination's climate and tourism patterns
+- For logistics, include practical travel information
+- Skip rows that don't appear to be travel destinations
+- Return ONLY the JSON object, no other text
 
 Data:
 ${truncated}`,
@@ -177,35 +198,110 @@ ${truncated}`,
       const content = message.content[0];
       const responseText = content.type === "text" ? content.text : "";
 
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        return res.status(422).json({ message: "Could not parse trips from the file. Try a different format." });
-      }
-
-      const trips = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(trips) || trips.length === 0) {
-        return res.status(422).json({ message: "No trips found in the file." });
+      let parsed: any;
+      try {
+        const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const rawJson = codeBlockMatch ? codeBlockMatch[1].trim() : responseText.trim();
+        const jsonMatch = rawJson.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          return res.status(422).json({ message: "Could not parse trips from the file. Try a different format." });
+        }
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        console.error("JSON parse error from AI response:", parseErr);
+        return res.status(422).json({ message: "AI returned invalid data. Please try again." });
       }
 
       const userId = req.user.claims.sub;
-      const validTrips = trips
-        .filter((t: any) => t.destination)
-        .map((t: any) => ({
-          userId,
-          destination: String(t.destination).trim(),
-          country: t.country ? String(t.country).trim() : null,
-          startDate: t.startDate ? String(t.startDate).trim() : null,
-          endDate: t.endDate ? String(t.endDate).trim() : null,
-          notes: t.notes ? String(t.notes).trim() : null,
-          lat: t.lat ? String(t.lat) : null,
-          lng: t.lng ? String(t.lng) : null,
-        }));
+      const createdJourneys: any[] = [];
+      const createdPastTrips: any[] = [];
 
-      const created = await storage.createPastTrips(validTrips);
-      res.status(201).json(created);
+      if (Array.isArray(parsed.journeys) && parsed.journeys.length > 0) {
+        const journeyRecords: any[] = [];
+        for (const j of parsed.journeys) {
+          const candidate = {
+            userId,
+            title: j.title ? String(j.title).trim() : "",
+            dates: j.dates ? String(j.dates).trim() : "TBD",
+            days: Math.max(1, Math.min(365, Number(j.days) || 5)),
+            cost: j.cost ? String(j.cost).trim() : "TBD",
+            status: ["Planning", "Completed", "Confirmed"].includes(j.status) ? j.status : "Completed",
+            progress: j.status === "Completed" || j.progress === 100 ? 100 : Math.max(0, Math.min(100, Number(j.progress) || 0)),
+            destinations: Array.isArray(j.destinations) ? j.destinations.map(String) : [],
+            seasonality: typeof j.seasonality === "object" && j.seasonality !== null ? j.seasonality : null,
+            priceAlert: null,
+            logistics: typeof j.logistics === "object" && j.logistics !== null ? j.logistics : null,
+          };
+          if (!candidate.title) continue;
+          try {
+            insertJourneySchema.parse(candidate);
+            journeyRecords.push(candidate);
+          } catch (validationErr) {
+            console.warn("Skipping invalid journey from AI:", candidate.title, validationErr);
+          }
+        }
+
+        if (journeyRecords.length > 0) {
+          const created = await storage.createJourneys(journeyRecords);
+          createdJourneys.push(...created);
+        }
+      }
+
+      if (Array.isArray(parsed.pastTrips) && parsed.pastTrips.length > 0) {
+        const tripRecords: any[] = [];
+        for (const t of parsed.pastTrips) {
+          const candidate = {
+            userId,
+            destination: t.destination ? String(t.destination).trim() : "",
+            country: t.country ? String(t.country).trim() : null,
+            startDate: t.startDate ? String(t.startDate).trim() : null,
+            endDate: t.endDate ? String(t.endDate).trim() : null,
+            notes: t.notes ? String(t.notes).trim() : null,
+            lat: t.lat ? String(t.lat) : null,
+            lng: t.lng ? String(t.lng) : null,
+          };
+          if (!candidate.destination) continue;
+          try {
+            insertPastTripSchema.parse(candidate);
+            tripRecords.push(candidate);
+          } catch (validationErr) {
+            console.warn("Skipping invalid past trip from AI:", candidate.destination, validationErr);
+          }
+        }
+
+        if (tripRecords.length > 0) {
+          const created = await storage.createPastTrips(tripRecords);
+          createdPastTrips.push(...created);
+        }
+      }
+
+      res.status(201).json({
+        journeys: createdJourneys,
+        pastTrips: createdPastTrips,
+      });
     } catch (error: any) {
       console.error("Error in AI parse:", error);
       res.status(500).json({ message: "Failed to parse file with AI. Please try again." });
+    }
+  });
+
+  app.post("/api/journeys/bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (!Array.isArray(req.body.journeys)) {
+        return res.status(400).json({ message: "journeys array is required" });
+      }
+      const journeyList = req.body.journeys.map((j: any) =>
+        insertJourneySchema.parse({ ...j, userId })
+      );
+      const created = await storage.createJourneys(journeyList);
+      res.status(201).json(created);
+    } catch (error: any) {
+      console.error("Error bulk creating journeys:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Invalid journey data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create journeys" });
     }
   });
 

@@ -12,6 +12,7 @@ export interface IStorage {
   getJourneys(userId: string): Promise<Journey[]>;
   getJourney(id: string, userId: string): Promise<Journey | undefined>;
   createJourney(journey: InsertJourney): Promise<Journey>;
+  createJourneys(journeyList: InsertJourney[]): Promise<Journey[]>;
   updateJourney(id: string, userId: string, data: Partial<InsertJourney>): Promise<Journey | undefined>;
   deleteJourney(id: string, userId: string): Promise<boolean>;
 
@@ -41,6 +42,11 @@ export class DatabaseStorage implements IStorage {
   async createJourney(journey: InsertJourney): Promise<Journey> {
     const [created] = await db.insert(journeys).values(journey).returning();
     return created;
+  }
+
+  async createJourneys(journeyList: InsertJourney[]): Promise<Journey[]> {
+    if (journeyList.length === 0) return [];
+    return db.insert(journeys).values(journeyList).returning();
   }
 
   async updateJourney(id: string, userId: string, data: Partial<InsertJourney>): Promise<Journey | undefined> {

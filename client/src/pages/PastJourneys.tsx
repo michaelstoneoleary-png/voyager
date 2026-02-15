@@ -98,9 +98,13 @@ export default function PastJourneys() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/past-trips"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
+
+      const journeyCount = data.journeys?.length || 0;
+      const tripCount = data.pastTrips?.length || 0;
       toast({
         title: "Import Successful",
-        description: `AI extracted ${Array.isArray(data) ? data.length : 0} trips from your file.`,
+        description: `AI created ${journeyCount} journey${journeyCount !== 1 ? 's' : ''} and ${tripCount} map pin${tripCount !== 1 ? 's' : ''} from your file.`,
       });
     } catch (error) {
       console.error("Upload error:", error);
@@ -178,11 +182,12 @@ export default function PastJourneys() {
                      </CardTitle>
                    </CardHeader>
                    <CardContent className="space-y-3">
-                     <p className="text-sm text-muted-foreground">Upload any spreadsheet or CSV — no special formatting needed. AI will automatically detect your destinations, dates, and details.</p>
+                     <p className="text-sm text-muted-foreground">Upload any spreadsheet or CSV — no special formatting needed. AI creates full journey records with seasonality insights, logistics, and map pins.</p>
                      <div className="bg-muted/30 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
+                       <div>Creates complete Journey records</div>
+                       <div>Adds seasonality & logistics data</div>
+                       <div>Auto-detects coordinates for map</div>
                        <div>Works with any column names</div>
-                       <div>Auto-detects coordinates for map pins</div>
-                       <div>Supports messy or informal data</div>
                      </div>
                    </CardContent>
                  </Card>
