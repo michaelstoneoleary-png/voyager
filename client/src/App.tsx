@@ -9,6 +9,7 @@ import TripPlanner from "@/pages/TripPlanner";
 import PackingList from "@/pages/PackingList";
 import Intel from "@/pages/Intel";
 import Journeys from "@/pages/Journeys";
+import { UserProvider } from "@/lib/UserContext";
 
 function Router() {
   return (
@@ -27,10 +28,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <UserProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </UserProvider>
     </QueryClientProvider>
   );
 }

@@ -23,13 +23,14 @@ import {
   ShoppingBag
 } from "lucide-react";
 import { useState } from "react";
+import { useUser } from "@/lib/UserContext";
 
 // Mock Data for Comprehensive List
 const INITIAL_PACKING_LIST = {
   clothing: [
     { id: "c1", item: "T-Shirts / Tops", quantity: 5, packed: true, reason: "Daily wear" },
     { id: "c2", item: "Long Sleeve Shirt", quantity: 2, packed: false, reason: "Cool evenings" },
-    { id: "c3", item: "Light Jacket", quantity: 1, packed: false, reason: "Mountain trip (10°C)" },
+    { id: "c3", item: "Light Jacket", quantity: 1, packed: false, reason: "Mountain trip" },
     { id: "c4", item: "Jeans / Trousers", quantity: 3, packed: true, reason: "City walking" },
     { id: "c5", item: "Walking Shoes", quantity: 1, packed: true, reason: "Cobblestone streets" },
     { id: "c6", item: "Underwear", quantity: 7, packed: true, reason: "Daily + spare" },
@@ -60,6 +61,7 @@ const INITIAL_PACKING_LIST = {
 };
 
 export default function PackingList() {
+  const { formatTemp } = useUser();
   const [list, setList] = useState(INITIAL_PACKING_LIST);
   
   // Calculate Progress
@@ -117,7 +119,7 @@ export default function PackingList() {
           <div className="flex-1">
             <h4 className="font-medium text-amber-900 dark:text-amber-100 text-sm">Weather Adaptation</h4>
             <p className="text-amber-800 dark:text-amber-200 text-sm">
-              Temp drop to 10°C on Oct 14. We've added a <strong>Light Jacket</strong> and <strong>Scarf</strong> to your list.
+              Temp drop to {formatTemp(10)} on Oct 14. We've added a <strong>Light Jacket</strong> and <strong>Scarf</strong> to your list.
             </p>
           </div>
         </div>

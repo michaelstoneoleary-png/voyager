@@ -18,9 +18,11 @@ import {
   Lightbulb,
   ArrowUpRight
 } from "lucide-react";
+import { useUser } from "@/lib/UserContext";
 import heroTravel from "@/assets/hero-travel.png";
 
 export default function Dashboard() {
+  const { formatTemp } = useUser();
   return (
     <Layout>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -91,7 +93,7 @@ export default function Dashboard() {
                       <div className="bg-muted/30 p-3 rounded-lg border border-border">
                         <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Weather</span>
                         <div className="font-medium flex items-center gap-2">
-                          <CloudSun className="h-4 w-4 text-amber-500" /> 18°C Sunny
+                          <CloudSun className="h-4 w-4 text-amber-500" /> {formatTemp(18)} Sunny
                         </div>
                       </div>
                       <div className="bg-muted/30 p-3 rounded-lg border border-border">
