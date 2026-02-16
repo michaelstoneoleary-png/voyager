@@ -25,8 +25,13 @@ async function getCredentials() {
     }
   ).then(res => res.json()).then(data => data.items?.[0]);
 
-  if (!connectionSettings || (!connectionSettings.settings.account_sid || !connectionSettings.settings.api_key || !connectionSettings.settings.api_key_secret)) {
-    throw new Error('Twilio not connected');
+  if (!connectionSettings || !connectionSettings.settings) {
+    console.error('Twilio connector returned:', JSON.stringify(connectionSettings));
+    throw new Error('Twilio not connected - no connection settings found');
+  }
+  if (!connectionSettings.settings.account_sid || !connectionSettings.settings.api_key || !connectionSettings.settings.api_key_secret) {
+    console.error('Twilio missing credentials: has account_sid:', !!connectionSettings.settings.account_sid, 'has api_key:', !!connectionSettings.settings.api_key, 'has api_key_secret:', !!connectionSettings.settings.api_key_secret);
+    throw new Error('Twilio credentials incomplete');
   }
   return {
     accountSid: connectionSettings.settings.account_sid,

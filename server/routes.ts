@@ -1315,6 +1315,7 @@ Return ONLY the JSON object, no other text.`,
     try {
       const userId = getUserId(req)!;
       const lists = await storage.getPackingLists(userId);
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate");
       res.json(lists[0] || null);
     } catch (error) {
       console.error("Error fetching latest packing list:", error);
@@ -1402,7 +1403,7 @@ Return ONLY the JSON object, no other text.`,
 
       const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost:5000";
       const protocol = req.headers["x-forwarded-proto"] || "https";
-      const packingUrl = `${protocol}://${host}/pack`;
+      const packingUrl = `${protocol}://${host}/packing`;
 
       smsRateLimit.set(userId, now);
 
@@ -1412,7 +1413,16 @@ Return ONLY the JSON object, no other text.`,
       res.json({ success: true, message: "SMS sent successfully" });
     } catch (error: any) {
       console.error("Error sending packing SMS:", error);
-      res.status(500).json({ message: error.message || "Failed to send SMS" });
+      const code = error.code || error.status;
+      let userMsg = "Failed to send SMS. Please try again.";
+      if (code === 20003 || (error.message && error.message.includes("Authenticate"))) {
+        userMsg = "SMS service authentication error. The Twilio connection may need to be reconfigured.";
+      } else if (code === 21211 || (error.message && error.message.includes("not valid"))) {
+        userMsg = "That phone number doesn't appear to be valid. Please check and try again.";
+      } else if (error.message) {
+        userMsg = error.message;
+      }
+      res.status(500).json({ message: userMsg });
     }
   });
 

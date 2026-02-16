@@ -138,14 +138,16 @@ export default function PackingList() {
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/packing-lists/latest", { credentials: "include" });
-        if (res.ok) {
+        const res = await fetch(`/api/packing-lists/latest?_t=${Date.now()}`, { credentials: "include", cache: "no-store" });
+        if (res.ok && !cancelled) {
           const saved = await res.json();
-          if (saved && saved.categories) {
+          if (saved && saved.categories && Array.isArray(saved.categories) && saved.categories.length > 0) {
             setCategories(saved.categories as PackingCategory[]);
             setSavedPackingListId(saved.id);
+            if (saved.journeyId) setSelectedJourneyId(saved.journeyId);
             setForm({
               destination: saved.destination || "",
               origin: saved.origin || "",
@@ -156,9 +158,12 @@ export default function PackingList() {
             });
           }
         }
-      } catch {}
-      setIsLoadingSaved(false);
+      } catch (err) {
+        console.error("Failed to load saved packing list:", err);
+      }
+      if (!cancelled) setIsLoadingSaved(false);
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -168,7 +173,9 @@ export default function PackingList() {
       if (!listId) return;
       try {
         await apiRequest("PUT", `/api/packing-lists/${listId}`, { categories: cats });
-      } catch {}
+      } catch (err) {
+        console.error("Failed to persist packing list check-off:", err);
+      }
     }, 500);
   }, []);
 
@@ -269,18 +276,21 @@ export default function PackingList() {
       setJourneyCreated(false);
 
       try {
+        const dest = form.destination || (journeys?.find(j => j.id === selectedJourneyId)?.title) || "Unknown";
         const saveRes = await apiRequest("POST", "/api/packing-lists", {
-          destination: form.destination,
+          destination: dest,
           origin: form.origin || null,
           startDate: form.startDate || null,
           endDate: form.endDate || null,
           activities: form.activities,
           categories: cats,
-          journeyId: form.journeyId || null,
+          journeyId: selectedJourneyId || form.journeyId || null,
         });
         const savedList = await saveRes.json();
         setSavedPackingListId(savedList.id);
-      } catch {}
+      } catch (saveErr) {
+        console.error("Failed to save packing list:", saveErr);
+      }
     } catch (err: any) {
       toast({
         title: "Generation failed",
