@@ -1002,6 +1002,123 @@ ${truncated}`,
     }
   });
 
+  const exploreCache = new Map<string, { data: any; timestamp: number }>();
+
+  app.get("/api/explore/suggestions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const cacheKey = `explore_${userId}`;
+      const cached = exploreCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
+        return res.json(cached.data);
+      }
+
+      const journeys = await storage.getJourneys(userId);
+      const pastTrips = await storage.getPastTrips(userId);
+
+      const travelStyles = (user.travelStyles as string[]) || [];
+      const homeLocation = user.homeLocation || "";
+      const passportCountry = user.passportCountry || "";
+
+      const visitedPlaces = [
+        ...journeys.map(j => [j.origin, ...(j.destinations as string[] || []), j.finalDestination].filter(Boolean)).flat(),
+        ...pastTrips.map(t => t.destination).filter(Boolean),
+      ];
+      const uniqueVisited = Array.from(new Set(visitedPlaces.filter((p): p is string => !!p)));
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4096,
+        messages: [{
+          role: "user",
+          content: `You are Marco, a world-class travel curator. Generate 12 personalized destination suggestions for a traveler.
+
+TRAVELER PROFILE:
+- Home: ${homeLocation || "Not specified"}
+- Passport: ${passportCountry || "Not specified"}
+- Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
+- Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}
+
+RULES:
+- Suggest destinations they have NOT already visited
+- Each suggestion should be a SPECIFIC destination (city, region, or unique place) — not a country
+- Match suggestions to their travel styles and preferences
+- Include a diverse global mix (don't cluster all in one region)
+- For each, provide a compelling reason WHY it suits this traveler
+- All data must be REAL — real places, accurate coordinates, factual descriptions
+- Categories: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
+- If no travel styles are set, suggest a well-rounded global mix
+
+Return a JSON array (no markdown, no code fences, just raw JSON):
+[
+  {
+    "title": "Specific Place or City Name",
+    "country": "Country",
+    "category": "Adventure|Culture|Food & Drink|Nature|Urban|Beach|Wellness",
+    "description": "2-3 sentences about what makes this place special and why it suits this traveler. Be specific and evocative.",
+    "best_months": "Best months to visit (e.g. 'Mar-May, Sep-Nov')",
+    "avg_daily_budget": "$80-120",
+    "tags": ["3-4 relevant tags"],
+    "lat": 0.0000,
+    "lng": 0.0000,
+    "image_query": "Wikipedia article title for this specific place (e.g. 'Hallstatt', 'Chefchaouen', 'Luang_Prabang')",
+    "why_for_you": "One sentence explaining why Marco picked this for this specific traveler"
+  }
+]`
+        }],
+      });
+
+      const textContent = response.content.find(c => c.type === "text");
+      if (!textContent || textContent.type !== "text") {
+        return res.status(500).json({ message: "No response from AI" });
+      }
+
+      let suggestions;
+      try {
+        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        suggestions = JSON.parse(cleaned);
+      } catch {
+        return res.status(422).json({ message: "AI returned invalid format. Please try again." });
+      }
+
+      if (!Array.isArray(suggestions) || suggestions.length === 0) {
+        return res.status(422).json({ message: "No suggestions generated. Please try again." });
+      }
+
+      const CONCURRENCY = 5;
+      for (let i = 0; i < suggestions.length; i += CONCURRENCY) {
+        const batch = suggestions.slice(i, i + CONCURRENCY);
+        const images = await Promise.all(
+          batch.map((s: any) => fetchDestinationImage(s.image_query || s.title, s.category?.toLowerCase() || "city"))
+        );
+        for (let j = 0; j < batch.length; j++) {
+          batch[j].image_url = images[j];
+        }
+      }
+
+      const result = { suggestions, generatedAt: new Date().toISOString() };
+      exploreCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      res.json(result);
+    } catch (error) {
+      console.error("Error generating explore suggestions:", error);
+      res.status(500).json({ message: "Failed to generate suggestions" });
+    }
+  });
+
+  app.post("/api/explore/refresh", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const cacheKey = `explore_${userId}`;
+      exploreCache.delete(cacheKey);
+      res.json({ cleared: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to refresh" });
+    }
+  });
+
   // Bookmarks CRUD
   app.get("/api/bookmarks", isAuthenticated, async (req: any, res) => {
     try {
