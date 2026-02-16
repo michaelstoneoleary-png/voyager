@@ -331,13 +331,13 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
     {
       "name": "Destination Name",
       "must_see": [
-        { "title": "Place Name", "description": "One-sentence why it's unmissable", "tip": "Insider tip" }
+        { "title": "Place Name", "description": "One-sentence why it's unmissable", "tip": "Insider tip", "confidence": 95, "review_query": "Place Name Destination Name" }
       ],
       "must_do": [
-        { "title": "Activity Name", "description": "One-sentence what makes it special", "tip": "Insider tip" }
+        { "title": "Activity Name", "description": "One-sentence what makes it special", "tip": "Insider tip", "confidence": 90, "review_query": "Activity Name Destination Name" }
       ],
       "must_eat": [
-        { "title": "Dish or Restaurant Name", "description": "One-sentence about it", "tip": "Insider tip" }
+        { "title": "Dish or Restaurant Name", "description": "One-sentence about it", "tip": "Insider tip", "confidence": 92, "review_query": "Restaurant Name Destination Name" }
       ]
     }
   ]
@@ -347,8 +347,10 @@ Rules:
 - Include 3-5 items per category per destination
 - Focus on authentic local experiences, not tourist traps
 - Tips should be practical insider knowledge
-- Use real places, dishes, and activities
-- Keep descriptions concise and compelling`
+- Use REAL, VERIFIABLE places, restaurants, and activities that genuinely exist. Do not invent fictional establishments.
+- Keep descriptions concise and compelling
+- "confidence" is a number 0-100 representing how confident you are that this is a well-known, highly-rated, real recommendation. Only include items with confidence >= 80.
+- "review_query" is a search-friendly name for looking up this place (e.g. "Cafe Central Vienna" or "Colosseum Rome"). Use the specific establishment name plus the city name.`
         }],
       });
 
