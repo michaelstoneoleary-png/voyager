@@ -22,6 +22,7 @@ export const journeys = pgTable("journeys", {
   priceAlert: jsonb("price_alert"),
   logistics: jsonb("logistics"),
   itinerary: jsonb("itinerary"),
+  highlights: jsonb("highlights"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
