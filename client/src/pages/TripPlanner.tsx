@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useParams } from "wouter";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   MapPin, 
@@ -31,7 +31,7 @@ import {
   ListPlus,
   X
 } from "lucide-react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Link } from "wouter";
 
@@ -106,8 +106,28 @@ interface Journey {
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
-  map.setView(center, zoom);
+  useEffect(() => {
+    map.flyTo(center, zoom, { duration: 0.8 });
+  }, [center[0], center[1], zoom]);
   return null;
+}
+
+function createNumberedIcon(num: number, isSelected: boolean) {
+  return L.divIcon({
+    className: "custom-numbered-marker",
+    html: `<div style="
+      width: 28px; height: 28px; border-radius: 50%;
+      background: ${isSelected ? "#7c3aed" : "#1e293b"};
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,${isSelected ? "0.4" : "0.2"});
+      transform: ${isSelected ? "scale(1.3)" : "scale(1)"};
+      transition: transform 0.2s, background 0.2s;
+    ">${num}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -195,18 +215,29 @@ export default function TripPlanner() {
   const highlights = journey?.highlights as Highlights | undefined;
   const currentDayData = itinerary?.days?.[selectedDay];
 
-  const allMarkers: { lat: number; lng: number; title: string }[] = [];
-  if (currentDayData?.activities) {
-    currentDayData.activities.forEach(a => {
-      if (a.lat && a.lng && typeof a.lat === "number" && typeof a.lng === "number") {
-        allMarkers.push({ lat: a.lat, lng: a.lng, title: a.title || "Activity" });
-      }
-    });
-  }
+  const allMarkers = useMemo(() => {
+    const markers: { lat: number; lng: number; title: string; index: number; activity: Activity }[] = [];
+    if (currentDayData?.activities) {
+      currentDayData.activities.forEach((a, idx) => {
+        if (a.lat && a.lng && typeof a.lat === "number" && typeof a.lng === "number") {
+          markers.push({ lat: a.lat, lng: a.lng, title: a.title || "Activity", index: idx, activity: a });
+        }
+      });
+    }
+    return markers;
+  }, [currentDayData]);
 
-  const mapCenter: [number, number] = allMarkers.length > 0
-    ? [allMarkers[0].lat, allMarkers[0].lng]
-    : [48.8566, 2.3522];
+  const routePath = useMemo(() => {
+    return allMarkers.map(m => [m.lat, m.lng] as [number, number]);
+  }, [allMarkers]);
+
+  const mapCenter: [number, number] = selectedActivity?.lat && selectedActivity?.lng
+    ? [selectedActivity.lat, selectedActivity.lng]
+    : allMarkers.length > 0
+      ? [allMarkers[0].lat, allMarkers[0].lng]
+      : [48.8566, 2.3522];
+
+  const mapZoom = selectedActivity?.lat ? 15 : allMarkers.length > 1 ? 12 : 14;
 
   if (isLoading) {
     return (
@@ -440,16 +471,28 @@ export default function TripPlanner() {
              {!showHighlights ? (
                <>
                  <div className="flex-1 bg-muted rounded-xl border border-border relative overflow-hidden group min-h-[300px]">
-                   <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={false} className="h-full w-full z-0">
-                      <ChangeView center={mapCenter} zoom={allMarkers.length > 1 ? 12 : 14} />
+                   <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
+                      <ChangeView center={mapCenter} zoom={mapZoom} />
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                       />
-                      {allMarkers.map((m, idx) => (
-                        <Marker key={idx} position={[m.lat, m.lng]}>
+                      {routePath.length > 1 && (
+                        <Polyline
+                          positions={routePath}
+                          pathOptions={{ color: "#7c3aed", weight: 3, opacity: 0.6, dashArray: "8, 8" }}
+                        />
+                      )}
+                      {allMarkers.map((m) => (
+                        <Marker
+                          key={m.index}
+                          position={[m.lat, m.lng]}
+                          icon={createNumberedIcon(m.index + 1, selectedActivity === m.activity)}
+                          eventHandlers={{ click: () => setSelectedActivity(m.activity) }}
+                        >
                           <Popup>
-                            <div className="font-serif font-bold">{m.title}</div>
+                            <div style={{ fontFamily: "serif", fontWeight: "bold" }}>{m.index + 1}. {m.title}</div>
+                            <div style={{ fontSize: "12px", color: "#666" }}>{m.activity.time}{m.activity.duration ? ` (${m.activity.duration})` : ""}</div>
                           </Popup>
                         </Marker>
                       ))}
