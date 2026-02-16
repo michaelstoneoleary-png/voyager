@@ -108,16 +108,11 @@ export default function Dashboard() {
                      </div>
 
                      <div className="flex gap-3 pt-2">
+                       <Link href={`/planner/${activeTrip.id}`}><Button className="shadow-sm" data-testid="button-open-itinerary">{activeTrip.status === "Completed" ? "View Itinerary" : "Open Itinerary"}</Button></Link>
                        {activeTrip.status === "Completed" ? (
-                         <>
-                           <Link href="/journeys"><Button className="shadow-sm">View Journey</Button></Link>
-                           <Button variant="outline" onClick={() => setIsNewTripOpen(true)}>Plan New Trip</Button>
-                         </>
+                         <Button variant="outline" onClick={() => setIsNewTripOpen(true)} data-testid="button-plan-new">Plan New Trip</Button>
                        ) : (
-                         <>
-                           <Link href={`/planner/${activeTrip.id}`}><Button className="shadow-sm" data-testid="button-open-itinerary">Open Itinerary</Button></Link>
-                           <Link href="/packing"><Button variant="outline" data-testid="button-view-packing">View Packing List</Button></Link>
-                         </>
+                         <Link href="/packing"><Button variant="outline" data-testid="button-view-packing">View Packing List</Button></Link>
                        )}
                      </div>
                   </div>

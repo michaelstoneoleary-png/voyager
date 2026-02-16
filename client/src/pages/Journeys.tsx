@@ -306,28 +306,30 @@ export default function Journeys() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {pastJourneys.map(trip => (
-                <Card key={trip.id} className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-80 hover:opacity-100">
-                  <div className="aspect-[16/9] relative overflow-hidden">
-                    <img 
-                      src={trip.image || DEFAULT_IMAGE} 
-                      alt={trip.title} 
-                      className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                    />
-                    <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-                    <div className="absolute bottom-3 left-3 text-white">
-                      <h4 className="font-serif text-lg font-bold">{trip.title}</h4>
-                      <p className="text-xs opacity-80">{trip.dates || ""}</p>
+                <Link key={trip.id} href={`/planner/${trip.id}`}>
+                  <Card className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-80 hover:opacity-100" data-testid={`card-past-journey-${trip.id}`}>
+                    <div className="aspect-[16/9] relative overflow-hidden">
+                      <img 
+                        src={trip.image || DEFAULT_IMAGE} 
+                        alt={trip.title} 
+                        className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                      />
+                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
+                      <div className="absolute bottom-3 left-3 text-white">
+                        <h4 className="font-serif text-lg font-bold">{trip.title}</h4>
+                        <p className="text-xs opacity-80">{trip.dates || ""}</p>
+                      </div>
                     </div>
-                  </div>
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      {trip.days && <span className="font-medium text-foreground">{trip.days} Days</span>}{trip.days && trip.cost && " • "}{trip.cost || ""}
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {trip.status}
-                    </Badge>
-                  </CardContent>
-                </Card>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        {trip.days && <span className="font-medium text-foreground">{trip.days} Days</span>}{trip.days && trip.cost && " • "}{trip.cost || ""}
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {trip.status}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           </TabsContent>

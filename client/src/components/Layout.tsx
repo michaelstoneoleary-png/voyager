@@ -156,6 +156,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     Past Journeys
                   </div>
                 </Link>
+                {recentJourneys.length > 0 && (
+                  <div className="pt-2 mt-2 border-t border-sidebar-border">
+                    <span className="px-4 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Recent</span>
+                    {recentJourneys.map((j) => (
+                      <Link key={j.id} href={`/planner/${j.id}`}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-3 px-4 py-2 text-sm rounded-md transition-all duration-200 cursor-pointer mt-1",
+                            location === `/planner/${j.id}`
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium"
+                              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          )}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          data-testid={`link-journey-${j.id}`}
+                        >
+                          <Compass className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{j.title}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
