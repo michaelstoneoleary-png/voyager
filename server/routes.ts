@@ -5,6 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
+import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 
@@ -1296,6 +1297,48 @@ Return ONLY the JSON object, no other text.`,
         return res.status(400).json({ message: "Invalid journey data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to create journeys" });
+    }
+  });
+
+  const smsRateLimit = new Map<string, number>();
+
+  app.post("/api/send-packing-sms", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const now = Date.now();
+      const lastSent = smsRateLimit.get(userId) || 0;
+      if (now - lastSent < 60000) {
+        return res.status(429).json({ message: "Please wait a minute before sending another text" });
+      }
+
+      const { phoneNumber } = req.body;
+      if (!phoneNumber || typeof phoneNumber !== "string") {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+
+      let cleaned = phoneNumber.replace(/[\s\-\(\)\.]/g, "");
+      if (!cleaned.startsWith("+")) {
+        if (cleaned.length === 10) cleaned = "+1" + cleaned;
+        else if (cleaned.length === 11 && cleaned.startsWith("1")) cleaned = "+" + cleaned;
+        else cleaned = "+" + cleaned;
+      }
+      if (!/^\+\d{10,15}$/.test(cleaned)) {
+        return res.status(400).json({ message: "Please enter a valid phone number with country code (e.g. +1 555 123 4567)" });
+      }
+
+      const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost:5000";
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const packingUrl = `${protocol}://${host}/pack`;
+
+      smsRateLimit.set(userId, now);
+
+      const body = `📋 Your Voyager Packing List is ready!\n\nOpen it on your phone to check off items as you pack:\n${packingUrl}\n\n— Voyager: Travel Without Limits`;
+
+      await sendSms(cleaned, body);
+      res.json({ success: true, message: "SMS sent successfully" });
+    } catch (error: any) {
+      console.error("Error sending packing SMS:", error);
+      res.status(500).json({ message: error.message || "Failed to send SMS" });
     }
   });
 

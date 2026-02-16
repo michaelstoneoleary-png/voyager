@@ -33,6 +33,9 @@ import {
   Plane,
   CheckCircle2,
   Scale,
+  Smartphone,
+  Send,
+  X,
 } from "lucide-react";
 
 const ACTIVITY_OPTIONS = [
@@ -126,6 +129,10 @@ export default function PackingList() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isCreatingJourney, setIsCreatingJourney] = useState(false);
+  const [showSmsInput, setShowSmsInput] = useState(false);
+  const [smsPhone, setSmsPhone] = useState(settings.phoneNumber || "");
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
   const [journeyCreated, setJourneyCreated] = useState(false);
 
   const selectJourney = (journey: JourneyOption) => {
@@ -286,6 +293,28 @@ export default function PackingList() {
     }
   };
 
+  const handleSendSms = async () => {
+    if (!smsPhone.trim()) return;
+    setIsSendingSms(true);
+    try {
+      await apiRequest("POST", "/api/send-packing-sms", { phoneNumber: smsPhone.trim() });
+      setSmsSent(true);
+      toast({ title: "Text sent!", description: "Check your phone for the packing list link." });
+      setTimeout(() => {
+        setShowSmsInput(false);
+        setSmsSent(false);
+      }, 3000);
+    } catch (err: any) {
+      toast({
+        title: "Couldn't send text",
+        description: err.message || "Please check the number and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
   const { totalItems, packedItems, progress, totalWeightGrams, packedWeightGrams, estimatedBagWeightGrams } = useMemo(() => {
     if (!categories) return { totalItems: 0, packedItems: 0, progress: 0, totalWeightGrams: 0, packedWeightGrams: 0, estimatedBagWeightGrams: 0 };
     const all = categories.flatMap((c) => c.items);
@@ -367,10 +396,52 @@ export default function PackingList() {
                 {form.destination} · {duration} days · {form.activities.length > 0 ? form.activities.join(", ") : "General travel"}
               </p>
             </div>
-            <Button variant="outline" onClick={handleStartOver} data-testid="button-start-over">
-              <RotateCcw className="h-4 w-4 mr-2" /> Start Over
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => { setShowSmsInput(!showSmsInput); setSmsSent(false); }} data-testid="button-send-to-phone">
+                <Smartphone className="h-4 w-4 mr-2" /> Send to Phone
+              </Button>
+              <Button variant="outline" onClick={handleStartOver} data-testid="button-start-over">
+                <RotateCcw className="h-4 w-4 mr-2" /> Start Over
+              </Button>
+            </div>
           </div>
+
+          {showSmsInput && (
+            <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300" data-testid="panel-sms-input">
+              <div className="flex items-center gap-2 mb-2">
+                <Smartphone className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Text yourself a link to this packing list</span>
+                <button onClick={() => setShowSmsInput(false)} className="ml-auto text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">Check off items from your phone as you pack.</p>
+              <div className="flex gap-2">
+                <Input
+                  type="tel"
+                  placeholder="+1 (555) 123-4567"
+                  value={smsPhone}
+                  onChange={(e) => setSmsPhone(e.target.value)}
+                  className="flex-1"
+                  data-testid="input-sms-phone"
+                  onKeyDown={(e) => e.key === "Enter" && handleSendSms()}
+                />
+                <Button
+                  onClick={handleSendSms}
+                  disabled={isSendingSms || !smsPhone.trim() || smsSent}
+                  data-testid="button-send-sms"
+                >
+                  {isSendingSms ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : smsSent ? (
+                    <><CheckCircle2 className="h-4 w-4 mr-2" /> Sent</>
+                  ) : (
+                    <><Send className="h-4 w-4 mr-2" /> Send</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <Card className="mb-6 border-primary/20 bg-primary/5">
             <CardContent className="p-4">
