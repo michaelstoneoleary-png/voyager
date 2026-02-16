@@ -57,6 +57,8 @@ interface Activity {
   tip?: string;
   lat?: number;
   lng?: number;
+  image_url?: string;
+  image_query?: string;
 }
 
 interface ItineraryDay {
@@ -444,22 +446,36 @@ export default function TripPlanner() {
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
                       {idx + 1}
                     </div>
-                    <Card className={`flex-1 hover:shadow-md transition-all border-l-4 ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
-                      <CardContent className="p-3">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            {activity.time}
-                          </span>
-                          <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
-                            {activity.type}
-                          </Badge>
-                        </div>
-                        <h4 className="font-serif font-medium text-base leading-tight mb-1">{activity.title}</h4>
-                        <p className="text-xs text-muted-foreground line-clamp-1">
-                          {activity.duration && `${activity.duration}`}
-                          {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
-                        </p>
-                      </CardContent>
+                    <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
+                      <div className="flex">
+                        {activity.image_url && (
+                          <div className="w-20 h-20 flex-shrink-0">
+                            <img
+                              src={activity.image_url}
+                              alt={activity.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                              data-testid={`activity-image-${idx}`}
+                            />
+                          </div>
+                        )}
+                        <CardContent className="p-3 flex-1 min-w-0">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {activity.time}
+                            </span>
+                            <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
+                              {activity.type}
+                            </Badge>
+                          </div>
+                          <h4 className="font-serif font-medium text-base leading-tight mb-1">{activity.title}</h4>
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {activity.duration && `${activity.duration}`}
+                            {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
+                          </p>
+                        </CardContent>
+                      </div>
                     </Card>
                   </div>
                 ))}
@@ -505,40 +521,55 @@ export default function TripPlanner() {
                  </div>
 
                  {selectedActivity ? (
-                   <Card className="min-h-[200px]" data-testid="activity-detail-panel">
-                     <CardHeader className="pb-3">
-                       <div className="flex justify-between items-start">
-                         <div>
-                           <CardTitle className="text-xl font-serif">{selectedActivity.title}</CardTitle>
-                           {selectedActivity.description && (
-                             <CardDescription className="mt-1">
-                               {selectedActivity.description}
-                             </CardDescription>
-                           )}
+                   <Card className="min-h-[200px] overflow-hidden" data-testid="activity-detail-panel">
+                     <div className="flex flex-col md:flex-row">
+                       {selectedActivity.image_url && (
+                         <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
+                           <img
+                             src={selectedActivity.image_url}
+                             alt={selectedActivity.title}
+                             className="w-full h-full object-cover"
+                             onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
+                             data-testid="activity-detail-image"
+                           />
                          </div>
-                         <Badge variant="outline" className={`${TYPE_COLORS[selectedActivity.type] || ""}`}>
-                           {selectedActivity.type}
-                         </Badge>
+                       )}
+                       <div className="flex-1">
+                         <CardHeader className="pb-3">
+                           <div className="flex justify-between items-start">
+                             <div>
+                               <CardTitle className="text-xl font-serif">{selectedActivity.title}</CardTitle>
+                               {selectedActivity.description && (
+                                 <CardDescription className="mt-1">
+                                   {selectedActivity.description}
+                                 </CardDescription>
+                               )}
+                             </div>
+                             <Badge variant="outline" className={`${TYPE_COLORS[selectedActivity.type] || ""}`}>
+                               {selectedActivity.type}
+                             </Badge>
+                           </div>
+                         </CardHeader>
+                         <CardContent>
+                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div className="space-y-1">
+                                <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Clock className="h-3 w-3" /> Time</span>
+                                <p className="font-medium">{selectedActivity.time}{selectedActivity.duration ? ` (${selectedActivity.duration})` : ""}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><DollarSign className="h-3 w-3" /> Cost</span>
+                                <p className="font-medium">{selectedActivity.cost || "Free"}</p>
+                              </div>
+                              {selectedActivity.tip && (
+                                <div className="space-y-1">
+                                  <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Insider Tip</span>
+                                  <p className="font-medium text-primary">{selectedActivity.tip}</p>
+                                </div>
+                              )}
+                           </div>
+                         </CardContent>
                        </div>
-                     </CardHeader>
-                     <CardContent>
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div className="space-y-1">
-                            <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Clock className="h-3 w-3" /> Time</span>
-                            <p className="font-medium">{selectedActivity.time}{selectedActivity.duration ? ` (${selectedActivity.duration})` : ""}</p>
-                          </div>
-                          <div className="space-y-1">
-                            <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><DollarSign className="h-3 w-3" /> Cost</span>
-                            <p className="font-medium">{selectedActivity.cost || "Free"}</p>
-                          </div>
-                          {selectedActivity.tip && (
-                            <div className="space-y-1">
-                              <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Insider Tip</span>
-                              <p className="font-medium text-primary">{selectedActivity.tip}</p>
-                            </div>
-                          )}
-                       </div>
-                     </CardContent>
+                     </div>
                    </Card>
                  ) : (
                    <Card className="min-h-[200px] flex items-center justify-center">

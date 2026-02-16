@@ -257,7 +257,8 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
           "cost": "Free or estimated cost",
           "tip": "Optional insider tip",
           "lat": 42.6977,
-          "lng": 23.3219
+          "lng": 23.3219,
+          "image_query": "Wikipedia article title for this specific place or landmark (e.g. 'Rila_Monastery', 'Alexander_Nevsky_Cathedral,_Sofia')"
         }
       ]
     }
@@ -265,7 +266,8 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
   "summary": "Brief trip summary"
 }
 
-Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, and local experiences. Use the actual correct coordinates for each place.`
+Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, and local experiences. Use the actual correct coordinates for each place.
+For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.`
         }],
       });
 
@@ -293,6 +295,25 @@ Include 3-5 activities per day with realistic times, real places, accurate coord
         if (!day.location) day.location = "Unknown";
         if (!day.day) day.day = itinerary.days.indexOf(day) + 1;
         if (!day.date_label) day.date_label = `Day ${day.day}`;
+      }
+
+      const allActivities: { activity: any; searchTerm: string }[] = [];
+      for (const day of itinerary.days) {
+        for (const activity of day.activities) {
+          const searchTerm = activity.image_query || activity.title;
+          allActivities.push({ activity, searchTerm });
+        }
+      }
+
+      const CONCURRENCY = 5;
+      for (let i = 0; i < allActivities.length; i += CONCURRENCY) {
+        const batch = allActivities.slice(i, i + CONCURRENCY);
+        const images = await Promise.all(
+          batch.map(({ searchTerm }) => fetchDestinationImage(searchTerm, "culture"))
+        );
+        for (let j = 0; j < batch.length; j++) {
+          batch[j].activity.image_url = images[j];
+        }
       }
 
       const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
