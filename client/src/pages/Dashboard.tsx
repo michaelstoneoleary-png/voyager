@@ -115,8 +115,8 @@ export default function Dashboard() {
                          </>
                        ) : (
                          <>
-                           <Button className="shadow-sm">Open Itinerary</Button>
-                           <Button variant="outline">View Packing List</Button>
+                           <Link href={`/planner/${activeTrip.id}`}><Button className="shadow-sm" data-testid="button-open-itinerary">Open Itinerary</Button></Link>
+                           <Link href="/packing"><Button variant="outline" data-testid="button-view-packing">View Packing List</Button></Link>
                          </>
                        )}
                      </div>

@@ -165,7 +165,12 @@ export async function registerRoutes(
   app.post("/api/journeys", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!
-      const parsed = insertJourneySchema.parse({ ...req.body, userId });
+      const data = { ...req.body, userId };
+      if (!data.image && data.destinations?.length > 0) {
+        const dest = data.destinations[0];
+        data.image = await fetchDestinationImage(dest, "city");
+      }
+      const parsed = insertJourneySchema.parse(data);
       const journey = await storage.createJourney(parsed);
       res.status(201).json(journey);
     } catch (error: any) {
