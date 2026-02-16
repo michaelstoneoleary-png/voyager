@@ -228,17 +228,17 @@ export async function registerRoutes(
       const originNote = journey.origin ? `Starting from: ${journey.origin}. ` : "";
       const finalNote = journey.finalDestination ? `Ending at: ${journey.finalDestination}. ` : "";
 
-      const anthropicClient = new Anthropic({
-        apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-      });
+      const { wishlist } = req.body || {};
+      const wishlistNote = wishlist && wishlist.trim()
+        ? `\n\nThe traveler has specifically requested to include these places, activities, or interests in their itinerary:\n${wishlist}\n\nPrioritize incorporating these requests into the itinerary where possible, fitting them into the most logical days and times.`
+        : "";
 
-      const response = await anthropicClient.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
         max_tokens: 4096,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}
 
 Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
 {

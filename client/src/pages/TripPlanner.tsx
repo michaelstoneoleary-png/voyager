@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useParams } from "wouter";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   MapPin, 
@@ -25,7 +25,11 @@ import {
   Footprints,
   UtensilsCrossed,
   Star,
-  ChevronRight
+  ChevronRight,
+  ExternalLink,
+  ShieldCheck,
+  ListPlus,
+  X
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -71,6 +75,8 @@ interface HighlightItem {
   title: string;
   description: string;
   tip?: string;
+  confidence?: number;
+  review_query?: string;
 }
 
 interface DestinationHighlights {
@@ -134,10 +140,29 @@ export default function TripPlanner() {
 
   const [activeHighlightDest, setActiveHighlightDest] = useState(0);
   const [showHighlights, setShowHighlights] = useState(false);
+  const [wishlist, setWishlist] = useState("");
+  const [wishlistItems, setWishlistItems] = useState<string[]>([]);
+  const wishlistInputRef = useRef<HTMLInputElement>(null);
+
+  const addWishlistItem = () => {
+    const item = wishlist.trim();
+    if (item && !wishlistItems.includes(item)) {
+      setWishlistItems(prev => [...prev, item]);
+      setWishlist("");
+      wishlistInputRef.current?.focus();
+    }
+  };
+
+  const removeWishlistItem = (index: number) => {
+    setWishlistItems(prev => prev.filter((_, i) => i !== index));
+  };
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/journeys/${journeyId}/generate-itinerary`);
+      const wishlistText = wishlistItems.length > 0 ? wishlistItems.join("\n- ") : "";
+      const res = await apiRequest("POST", `/api/journeys/${journeyId}/generate-itinerary`, {
+        wishlist: wishlistText ? `- ${wishlistText}` : "",
+      });
       return res.json();
     },
     onSuccess: (data) => {
@@ -209,11 +234,11 @@ export default function TripPlanner() {
   if (!itinerary || !itinerary.days || itinerary.days.length === 0) {
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center h-[60vh] gap-6 max-w-lg mx-auto text-center">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 max-w-xl mx-auto py-8">
           <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
             <Sparkles className="h-10 w-10 text-primary" />
           </div>
-          <div>
+          <div className="text-center">
             <h1 className="font-serif text-3xl font-bold mb-2">{journey.title}</h1>
             <p className="text-muted-foreground">
               {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || "No destinations set"} 
@@ -221,21 +246,76 @@ export default function TripPlanner() {
               {journey.cost && journey.cost !== "TBD" ? ` • ${journey.cost}` : ""}
             </p>
           </div>
-          <p className="text-muted-foreground">
-            Let our AI create a personalized day-by-day itinerary with real places, local recommendations, and insider tips.
-          </p>
-          <Button 
-            size="lg" 
-            onClick={() => generateMutation.mutate()} 
-            disabled={generateMutation.isPending}
-            data-testid="button-generate-itinerary"
-          >
-            {generateMutation.isPending ? (
-              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating your itinerary...</>
-            ) : (
-              <><Sparkles className="mr-2 h-5 w-5" /> Generate AI Itinerary</>
-            )}
-          </Button>
+
+          <Card className="w-full" data-testid="wishlist-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ListPlus className="h-5 w-5 text-primary" />
+                Your Travel Wishlist
+              </CardTitle>
+              <CardDescription>
+                Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. The AI will weave these into your plan.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  ref={wishlistInputRef}
+                  type="text"
+                  value={wishlist}
+                  onChange={(e) => setWishlist(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addWishlistItem(); } }}
+                  placeholder="e.g. Visit the Rila Monastery, Try shopska salad, Walk through Vitosha park..."
+                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  data-testid="input-wishlist"
+                />
+                <Button size="sm" variant="outline" onClick={addWishlistItem} disabled={!wishlist.trim()} data-testid="button-add-wishlist">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {wishlistItems.length > 0 && (
+                <div className="flex flex-wrap gap-2" data-testid="wishlist-items">
+                  {wishlistItems.map((item, idx) => (
+                    <Badge key={idx} variant="secondary" className="py-1 px-3 flex items-center gap-1.5 text-sm" data-testid={`wishlist-item-${idx}`}>
+                      {item}
+                      <button onClick={() => removeWishlistItem(idx)} className="ml-0.5 hover:text-destructive transition-colors" data-testid={`button-remove-wishlist-${idx}`}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {wishlistItems.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">
+                  No items yet — add what matters to you, or skip ahead to generate with AI defaults.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-col items-center gap-3 w-full">
+            <Button 
+              size="lg" 
+              className="w-full max-w-sm"
+              onClick={() => generateMutation.mutate()} 
+              disabled={generateMutation.isPending}
+              data-testid="button-generate-itinerary"
+            >
+              {generateMutation.isPending ? (
+                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating your itinerary...</>
+              ) : (
+                <><Sparkles className="mr-2 h-5 w-5" /> Generate AI Itinerary{wishlistItems.length > 0 ? ` with ${wishlistItems.length} request${wishlistItems.length > 1 ? "s" : ""}` : ""}</>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center max-w-sm">
+              {wishlistItems.length > 0 
+                ? "Your requests will be prioritized in the itinerary alongside AI-curated recommendations."
+                : "Our AI will create a complete day-by-day itinerary with real places, local gems, and insider tips."}
+            </p>
+          </div>
+
           <Link href="/journeys">
             <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
           </Link>
@@ -461,62 +541,52 @@ export default function TripPlanner() {
                          <h3 className="font-serif text-xl font-bold">{highlights.destinations[activeHighlightDest].name}</h3>
                        )}
                        
-                       <div>
-                         <h4 className="font-medium text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                           <Eye className="h-4 w-4 text-violet-500" /> Must See
-                         </h4>
-                         <div className="space-y-3">
-                           {highlights.destinations[activeHighlightDest].must_see?.map((item, idx) => (
-                             <div key={idx} className="bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 rounded-lg p-3" data-testid={`highlight-see-${idx}`}>
-                               <h5 className="font-serif font-medium text-sm">{item.title}</h5>
-                               <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                               {item.tip && (
-                                 <p className="text-xs text-violet-600 dark:text-violet-400 mt-1.5 flex items-start gap-1">
-                                   <Lightbulb className="h-3 w-3 mt-0.5 flex-shrink-0" /> {item.tip}
-                                 </p>
-                               )}
-                             </div>
-                           ))}
+                       {[
+                         { key: "must_see", label: "Must See", icon: <Eye className="h-4 w-4 text-violet-500" />, items: highlights.destinations[activeHighlightDest].must_see, colors: { bg: "bg-violet-50 dark:bg-violet-950/20", border: "border-violet-200 dark:border-violet-800", accent: "text-violet-600 dark:text-violet-400", confidence: "text-violet-700", link: "text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300" }, testPrefix: "see" },
+                         { key: "must_do", label: "Must Do", icon: <Footprints className="h-4 w-4 text-emerald-500" />, items: highlights.destinations[activeHighlightDest].must_do, colors: { bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-800", accent: "text-emerald-600 dark:text-emerald-400", confidence: "text-emerald-700", link: "text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300" }, testPrefix: "do" },
+                         { key: "must_eat", label: "Must Eat", icon: <UtensilsCrossed className="h-4 w-4 text-amber-500" />, items: highlights.destinations[activeHighlightDest].must_eat, colors: { bg: "bg-amber-50 dark:bg-amber-950/20", border: "border-amber-200 dark:border-amber-800", accent: "text-amber-600 dark:text-amber-400", confidence: "text-amber-700", link: "text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" }, testPrefix: "eat" },
+                       ].map(({ key, label, icon, items, colors, testPrefix }) => (
+                         <div key={key}>
+                           <h4 className="font-medium text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                             {icon} {label}
+                           </h4>
+                           <div className="space-y-3">
+                             {items?.map((item, idx) => (
+                               <div key={idx} className={`${colors.bg} border ${colors.border} rounded-lg p-3`} data-testid={`highlight-${testPrefix}-${idx}`}>
+                                 <div className="flex items-start justify-between gap-2">
+                                   <h5 className="font-serif font-medium text-sm">{item.title}</h5>
+                                   <div className="flex items-center gap-1.5 flex-shrink-0">
+                                     {item.confidence != null && (
+                                       <span className={`text-[10px] font-medium ${colors.confidence} flex items-center gap-0.5`} title={`${item.confidence}% confidence`} data-testid={`confidence-${testPrefix}-${idx}`}>
+                                         <ShieldCheck className="h-3 w-3" />
+                                         {item.confidence}%
+                                       </span>
+                                     )}
+                                     {item.review_query && (
+                                       <a
+                                         href={`https://www.google.com/maps/search/${encodeURIComponent(item.review_query)}`}
+                                         target="_blank"
+                                         rel="noopener noreferrer"
+                                         className={`text-[10px] font-medium ${colors.link} flex items-center gap-0.5 transition-colors`}
+                                         title="View reviews and details on Google Maps"
+                                         data-testid={`review-link-${testPrefix}-${idx}`}
+                                       >
+                                         Reviews <ExternalLink className="h-2.5 w-2.5" />
+                                       </a>
+                                     )}
+                                   </div>
+                                 </div>
+                                 <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                                 {item.tip && (
+                                   <p className={`text-xs ${colors.accent} mt-1.5 flex items-start gap-1`}>
+                                     <Lightbulb className="h-3 w-3 mt-0.5 flex-shrink-0" /> {item.tip}
+                                   </p>
+                                 )}
+                               </div>
+                             ))}
+                           </div>
                          </div>
-                       </div>
-
-                       <div>
-                         <h4 className="font-medium text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                           <Footprints className="h-4 w-4 text-emerald-500" /> Must Do
-                         </h4>
-                         <div className="space-y-3">
-                           {highlights.destinations[activeHighlightDest].must_do?.map((item, idx) => (
-                             <div key={idx} className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3" data-testid={`highlight-do-${idx}`}>
-                               <h5 className="font-serif font-medium text-sm">{item.title}</h5>
-                               <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                               {item.tip && (
-                                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 flex items-start gap-1">
-                                   <Lightbulb className="h-3 w-3 mt-0.5 flex-shrink-0" /> {item.tip}
-                                 </p>
-                               )}
-                             </div>
-                           ))}
-                         </div>
-                       </div>
-
-                       <div>
-                         <h4 className="font-medium text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                           <UtensilsCrossed className="h-4 w-4 text-amber-500" /> Must Eat
-                         </h4>
-                         <div className="space-y-3">
-                           {highlights.destinations[activeHighlightDest].must_eat?.map((item, idx) => (
-                             <div key={idx} className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3" data-testid={`highlight-eat-${idx}`}>
-                               <h5 className="font-serif font-medium text-sm">{item.title}</h5>
-                               <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                               {item.tip && (
-                                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 flex items-start gap-1">
-                                   <Lightbulb className="h-3 w-3 mt-0.5 flex-shrink-0" /> {item.tip}
-                                 </p>
-                               )}
-                             </div>
-                           ))}
-                         </div>
-                       </div>
+                       ))}
                      </div>
                    ) : (
                      <div className="flex flex-col items-center justify-center h-full text-center py-12">
