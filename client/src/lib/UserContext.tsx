@@ -10,6 +10,7 @@ export interface UserSettings {
   homeLocation: string;
   passportCountry: string;
   temperatureUnit: string;
+  weightUnit: string;
   currency: string;
   distanceUnit: string;
   dateFormat: string;
@@ -42,6 +43,7 @@ const defaultSettings: UserSettings = {
   homeLocation: "",
   passportCountry: "",
   temperatureUnit: "F",
+  weightUnit: "kg",
   currency: "USD",
   distanceUnit: "mi",
   dateFormat: "MM/DD/YYYY",

@@ -298,9 +298,18 @@ export default function PackingList() {
   }, [categories]);
 
   const formatWeight = (grams: number) => {
+    if (settings.weightUnit === "lbs") {
+      const lbs = grams / 453.592;
+      if (lbs >= 1) return `${lbs.toFixed(1)} lbs`;
+      const oz = grams / 28.3495;
+      return `${oz.toFixed(0)} oz`;
+    }
     if (grams >= 1000) return `${(grams / 1000).toFixed(1)} kg`;
     return `${grams} g`;
   };
+
+  const weightLimitGrams = settings.weightUnit === "lbs" ? 22680 : 23000;
+  const weightLimitLabel = settings.weightUnit === "lbs" ? "50 lbs" : "23 kg";
 
   const getCategoryIcon = (iconName: string) => {
     const key = iconName.toLowerCase();
@@ -397,11 +406,11 @@ export default function PackingList() {
                     <span className="text-xs text-muted-foreground">Total packed</span>
                   </div>
                 </div>
-                {totalWeightGrams + estimatedBagWeightGrams > 23000 && (
+                {totalWeightGrams + estimatedBagWeightGrams > weightLimitGrams && (
                   <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md" data-testid="banner-weight-warning">
                     <p className="text-xs text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
                       <Info className="h-3 w-3 flex-shrink-0" />
-                      Over 23 kg — most airlines charge for checked bags above this weight.
+                      Over {weightLimitLabel} — most airlines charge for checked bags above this weight.
                     </p>
                   </div>
                 )}

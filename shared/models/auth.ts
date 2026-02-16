@@ -28,6 +28,7 @@ export const users = pgTable("users", {
   homeLocation: varchar("home_location"),
   passportCountry: varchar("passport_country"),
   temperatureUnit: varchar("temperature_unit").default("F"),
+  weightUnit: varchar("weight_unit").default("kg"),
   currency: varchar("currency").default("USD"),
   distanceUnit: varchar("distance_unit").default("mi"),
   dateFormat: varchar("date_format").default("MM/DD/YYYY"),

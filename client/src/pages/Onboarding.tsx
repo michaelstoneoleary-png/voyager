@@ -24,6 +24,7 @@ export default function Onboarding() {
     gender: "",
     phoneNumber: "",
     temperatureUnit: "F",
+    weightUnit: "lbs",
     currency: "USD",
     distanceUnit: "mi",
     dateFormat: "MM/DD/YYYY",

@@ -18,6 +18,7 @@ function formatUserSettings(user: User) {
     homeLocation: user.homeLocation || "",
     passportCountry: user.passportCountry || "",
     temperatureUnit: user.temperatureUnit || "F",
+    weightUnit: user.weightUnit || "kg",
     currency: user.currency || "USD",
     distanceUnit: user.distanceUnit || "mi",
     dateFormat: user.dateFormat || "MM/DD/YYYY",

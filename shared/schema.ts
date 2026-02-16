@@ -111,6 +111,7 @@ export const updateUserSettingsSchema = z.object({
   homeLocation: z.string().optional(),
   passportCountry: z.string().optional(),
   temperatureUnit: z.enum(["F", "C"]).optional(),
+  weightUnit: z.enum(["kg", "lbs"]).optional(),
   currency: z.string().optional(),
   distanceUnit: z.enum(["mi", "km"]).optional(),
   dateFormat: z.enum(["MM/DD/YYYY", "DD/MM/YYYY"]).optional(),

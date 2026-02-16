@@ -12,6 +12,7 @@ import {
   Compass,
   Phone,
   User,
+  Scale,
 } from "lucide-react";
 
 export interface SettingsFormData {
@@ -21,6 +22,7 @@ export interface SettingsFormData {
   gender: string;
   phoneNumber: string;
   temperatureUnit: string;
+  weightUnit: string;
   currency: string;
   distanceUnit: string;
   dateFormat: string;
@@ -116,7 +118,25 @@ export function SettingsForm({ data, onChange, step }: SettingsFormProps) {
             <Input
               id="passportCountry"
               value={data.passportCountry}
-              onChange={(e) => update({ passportCountry: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                const normalized = val.trim().toLowerCase().replace(/\./g, "");
+                const isUS = ["united states", "united states of america", "usa", "us", "america"].includes(normalized);
+                const updates: Partial<SettingsFormData> = { passportCountry: val };
+                if (isUS) {
+                  updates.weightUnit = "lbs";
+                  updates.temperatureUnit = "F";
+                  updates.distanceUnit = "mi";
+                  updates.dateFormat = "MM/DD/YYYY";
+                  updates.currency = "USD";
+                } else if (normalized.length > 3 && !normalized.startsWith("united")) {
+                  updates.weightUnit = "kg";
+                  updates.temperatureUnit = "C";
+                  updates.distanceUnit = "km";
+                  updates.dateFormat = "DD/MM/YYYY";
+                }
+                update(updates);
+              }}
               placeholder="e.g., United States"
               data-testid="input-passport-country"
             />
@@ -259,6 +279,40 @@ export function SettingsForm({ data, onChange, step }: SettingsFormProps) {
               </RadioGroup>
             </div>
 
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2 text-sm font-medium">
+                <Scale className="h-4 w-4 text-primary" /> Weight
+              </Label>
+              <RadioGroup
+                value={data.weightUnit}
+                onValueChange={(val) => update({ weightUnit: val })}
+                className="grid grid-cols-2 gap-3"
+              >
+                <div>
+                  <RadioGroupItem value="kg" id="weight-kg" className="peer sr-only" />
+                  <Label
+                    htmlFor="weight-kg"
+                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer text-sm font-medium"
+                    data-testid="button-weight-kg"
+                  >
+                    Kilograms
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem value="lbs" id="weight-lbs" className="peer sr-only" />
+                  <Label
+                    htmlFor="weight-lbs"
+                    className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer text-sm font-medium"
+                    data-testid="button-weight-lbs"
+                  >
+                    Pounds
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-3">
               <Label className="flex items-center gap-2 text-sm font-medium">
                 <CalendarDays className="h-4 w-4 text-primary" /> Date Format
