@@ -294,6 +294,76 @@ Include 3-5 activities per day with realistic times, real places, accurate coord
     }
   });
 
+  app.post("/api/journeys/:id/generate-highlights", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const destinations = journey.destinations || [];
+      if (destinations.length === 0) {
+        return res.status(400).json({ message: "No destinations set for this journey" });
+      }
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4096,
+        messages: [{
+          role: "user",
+          content: `For each of these travel destinations, provide curated local recommendations. Destinations: ${destinations.join(", ")}.
+
+Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
+{
+  "destinations": [
+    {
+      "name": "Destination Name",
+      "must_see": [
+        { "title": "Place Name", "description": "One-sentence why it's unmissable", "tip": "Insider tip" }
+      ],
+      "must_do": [
+        { "title": "Activity Name", "description": "One-sentence what makes it special", "tip": "Insider tip" }
+      ],
+      "must_eat": [
+        { "title": "Dish or Restaurant Name", "description": "One-sentence about it", "tip": "Insider tip" }
+      ]
+    }
+  ]
+}
+
+Rules:
+- Include 3-5 items per category per destination
+- Focus on authentic local experiences, not tourist traps
+- Tips should be practical insider knowledge
+- Use real places, dishes, and activities
+- Keep descriptions concise and compelling`
+        }],
+      });
+
+      const textContent = response.content.find(c => c.type === "text");
+      if (!textContent || textContent.type !== "text") {
+        return res.status(500).json({ message: "No response from AI" });
+      }
+
+      let highlights;
+      try {
+        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        highlights = JSON.parse(cleaned);
+      } catch {
+        return res.status(422).json({ message: "AI returned an invalid format. Please try again." });
+      }
+
+      if (!highlights?.destinations || !Array.isArray(highlights.destinations)) {
+        return res.status(422).json({ message: "AI response is missing destination data. Please try again." });
+      }
+
+      const updated = await storage.updateJourney(req.params.id, userId, { highlights });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error generating highlights:", error);
+      res.status(500).json({ message: "Failed to generate highlights" });
+    }
+  });
+
   // Past Trips CRUD
   app.get("/api/past-trips", isAuthenticated, async (req: any, res) => {
     try {
