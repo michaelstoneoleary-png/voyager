@@ -197,11 +197,11 @@ export default function PastJourneys() {
                  <Card>
                    <CardHeader>
                      <CardTitle className="text-lg font-serif flex items-center gap-2">
-                       <Sparkles className="h-4 w-4 text-primary" /> AI-Powered Import
+                       <Sparkles className="h-4 w-4 text-primary" /> Marco-Powered Import
                      </CardTitle>
                    </CardHeader>
                    <CardContent className="space-y-3">
-                     <p className="text-sm text-muted-foreground">Upload any spreadsheet or CSV — no special formatting needed. AI creates full journey records with seasonality insights, logistics, and map pins.</p>
+                     <p className="text-sm text-muted-foreground">Upload any spreadsheet or CSV — no special formatting needed. Marco creates full journey records with seasonality insights, logistics, and map pins.</p>
                      <div className="bg-muted/30 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
                        <div>Creates complete Journey records</div>
                        <div>Adds seasonality & logistics data</div>
@@ -229,8 +229,8 @@ export default function PastJourneys() {
                       </CardTitle>
                       <CardDescription>
                         {aiParsing
-                          ? "AI is reading your file and extracting trip data..."
-                          : "Upload any spreadsheet — AI handles the rest"}
+                          ? "Marco is reading your file and extracting trip data..."
+                          : "Upload any spreadsheet — Marco handles the rest"}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -239,7 +239,7 @@ export default function PastJourneys() {
                           <div className="relative">
                             <Sparkles className="h-8 w-8 text-primary animate-pulse" />
                           </div>
-                          <p className="text-sm text-muted-foreground text-center">Analyzing your spreadsheet with AI...</p>
+                          <p className="text-sm text-muted-foreground text-center">Marco is analyzing your spreadsheet...</p>
                           <p className="text-xs text-muted-foreground text-center">Identifying destinations, dates, and coordinates</p>
                         </div>
                       ) : (

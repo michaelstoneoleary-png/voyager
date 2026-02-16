@@ -71,7 +71,7 @@ export default function LandingPage() {
               {
                 icon: Map,
                 title: "Smart Itineraries",
-                description: "AI-powered trip planning that optimizes routes, timing, and budget automatically."
+                description: "Marco plans your trips, optimizing routes, timing, and budget automatically."
               },
               {
                 icon: Compass,

@@ -168,7 +168,7 @@ export default function TripPlanner() {
     onSuccess: (data) => {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-      toast({ title: "Itinerary generated", description: "Your AI-powered itinerary is ready." });
+      toast({ title: "Itinerary generated", description: "Your personalized itinerary from Marco is ready." });
     },
     onError: (err: any) => {
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
@@ -254,7 +254,7 @@ export default function TripPlanner() {
                 Your Travel Wishlist
               </CardTitle>
               <CardDescription>
-                Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. The AI will weave these into your plan.
+                Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. Marco will weave these into your plan.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -289,7 +289,7 @@ export default function TripPlanner() {
 
               {wishlistItems.length === 0 && (
                 <p className="text-xs text-muted-foreground italic">
-                  No items yet — add what matters to you, or skip ahead to generate with AI defaults.
+                  No items yet — add what matters to you, or skip ahead and let Marco choose for you.
                 </p>
               )}
             </CardContent>
@@ -306,13 +306,13 @@ export default function TripPlanner() {
               {generateMutation.isPending ? (
                 <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating your itinerary...</>
               ) : (
-                <><Sparkles className="mr-2 h-5 w-5" /> Generate AI Itinerary{wishlistItems.length > 0 ? ` with ${wishlistItems.length} request${wishlistItems.length > 1 ? "s" : ""}` : ""}</>
+                <><Sparkles className="mr-2 h-5 w-5" /> Let Marco Plan It{wishlistItems.length > 0 ? ` with ${wishlistItems.length} request${wishlistItems.length > 1 ? "s" : ""}` : ""}</>
               )}
             </Button>
             <p className="text-xs text-muted-foreground text-center max-w-sm">
               {wishlistItems.length > 0 
-                ? "Your requests will be prioritized in the itinerary alongside AI-curated recommendations."
-                : "Our AI will create a complete day-by-day itinerary with real places, local gems, and insider tips."}
+                ? "Marco will prioritize your requests alongside curated local recommendations."
+                : "Marco will create a complete day-by-day itinerary with real places, local gems, and insider tips."}
             </p>
           </div>
 

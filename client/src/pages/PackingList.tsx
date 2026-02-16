@@ -249,7 +249,7 @@ export default function PackingList() {
           </div>
           <div className="flex items-center gap-3 mb-8">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Our AI is analyzing weather, activities, and local customs for <strong>{form.destination}</strong>…</span>
+            <span className="text-sm text-muted-foreground">Marco is analyzing weather, activities, and local customs for <strong>{form.destination}</strong>…</span>
           </div>
           <div className="space-y-6">
             {[1, 2, 3].map((i) => (
@@ -409,7 +409,7 @@ export default function PackingList() {
           </div>
           <h1 className="font-serif text-3xl font-bold mb-2">Smart Packing</h1>
           <p className="text-muted-foreground max-w-md mx-auto">
-            Tell us about your trip and we'll generate a personalized packing list powered by AI.
+            Tell us about your trip and Marco will generate a personalized packing list for you.
           </p>
         </div>
 

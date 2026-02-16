@@ -173,7 +173,7 @@ export default function Explore() {
           <div className="max-w-xl">
             <h1 className="font-serif text-4xl font-bold mb-3">Discover Hidden Gems</h1>
             <p className="text-muted-foreground text-lg">
-              Curated experiences in Bulgaria & Serbia recommended by our AI engine based on your interests.
+              Curated experiences in Bulgaria & Serbia recommended by Marco based on your interests.
             </p>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
