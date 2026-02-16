@@ -4,6 +4,7 @@ import {
   journeyMembers, type JourneyMember, type InsertJourneyMember,
   pastTrips, type PastTrip, type InsertPastTrip,
   bookmarks, type Bookmark, type InsertBookmark,
+  packingLists, type PackingList, type InsertPackingList,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -30,6 +31,13 @@ export interface IStorage {
   getBookmarks(userId: string): Promise<Bookmark[]>;
   createBookmark(bookmark: InsertBookmark): Promise<Bookmark>;
   deleteBookmark(id: string, userId: string): Promise<boolean>;
+
+  getPackingLists(userId: string): Promise<PackingList[]>;
+  getPackingList(id: string, userId: string): Promise<PackingList | undefined>;
+  getPackingListByDestination(userId: string, destination: string): Promise<PackingList | undefined>;
+  createPackingList(data: InsertPackingList): Promise<PackingList>;
+  updatePackingList(id: string, userId: string, data: Partial<InsertPackingList>): Promise<PackingList | undefined>;
+  deletePackingList(id: string, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -143,6 +151,45 @@ export class DatabaseStorage implements IStorage {
     const [existing] = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
     if (!existing || existing.userId !== userId) return false;
     await db.delete(bookmarks).where(eq(bookmarks.id, id));
+    return true;
+  }
+
+  async getPackingLists(userId: string): Promise<PackingList[]> {
+    return db.select().from(packingLists).where(eq(packingLists.userId, userId)).orderBy(desc(packingLists.updatedAt));
+  }
+
+  async getPackingList(id: string, userId: string): Promise<PackingList | undefined> {
+    const [pl] = await db.select().from(packingLists).where(eq(packingLists.id, id));
+    if (pl && pl.userId !== userId) return undefined;
+    return pl || undefined;
+  }
+
+  async getPackingListByDestination(userId: string, destination: string): Promise<PackingList | undefined> {
+    const [pl] = await db.select().from(packingLists)
+      .where(and(eq(packingLists.userId, userId), eq(packingLists.destination, destination)))
+      .orderBy(desc(packingLists.updatedAt));
+    return pl || undefined;
+  }
+
+  async createPackingList(data: InsertPackingList): Promise<PackingList> {
+    const [created] = await db.insert(packingLists).values(data).returning();
+    return created;
+  }
+
+  async updatePackingList(id: string, userId: string, data: Partial<InsertPackingList>): Promise<PackingList | undefined> {
+    const existing = await this.getPackingList(id, userId);
+    if (!existing) return undefined;
+    const [updated] = await db.update(packingLists)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(packingLists.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deletePackingList(id: string, userId: string): Promise<boolean> {
+    const existing = await this.getPackingList(id, userId);
+    if (!existing) return false;
+    await db.delete(packingLists).where(eq(packingLists.id, id));
     return true;
   }
 }

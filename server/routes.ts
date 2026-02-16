@@ -1300,6 +1300,80 @@ Return ONLY the JSON object, no other text.`,
     }
   });
 
+  app.get("/api/packing-lists", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const lists = await storage.getPackingLists(userId);
+      res.json(lists);
+    } catch (error) {
+      console.error("Error fetching packing lists:", error);
+      res.status(500).json({ message: "Failed to fetch packing lists" });
+    }
+  });
+
+  app.get("/api/packing-lists/latest", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const lists = await storage.getPackingLists(userId);
+      res.json(lists[0] || null);
+    } catch (error) {
+      console.error("Error fetching latest packing list:", error);
+      res.status(500).json({ message: "Failed to fetch packing list" });
+    }
+  });
+
+  app.post("/api/packing-lists", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { destination, origin, startDate, endDate, activities, categories, journeyId } = req.body;
+      if (!destination || !categories) {
+        return res.status(400).json({ message: "Destination and categories are required" });
+      }
+      const created = await storage.createPackingList({
+        userId,
+        destination,
+        origin: origin || null,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        activities: activities || [],
+        categories,
+        journeyId: journeyId || null,
+      });
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Error creating packing list:", error);
+      res.status(500).json({ message: "Failed to save packing list" });
+    }
+  });
+
+  app.put("/api/packing-lists/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { categories } = req.body;
+      if (!categories) {
+        return res.status(400).json({ message: "Categories are required" });
+      }
+      const updated = await storage.updatePackingList(req.params.id, userId, { categories });
+      if (!updated) return res.status(404).json({ message: "Packing list not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating packing list:", error);
+      res.status(500).json({ message: "Failed to update packing list" });
+    }
+  });
+
+  app.delete("/api/packing-lists/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const deleted = await storage.deletePackingList(req.params.id, userId);
+      if (!deleted) return res.status(404).json({ message: "Packing list not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting packing list:", error);
+      res.status(500).json({ message: "Failed to delete packing list" });
+    }
+  });
+
   const smsRateLimit = new Map<string, number>();
 
   app.post("/api/send-packing-sms", isAuthenticated, async (req: any, res) => {

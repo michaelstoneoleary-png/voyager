@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Shirt,
   Droplets,
@@ -134,6 +134,43 @@ export default function PackingList() {
   const [isSendingSms, setIsSendingSms] = useState(false);
   const [smsSent, setSmsSent] = useState(false);
   const [journeyCreated, setJourneyCreated] = useState(false);
+  const [savedPackingListId, setSavedPackingListId] = useState<string | null>(null);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/packing-lists/latest", { credentials: "include" });
+        if (res.ok) {
+          const saved = await res.json();
+          if (saved && saved.categories) {
+            setCategories(saved.categories as PackingCategory[]);
+            setSavedPackingListId(saved.id);
+            setForm({
+              destination: saved.destination || "",
+              origin: saved.origin || "",
+              startDate: saved.startDate || "",
+              endDate: saved.endDate || "",
+              activities: saved.activities || [],
+              journeyId: saved.journeyId || undefined,
+            });
+          }
+        }
+      } catch {}
+      setIsLoadingSaved(false);
+    })();
+  }, []);
+
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistCategories = useCallback((cats: PackingCategory[], listId: string | null) => {
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    saveDebounceRef.current = setTimeout(async () => {
+      if (!listId) return;
+      try {
+        await apiRequest("PUT", `/api/packing-lists/${listId}`, { categories: cats });
+      } catch {}
+    }, 500);
+  }, []);
 
   const selectJourney = (journey: JourneyOption) => {
     setSelectedJourneyId(journey.id);
@@ -230,6 +267,20 @@ export default function PackingList() {
       setCategories(cats);
       setCollapsedCategories(new Set());
       setJourneyCreated(false);
+
+      try {
+        const saveRes = await apiRequest("POST", "/api/packing-lists", {
+          destination: form.destination,
+          origin: form.origin || null,
+          startDate: form.startDate || null,
+          endDate: form.endDate || null,
+          activities: form.activities,
+          categories: cats,
+          journeyId: form.journeyId || null,
+        });
+        const savedList = await saveRes.json();
+        setSavedPackingListId(savedList.id);
+      } catch {}
     } catch (err: any) {
       toast({
         title: "Generation failed",
@@ -244,7 +295,7 @@ export default function PackingList() {
   const togglePacked = (catIndex: number, itemIndex: number) => {
     setCategories((prev) => {
       if (!prev) return prev;
-      return prev.map((cat, ci) =>
+      const updated = prev.map((cat, ci) =>
         ci === catIndex
           ? {
               ...cat,
@@ -254,6 +305,8 @@ export default function PackingList() {
             }
           : cat
       );
+      persistCategories(updated, savedPackingListId);
+      return updated;
     });
   };
 
@@ -271,6 +324,7 @@ export default function PackingList() {
     setJourneyCreated(false);
     setCollapsedCategories(new Set());
     setSelectedJourneyId(null);
+    setSavedPackingListId(null);
     setForm({ destination: "", origin: "", startDate: "", endDate: "", activities: [] });
   };
 
@@ -354,6 +408,23 @@ export default function PackingList() {
     const key = iconName.toLowerCase();
     return CATEGORY_STYLES[key] || { color: "text-stone-600", bg: "bg-stone-500/10" };
   };
+
+  if (isLoadingSaved) {
+    return (
+      <Layout>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="mb-8">
+            <h1 className="font-serif text-3xl font-bold mb-2">Smart Packing</h1>
+            <p className="text-muted-foreground">Loading your packing list…</p>
+          </div>
+          <div className="flex items-center gap-3 mb-8">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Checking for saved lists…</span>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   if (isGenerating) {
     return (

@@ -64,11 +64,26 @@ export const bookmarks = pgTable("bookmarks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const packingLists = pgTable("packing_lists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  journeyId: varchar("journey_id").references(() => journeys.id, { onDelete: "cascade" }),
+  destination: text("destination").notNull(),
+  origin: text("origin"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  activities: text("activities").array(),
+  categories: jsonb("categories").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
   journeyMemberships: many(journeyMembers),
   pastTrips: many(pastTrips),
   bookmarks: many(bookmarks),
+  packingLists: many(packingLists),
 }));
 
 export const journeysRelations = relations(journeys, ({ one, many }) => ({
@@ -89,6 +104,11 @@ export const pastTripsRelations = relations(pastTrips, ({ one }) => ({
 
 export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
   user: one(users, { fields: [bookmarks.userId], references: [users.id] }),
+}));
+
+export const packingListsRelations = relations(packingLists, ({ one }) => ({
+  user: one(users, { fields: [packingLists.userId], references: [users.id] }),
+  journey: one(journeys, { fields: [packingLists.journeyId], references: [journeys.id] }),
 }));
 
 export const insertJourneySchema = createInsertSchema(journeys).omit({
@@ -132,6 +152,12 @@ export const insertBookmarkSchema = createInsertSchema(bookmarks).omit({
   createdAt: true,
 });
 
+export const insertPackingListSchema = createInsertSchema(packingLists).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;
 export type InsertJourney = z.infer<typeof insertJourneySchema>;
 export type Journey = typeof journeys.$inferSelect;
@@ -141,3 +167,5 @@ export type InsertPastTrip = z.infer<typeof insertPastTripSchema>;
 export type PastTrip = typeof pastTrips.$inferSelect;
 export type InsertBookmark = z.infer<typeof insertBookmarkSchema>;
 export type Bookmark = typeof bookmarks.$inferSelect;
+export type InsertPackingList = z.infer<typeof insertPackingListSchema>;
+export type PackingList = typeof packingLists.$inferSelect;
