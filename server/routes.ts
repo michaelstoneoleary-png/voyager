@@ -272,7 +272,13 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
           "tip": "Optional insider tip",
           "lat": 42.6977,
           "lng": 23.3219,
-          "image_query": "Wikipedia article title for this specific place or landmark (e.g. 'Rila_Monastery', 'Alexander_Nevsky_Cathedral,_Sofia')"
+          "image_query": "Wikipedia article title for this specific place or landmark (e.g. 'Rila_Monastery', 'Alexander_Nevsky_Cathedral,_Sofia')",
+          "travel_to_next": {
+            "mode": "walk|drive|taxi|transit|bus|train|ferry|flight",
+            "duration": "15 min",
+            "distance": "1.2 km",
+            "note": "Optional note e.g. 'Take Metro Line 2 towards Lumière'"
+          }
         }
       ]
     }
@@ -281,6 +287,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
 }
 
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, and local experiences. Use the actual correct coordinates for each place.
+TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance, and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
 HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.`

@@ -22,7 +22,6 @@ import {
   Lightbulb,
   ArrowLeft,
   Eye,
-  Footprints,
   UtensilsCrossed,
   Star,
   ChevronRight,
@@ -31,7 +30,13 @@ import {
   ListPlus,
   X,
   Building2,
-  BedDouble
+  BedDouble,
+  Bike,
+  Bus,
+  Train,
+  Ship,
+  Plane,
+  Footprints as Walk
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -49,6 +54,13 @@ L.Icon.Default.mergeOptions({
     shadowUrl: markerShadow,
 });
 
+interface TravelToNext {
+  mode: string;
+  duration: string;
+  distance?: string;
+  note?: string;
+}
+
 interface Activity {
   time: string;
   title: string;
@@ -61,6 +73,7 @@ interface Activity {
   lng?: number;
   image_url?: string;
   image_query?: string;
+  travel_to_next?: TravelToNext;
 }
 
 interface Hotel {
@@ -165,6 +178,20 @@ function createHotelIcon(isSelected: boolean) {
     iconAnchor: [15, 15],
     popupAnchor: [0, -18],
   });
+}
+
+function getTravelIcon(mode: string) {
+  const m = mode.toLowerCase();
+  if (m === "walk" || m === "walking") return <Walk className="h-3 w-3" />;
+  if (m === "drive" || m === "driving" || m === "car") return <Car className="h-3 w-3" />;
+  if (m === "taxi" || m === "rideshare" || m === "uber") return <Car className="h-3 w-3" />;
+  if (m === "bus") return <Bus className="h-3 w-3" />;
+  if (m === "transit" || m === "metro" || m === "subway") return <Train className="h-3 w-3" />;
+  if (m === "train" || m === "rail") return <Train className="h-3 w-3" />;
+  if (m === "ferry" || m === "boat") return <Ship className="h-3 w-3" />;
+  if (m === "flight" || m === "fly" || m === "plane") return <Plane className="h-3 w-3" />;
+  if (m === "bike" || m === "bicycle" || m === "cycling") return <Bike className="h-3 w-3" />;
+  return <Car className="h-3 w-3" />;
 }
 
 const HOTEL_CATEGORY_COLORS: Record<string, string> = {
@@ -496,46 +523,73 @@ export default function TripPlanner() {
                 <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border z-0"></div>
 
                 {currentDayData?.activities.map((activity, idx) => (
-                  <div 
-                    key={idx} 
-                    className="relative z-10 flex gap-4 group cursor-pointer"
-                    onClick={() => { setSelectedActivity(activity); setSelectedHotel(null); }}
-                    data-testid={`activity-card-${idx}`}
-                  >
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
-                      {idx + 1}
-                    </div>
-                    <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
-                      <div className="flex">
-                        {activity.image_url && (
-                          <div className="w-20 h-20 flex-shrink-0">
-                            <img
-                              src={activity.image_url}
-                              alt={activity.title}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                              data-testid={`activity-image-${idx}`}
-                            />
-                          </div>
-                        )}
-                        <CardContent className="p-3 flex-1 min-w-0">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                              {activity.time}
-                            </span>
-                            <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
-                              {activity.type}
-                            </Badge>
-                          </div>
-                          <h4 className="font-serif font-medium text-base leading-tight mb-1">{activity.title}</h4>
-                          <p className="text-xs text-muted-foreground line-clamp-1">
-                            {activity.duration && `${activity.duration}`}
-                            {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
-                          </p>
-                        </CardContent>
+                  <div key={idx}>
+                    <div 
+                      className="relative z-10 flex gap-4 group cursor-pointer"
+                      onClick={() => { setSelectedActivity(activity); setSelectedHotel(null); }}
+                      data-testid={`activity-card-${idx}`}
+                    >
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
+                        {idx + 1}
                       </div>
-                    </Card>
+                      <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
+                        <div className="flex">
+                          {activity.image_url && (
+                            <div className="w-20 h-20 flex-shrink-0">
+                              <img
+                                src={activity.image_url}
+                                alt={activity.title}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                data-testid={`activity-image-${idx}`}
+                              />
+                            </div>
+                          )}
+                          <CardContent className="p-3 flex-1 min-w-0">
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                {activity.time}
+                              </span>
+                              <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
+                                {activity.type}
+                              </Badge>
+                            </div>
+                            <h4 className="font-serif font-medium text-base leading-tight mb-1">{activity.title}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-1">
+                              {activity.duration && `${activity.duration}`}
+                              {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
+                            </p>
+                          </CardContent>
+                        </div>
+                      </Card>
+                    </div>
+                    {activity.travel_to_next && idx < (currentDayData?.activities.length || 0) - 1 && (
+                      <div className="relative z-10 flex gap-4 my-1" data-testid={`travel-connector-${idx}`}>
+                        <div className="flex-shrink-0 w-8 flex items-center justify-center">
+                          <div className="w-0.5 h-full bg-border"></div>
+                        </div>
+                        <div className="flex-1 flex items-center gap-2 py-1.5 px-3 rounded-full bg-muted/60 border border-dashed border-border text-muted-foreground">
+                          <span className="flex items-center gap-1 text-[11px] font-medium capitalize">
+                            {getTravelIcon(activity.travel_to_next.mode)}
+                            {activity.travel_to_next.mode}
+                          </span>
+                          <span className="text-[10px]">•</span>
+                          <span className="text-[11px] font-mono">{activity.travel_to_next.duration}</span>
+                          {activity.travel_to_next.distance && (
+                            <>
+                              <span className="text-[10px]">•</span>
+                              <span className="text-[11px]">{activity.travel_to_next.distance}</span>
+                            </>
+                          )}
+                          {activity.travel_to_next.note && (
+                            <span className="text-[10px] italic ml-auto truncate max-w-[140px]" title={activity.travel_to_next.note}>
+                              {activity.travel_to_next.note}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               {currentDayData?.hotels && currentDayData.hotels.length > 0 && (
@@ -793,7 +847,7 @@ export default function TripPlanner() {
                        
                        {[
                          { key: "must_see", label: "Must See", icon: <Eye className="h-4 w-4 text-violet-500" />, items: highlights.destinations[activeHighlightDest].must_see, colors: { bg: "bg-violet-50 dark:bg-violet-950/20", border: "border-violet-200 dark:border-violet-800", accent: "text-violet-600 dark:text-violet-400", confidence: "text-violet-700", link: "text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300" }, testPrefix: "see" },
-                         { key: "must_do", label: "Must Do", icon: <Footprints className="h-4 w-4 text-emerald-500" />, items: highlights.destinations[activeHighlightDest].must_do, colors: { bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-800", accent: "text-emerald-600 dark:text-emerald-400", confidence: "text-emerald-700", link: "text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300" }, testPrefix: "do" },
+                         { key: "must_do", label: "Must Do", icon: <Walk className="h-4 w-4 text-emerald-500" />, items: highlights.destinations[activeHighlightDest].must_do, colors: { bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-800", accent: "text-emerald-600 dark:text-emerald-400", confidence: "text-emerald-700", link: "text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300" }, testPrefix: "do" },
                          { key: "must_eat", label: "Must Eat", icon: <UtensilsCrossed className="h-4 w-4 text-amber-500" />, items: highlights.destinations[activeHighlightDest].must_eat, colors: { bg: "bg-amber-50 dark:bg-amber-950/20", border: "border-amber-200 dark:border-amber-800", accent: "text-amber-600 dark:text-amber-400", confidence: "text-amber-700", link: "text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" }, testPrefix: "eat" },
                        ].map(({ key, label, icon, items, colors, testPrefix }) => (
                          <div key={key}>
