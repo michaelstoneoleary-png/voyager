@@ -9,6 +9,8 @@ export type TripStatus = "Upcoming" | "Planning" | "Dreaming" | "Completed";
 export interface Trip {
   id: string;
   title: string;
+  origin?: string | null;
+  finalDestination?: string | null;
   dates: string;
   image: string | null;
   days: number;
@@ -67,6 +69,8 @@ export function TripProvider({ children }: { children: ReactNode }) {
     mutationFn: async (tripData: Omit<Trip, 'id' | 'image' | 'progress' | 'seasonality' | 'priceAlert' | 'logistics'>) => {
       const res = await apiRequest("POST", "/api/journeys", {
         title: tripData.title,
+        origin: tripData.origin || null,
+        finalDestination: tripData.finalDestination || null,
         dates: tripData.dates,
         days: tripData.days,
         cost: tripData.cost,

@@ -1,6 +1,7 @@
 import {
   users, type User,
   journeys, type Journey, type InsertJourney,
+  journeyMembers, type JourneyMember, type InsertJourneyMember,
   pastTrips, type PastTrip, type InsertPastTrip,
   bookmarks, type Bookmark, type InsertBookmark,
 } from "@shared/schema";
@@ -17,6 +18,9 @@ export interface IStorage {
   createJourneys(journeyList: InsertJourney[]): Promise<Journey[]>;
   updateJourney(id: string, userId: string, data: Partial<InsertJourney>): Promise<Journey | undefined>;
   deleteJourney(id: string, userId: string): Promise<boolean>;
+
+  createJourneyMember(member: InsertJourneyMember): Promise<JourneyMember>;
+  getJourneyMembers(journeyId: string): Promise<JourneyMember[]>;
 
   getPastTrips(userId: string): Promise<PastTrip[]>;
   createPastTrip(trip: InsertPastTrip): Promise<PastTrip>;
@@ -59,6 +63,20 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async createJourneyWithOwner(journey: InsertJourney): Promise<Journey> {
+    return db.transaction(async (tx) => {
+      const [created] = await tx.insert(journeys).values(journey).returning();
+      await tx.insert(journeyMembers).values({
+        journeyId: created.id,
+        userId: created.userId,
+        role: "owner",
+        origin: created.origin || null,
+        finalDestination: created.finalDestination || null,
+      });
+      return created;
+    });
+  }
+
   async createJourneys(journeyList: InsertJourney[]): Promise<Journey[]> {
     if (journeyList.length === 0) return [];
     return db.insert(journeys).values(journeyList).returning();
@@ -74,9 +92,21 @@ export class DatabaseStorage implements IStorage {
   async deleteJourney(id: string, userId: string): Promise<boolean> {
     const existing = await this.getJourney(id, userId);
     if (!existing) return false;
-    await db.delete(pastTrips).where(eq(pastTrips.journeyId, id));
-    await db.delete(journeys).where(eq(journeys.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(journeyMembers).where(eq(journeyMembers.journeyId, id));
+      await tx.delete(pastTrips).where(eq(pastTrips.journeyId, id));
+      await tx.delete(journeys).where(eq(journeys.id, id));
+    });
     return true;
+  }
+
+  async createJourneyMember(member: InsertJourneyMember): Promise<JourneyMember> {
+    const [created] = await db.insert(journeyMembers).values(member).returning();
+    return created;
+  }
+
+  async getJourneyMembers(journeyId: string): Promise<JourneyMember[]> {
+    return db.select().from(journeyMembers).where(eq(journeyMembers.journeyId, journeyId));
   }
 
   async getPastTrips(userId: string): Promise<PastTrip[]> {

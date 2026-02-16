@@ -11,6 +11,8 @@ export const journeys = pgTable("journeys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
+  origin: text("origin"),
+  finalDestination: text("final_destination"),
   dates: text("dates"),
   days: integer("days"),
   cost: text("cost"),
@@ -23,6 +25,16 @@ export const journeys = pgTable("journeys", {
   logistics: jsonb("logistics"),
   itinerary: jsonb("itinerary"),
   highlights: jsonb("highlights"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const journeyMembers = pgTable("journey_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeyId: varchar("journey_id").notNull().references(() => journeys.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  role: text("role").notNull().default("owner"),
+  origin: text("origin"),
+  finalDestination: text("final_destination"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -53,13 +65,20 @@ export const bookmarks = pgTable("bookmarks", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
+  journeyMemberships: many(journeyMembers),
   pastTrips: many(pastTrips),
   bookmarks: many(bookmarks),
 }));
 
 export const journeysRelations = relations(journeys, ({ one, many }) => ({
   user: one(users, { fields: [journeys.userId], references: [users.id] }),
+  members: many(journeyMembers),
   pastTrips: many(pastTrips),
+}));
+
+export const journeyMembersRelations = relations(journeyMembers, ({ one }) => ({
+  journey: one(journeys, { fields: [journeyMembers.journeyId], references: [journeys.id] }),
+  user: one(users, { fields: [journeyMembers.userId], references: [users.id] }),
 }));
 
 export const pastTripsRelations = relations(pastTrips, ({ one }) => ({
@@ -72,6 +91,11 @@ export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
 }));
 
 export const insertJourneySchema = createInsertSchema(journeys).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJourneyMemberSchema = createInsertSchema(journeyMembers).omit({
   id: true,
   createdAt: true,
 });
@@ -109,6 +133,8 @@ export const insertBookmarkSchema = createInsertSchema(bookmarks).omit({
 export type UpdateUserSettings = z.infer<typeof updateUserSettingsSchema>;
 export type InsertJourney = z.infer<typeof insertJourneySchema>;
 export type Journey = typeof journeys.$inferSelect;
+export type InsertJourneyMember = z.infer<typeof insertJourneyMemberSchema>;
+export type JourneyMember = typeof journeyMembers.$inferSelect;
 export type InsertPastTrip = z.infer<typeof insertPastTripSchema>;
 export type PastTrip = typeof pastTrips.$inferSelect;
 export type InsertBookmark = z.infer<typeof insertBookmarkSchema>;

@@ -78,6 +78,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
     // Step 3: Destinations
     origin: USER_DEFAULTS.origin,
+    finalDestination: "",
     destinations: [] as string[],
     newDestination: ""
   });
@@ -121,13 +122,18 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       datesStr = `Flexible (${formData.duration} days)`;
     }
 
+    const allStops = formData.destinations;
+    const titleDest = formData.finalDestination || (allStops.length > 0 ? allStops[allStops.length - 1] : null);
+
     addTrip({
-      title: formData.destinations.length > 0 ? `Journey to ${formData.destinations[0]}` : "New Adventure",
+      title: titleDest ? `Journey to ${titleDest}` : "New Adventure",
+      origin: formData.origin || undefined,
+      finalDestination: formData.finalDestination || undefined,
       dates: datesStr,
       days: formData.duration,
       cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
       status: "Planning",
-      destinations: formData.destinations
+      destinations: allStops
     }, (journey) => {
       onOpenChange(false);
       toast({
@@ -374,29 +380,47 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
           {step === 3 && (
             <div className="space-y-6 py-2">
-              <div className="space-y-2">
-                <Label>Departure Origin</Label>
-                <div className="relative">
-                   <Plane className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                   <Input 
-                     className="pl-9"
-                     value={formData.origin} 
-                     onChange={(e) => setFormData({...formData, origin: e.target.value})}
-                   />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Departure Origin</Label>
+                  <div className="relative">
+                     <Plane className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                     <Input 
+                       className="pl-9"
+                       placeholder="Your starting city"
+                       value={formData.origin} 
+                       onChange={(e) => setFormData({...formData, origin: e.target.value})}
+                       data-testid="input-origin"
+                     />
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">We'll assume you need to get back here too.</p>
+                <div className="space-y-2">
+                  <Label>Final Destination</Label>
+                  <div className="relative">
+                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                     <Input 
+                       className="pl-9"
+                       placeholder="Where your trip ends"
+                       value={formData.finalDestination} 
+                       onChange={(e) => setFormData({...formData, finalDestination: e.target.value})}
+                       data-testid="input-final-destination"
+                     />
+                  </div>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-4">Your origin and final destination can be different if you're not returning home.</p>
 
               <div className="space-y-3">
-                 <Label>Destinations</Label>
+                 <Label>Stops Along the Way</Label>
                  <div className="flex gap-2">
                    <Input 
                      placeholder="City, Country, or Point of Interest" 
                      value={formData.newDestination}
                      onChange={(e) => setFormData({...formData, newDestination: e.target.value})}
                      onKeyDown={(e) => e.key === 'Enter' && addDestination()}
+                     data-testid="input-add-stop"
                    />
-                   <Button onClick={addDestination} size="icon">
+                   <Button onClick={addDestination} size="icon" data-testid="button-add-stop">
                      <Plus className="h-4 w-4" />
                    </Button>
                  </div>
@@ -405,14 +429,14 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
                     {formData.destinations.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm p-4">
                         <MapPin className="h-8 w-8 mb-2 opacity-50" />
-                        Add at least one destination to start
+                        Add stops you want to visit along the way
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {formData.destinations.map((dest, idx) => (
-                          <Badge key={idx} variant="secondary" className="pl-2 pr-1 py-1 text-sm flex items-center gap-1">
+                          <Badge key={idx} variant="secondary" className="pl-2 pr-1 py-1 text-sm flex items-center gap-1" data-testid={`badge-stop-${idx}`}>
                             {dest}
-                            <button onClick={() => removeDestination(idx)} className="hover:text-destructive">
+                            <button onClick={() => removeDestination(idx)} className="hover:text-destructive" data-testid={`button-remove-stop-${idx}`}>
                               <X className="h-3 w-3" />
                             </button>
                           </Badge>

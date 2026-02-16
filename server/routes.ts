@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, type User } from "@shared/schema";
+import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -166,12 +166,14 @@ export async function registerRoutes(
     try {
       const userId = getUserId(req)!
       const data = { ...req.body, userId };
-      if (!data.image && data.destinations?.length > 0) {
-        const dest = data.destinations[0];
-        data.image = await fetchDestinationImage(dest, "city");
+      if (!data.image) {
+        const imageDest = data.finalDestination || data.destinations?.[0];
+        if (imageDest) {
+          data.image = await fetchDestinationImage(imageDest, "city");
+        }
       }
       const parsed = insertJourneySchema.parse(data);
-      const journey = await storage.createJourney(parsed);
+      const journey = await storage.createJourneyWithOwner(parsed);
       res.status(201).json(journey);
     } catch (error: any) {
       console.error("Error creating journey:", error);
@@ -214,10 +216,17 @@ export async function registerRoutes(
       if (!journey) return res.status(404).json({ message: "Journey not found" });
 
       const user = await storage.getUser(userId);
-      const destinations = journey.destinations?.join(", ") || "unspecified destination";
+      const allStops = [
+        journey.origin,
+        ...(journey.destinations || []),
+        journey.finalDestination,
+      ].filter(Boolean);
+      const destinations = allStops.join(", ") || "unspecified destination";
       const days = journey.days || 7;
       const budget = journey.cost || "flexible";
       const currency = user?.currency || "USD";
+      const originNote = journey.origin ? `Starting from: ${journey.origin}. ` : "";
+      const finalNote = journey.finalDestination ? `Ending at: ${journey.finalDestination}. ` : "";
 
       const anthropicClient = new Anthropic({
         apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
@@ -229,7 +238,7 @@ export async function registerRoutes(
         max_tokens: 4096,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip to ${destinations}. Budget: ${budget} ${currency}.
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.
 
 Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
 {
@@ -300,7 +309,11 @@ Include 3-5 activities per day with realistic times, real places, accurate coord
       const journey = await storage.getJourney(req.params.id, userId);
       if (!journey) return res.status(404).json({ message: "Journey not found" });
 
-      const destinations = journey.destinations || [];
+      const destinations = [
+        journey.origin,
+        ...(journey.destinations || []),
+        journey.finalDestination,
+      ].filter(Boolean) as string[];
       if (destinations.length === 0) {
         return res.status(400).json({ message: "No destinations set for this journey" });
       }

@@ -56,7 +56,8 @@ Preferred communication style: Simple, everyday language.
 - **Schema** (in `shared/`):
   - `users` — User profiles with preferences, social accounts, and publish blog toggle (required for Replit Auth)
   - `sessions` — Session storage (required for Replit Auth)
-  - `journeys` — Trip/journey records with JSONB fields for seasonality, price alerts, logistics, itinerary
+  - `journeys` — Trip/journey records with origin, finalDestination, interim stops (destinations array), and JSONB fields for seasonality, price alerts, logistics, itinerary, highlights
+  - `journey_members` — Junction table linking users to journeys with per-user origin/finalDestination and role (owner/member). Enables future shared journeys where multiple users participate with different start/end points.
   - `bookmarks` — User-saved community feed articles
   - `past_trips` — Historical trip records with lat/lng coordinates
   - `conversations` — Chat conversation records

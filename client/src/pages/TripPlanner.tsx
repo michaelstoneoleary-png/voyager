@@ -87,6 +87,8 @@ interface Highlights {
 interface Journey {
   id: string;
   title: string;
+  origin?: string;
+  finalDestination?: string;
   dates?: string;
   days?: number;
   cost?: string;
@@ -214,7 +216,7 @@ export default function TripPlanner() {
           <div>
             <h1 className="font-serif text-3xl font-bold mb-2">{journey.title}</h1>
             <p className="text-muted-foreground">
-              {journey.destinations?.join(" → ") || "No destinations set"} 
+              {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || "No destinations set"} 
               {journey.days ? ` • ${journey.days} days` : ""}
               {journey.cost && journey.cost !== "TBD" ? ` • ${journey.cost}` : ""}
             </p>
@@ -255,7 +257,7 @@ export default function TripPlanner() {
             <div>
               <h1 className="font-serif text-3xl font-bold" data-testid="text-planner-title">{journey.title}</h1>
               <p className="text-muted-foreground">
-                {journey.destinations?.join(" → ") || ""}
+                {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
                 {journey.days ? ` • ${journey.days} days` : ""}
               </p>
             </div>
