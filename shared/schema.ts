@@ -25,6 +25,7 @@ export const journeys = pgTable("journeys", {
   logistics: jsonb("logistics"),
   itinerary: jsonb("itinerary"),
   highlights: jsonb("highlights"),
+  travelMode: text("travel_mode").default("mixed"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
