@@ -36,7 +36,12 @@ import {
   Train,
   Ship,
   Plane,
-  Footprints as Walk
+  Footprints as Walk,
+  Trash2,
+  RefreshCw,
+  TimerReset,
+  MoreVertical,
+  Replace
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -236,6 +241,9 @@ export default function TripPlanner() {
   const [showHighlights, setShowHighlights] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
+  const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
+  const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
+  const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
 
   const addWishlistItem = () => {
@@ -284,6 +292,39 @@ export default function TripPlanner() {
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
+
+  const activityMutation = useMutation({
+    mutationFn: async (params: { dayIndex: number; activityIndex: number; action: string; replaceType?: string }) => {
+      const res = await apiRequest("POST", `/api/journeys/${journeyId}/remove-activity`, params);
+      return res.json();
+    },
+    onMutate: (params) => {
+      setModifyingActivity({ dayIndex: params.dayIndex, activityIndex: params.activityIndex, action: params.action });
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+      queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
+      setModifyingActivity(null);
+      setActivityMenu(null);
+      setReplaceMode(null);
+      setSelectedActivity(null);
+      const actionLabel = variables.action === "replace" ? "replaced" : variables.action === "extend_previous" ? "removed (previous extended)" : "removed";
+      toast({ title: "Activity updated", description: `Activity has been ${actionLabel}.` });
+    },
+    onError: (err: any) => {
+      setModifyingActivity(null);
+      toast({ title: "Failed to modify activity", description: err?.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  const ACTIVITY_TYPES = [
+    { value: "culture", label: "Culture", color: "bg-violet-100 text-violet-700 hover:bg-violet-200" },
+    { value: "food", label: "Food", color: "bg-amber-100 text-amber-700 hover:bg-amber-200" },
+    { value: "nature", label: "Nature", color: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" },
+    { value: "shopping", label: "Shopping", color: "bg-pink-100 text-pink-700 hover:bg-pink-200" },
+    { value: "nightlife", label: "Nightlife", color: "bg-indigo-100 text-indigo-700 hover:bg-indigo-200" },
+    { value: "relaxation", label: "Relaxation", color: "bg-sky-100 text-sky-700 hover:bg-sky-200" },
+  ];
 
   const itinerary = journey?.itinerary as Itinerary | undefined;
   const highlights = journey?.highlights as Highlights | undefined;
@@ -502,7 +543,7 @@ export default function TripPlanner() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           <div className="lg:col-span-1 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
-              <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); }} className="w-full">
+              <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); setActivityMenu(null); setReplaceMode(null); }} className="w-full">
                 <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
                   {itinerary.days.map((d, idx) => (
                     <TabsTrigger key={idx} value={`day${idx}`} className="text-xs">
@@ -522,15 +563,19 @@ export default function TripPlanner() {
               <div className="space-y-4 relative">
                 <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border z-0"></div>
 
-                {currentDayData?.activities.map((activity, idx) => (
-                  <div key={idx}>
+                {currentDayData?.activities.map((activity, idx) => {
+                  const isBeingModified = modifyingActivity?.dayIndex === selectedDay && modifyingActivity?.activityIndex === idx;
+                  const isMenuOpen = activityMenu?.dayIndex === selectedDay && activityMenu?.activityIndex === idx;
+                  const isReplacing = replaceMode?.dayIndex === selectedDay && replaceMode?.activityIndex === idx;
+                  return (
+                  <div key={`${selectedDay}-${idx}-${activity.title}`}>
                     <div 
-                      className="relative z-10 flex gap-4 group cursor-pointer"
-                      onClick={() => { setSelectedActivity(activity); setSelectedHotel(null); }}
+                      className={`relative z-10 flex gap-4 group cursor-pointer ${isBeingModified ? "opacity-60 pointer-events-none" : ""}`}
+                      onClick={() => { if (!isMenuOpen && !isReplacing) { setSelectedActivity(activity); setSelectedHotel(null); } }}
                       data-testid={`activity-card-${idx}`}
                     >
                       <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
-                        {idx + 1}
+                        {isBeingModified ? <Loader2 className="h-3 w-3 animate-spin" /> : idx + 1}
                       </div>
                       <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
                         <div className="flex">
@@ -551,9 +596,27 @@ export default function TripPlanner() {
                               <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                                 {activity.time}
                               </span>
-                              <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
-                                {activity.type}
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
+                                  {activity.type}
+                                </Badge>
+                                <button
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isMenuOpen) {
+                                      setActivityMenu(null);
+                                      setReplaceMode(null);
+                                    } else {
+                                      setActivityMenu({ dayIndex: selectedDay, activityIndex: idx });
+                                      setReplaceMode(null);
+                                    }
+                                  }}
+                                  data-testid={`button-activity-menu-${idx}`}
+                                >
+                                  <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              </div>
                             </div>
                             <h4 className="font-serif font-medium text-base leading-tight mb-1">{activity.title}</h4>
                             <p className="text-xs text-muted-foreground line-clamp-1">
@@ -564,6 +627,106 @@ export default function TripPlanner() {
                         </div>
                       </Card>
                     </div>
+
+                    {isMenuOpen && !isReplacing && (
+                      <div className="relative z-20 ml-12 mt-1 mb-1 animate-in fade-in slide-in-from-top-1 duration-200" data-testid={`activity-action-menu-${idx}`}>
+                        <div className="bg-background border rounded-lg shadow-lg p-2 space-y-1">
+                          {idx > 0 && (
+                            <button
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors text-left"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "extend_previous" });
+                              }}
+                              disabled={activityMutation.isPending}
+                              data-testid={`button-extend-previous-${idx}`}
+                            >
+                              <TimerReset className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              <div>
+                                <p className="font-medium">Extend previous activity</p>
+                                <p className="text-[11px] text-muted-foreground">Remove this and add its time to "{currentDayData?.activities[idx - 1]?.title}"</p>
+                              </div>
+                            </button>
+                          )}
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplaceMode({ dayIndex: selectedDay, activityIndex: idx });
+                            }}
+                            data-testid={`button-replace-${idx}`}
+                          >
+                            <Replace className="h-4 w-4 text-primary flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">Replace with something else</p>
+                              <p className="text-[11px] text-muted-foreground">Marco will suggest a new activity of your chosen type</p>
+                            </div>
+                          </button>
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-red-50 text-red-600 transition-colors text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "remove" });
+                            }}
+                            disabled={activityMutation.isPending}
+                            data-testid={`button-remove-activity-${idx}`}
+                          >
+                            <Trash2 className="h-4 w-4 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">Remove activity</p>
+                              <p className="text-[11px] text-red-400">Remove from itinerary without replacement</p>
+                            </div>
+                          </button>
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md hover:bg-muted transition-colors text-muted-foreground text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActivityMenu(null);
+                            }}
+                            data-testid={`button-cancel-menu-${idx}`}
+                          >
+                            <X className="h-3.5 w-3.5" /> Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {isReplacing && (
+                      <div className="relative z-20 ml-12 mt-1 mb-1 animate-in fade-in slide-in-from-top-1 duration-200" data-testid={`replace-type-picker-${idx}`}>
+                        <div className="bg-background border rounded-lg shadow-lg p-3">
+                          <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+                            <Sparkles className="h-3 w-3 text-primary" /> What type of experience would you like instead?
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {ACTIVITY_TYPES.map((type) => (
+                              <button
+                                key={type.value}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${type.color} ${activityMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "replace", replaceType: type.value });
+                                }}
+                                disabled={activityMutation.isPending}
+                                data-testid={`button-replace-type-${type.value}-${idx}`}
+                              >
+                                {type.label}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplaceMode(null);
+                              setActivityMenu(null);
+                            }}
+                            data-testid={`button-cancel-replace-${idx}`}
+                          >
+                            <ArrowLeft className="h-3 w-3" /> Back
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {activity.travel_to_next && idx < (currentDayData?.activities.length || 0) - 1 && (
                       <div className="relative z-10 flex gap-4 my-1" data-testid={`travel-connector-${idx}`}>
                         <div className="flex-shrink-0 w-8 flex items-center justify-center">
@@ -591,7 +754,8 @@ export default function TripPlanner() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               {currentDayData?.hotels && currentDayData.hotels.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-border">
                   <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-3 flex items-center gap-1.5 px-1">

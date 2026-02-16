@@ -52,6 +52,29 @@ const DESTINATION_FALLBACK_IMAGES: Record<string, string> = {
 
 const imageCache = new Map<string, string>();
 
+function parseDurationMinutes(duration: string | undefined): number {
+  if (!duration) return 60;
+  const hours = duration.match(/(\d+)\s*h/i);
+  const mins = duration.match(/(\d+)\s*m/i);
+  let total = 0;
+  if (hours) total += parseInt(hours[1]) * 60;
+  if (mins) total += parseInt(mins[1]);
+  if (total === 0) {
+    const num = parseInt(duration);
+    if (!isNaN(num)) total = num > 10 ? num : num * 60;
+    else total = 60;
+  }
+  return total;
+}
+
+function formatDurationMinutes(mins: number): string {
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (m === 0) return `${h} hour${h > 1 ? "s" : ""}`;
+  return `${h} hour${h > 1 ? "s" : ""} ${m} min`;
+}
+
 async function fetchDestinationImage(destinationName: string, fallbackType: string): Promise<string> {
   const fallback = DESTINATION_FALLBACK_IMAGES[fallbackType] || DESTINATION_FALLBACK_IMAGES.city;
   try {
@@ -354,6 +377,159 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
     } catch (error) {
       console.error("Error generating itinerary:", error);
       res.status(500).json({ message: "Failed to generate itinerary" });
+    }
+  });
+
+  app.post("/api/journeys/:id/remove-activity", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const itinerary = journey.itinerary as any;
+      if (!itinerary?.days) return res.status(400).json({ message: "No itinerary found" });
+
+      const { dayIndex, activityIndex, action, replaceType } = req.body;
+      if (typeof dayIndex !== "number" || typeof activityIndex !== "number") {
+        return res.status(400).json({ message: "dayIndex and activityIndex are required" });
+      }
+
+      const day = itinerary.days[dayIndex];
+      if (!day || !day.activities || !day.activities[activityIndex]) {
+        return res.status(400).json({ message: "Invalid day or activity index" });
+      }
+
+      const removedActivity = day.activities[activityIndex];
+
+      if (action === "extend_previous") {
+        if (activityIndex === 0) {
+          return res.status(400).json({ message: "No previous activity to extend" });
+        }
+        const prevActivity = day.activities[activityIndex - 1];
+        const removedDurationMinutes = parseDurationMinutes(removedActivity.duration);
+        const travelMinutes = removedActivity.travel_to_next ? parseDurationMinutes(removedActivity.travel_to_next.duration) : 0;
+        const prevDurationMinutes = parseDurationMinutes(prevActivity.duration);
+        const extraMinutes = removedDurationMinutes + travelMinutes;
+        const newDuration = prevDurationMinutes + extraMinutes;
+        prevActivity.duration = formatDurationMinutes(newDuration);
+
+        if (removedActivity.travel_to_next && activityIndex < day.activities.length - 1) {
+          prevActivity.travel_to_next = removedActivity.travel_to_next;
+        } else {
+          delete prevActivity.travel_to_next;
+          if (activityIndex > 1) {
+            const beforePrev = day.activities[activityIndex - 2];
+            if (beforePrev.travel_to_next) {
+              // keep existing travel_to_next on beforePrev
+            }
+          }
+        }
+
+        day.activities.splice(activityIndex, 1);
+
+        for (let i = activityIndex; i < day.activities.length; i++) {
+          // just leave times as-is, they are informational
+        }
+
+        const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
+        return res.json(updated);
+      }
+
+      if (action === "replace") {
+        if (!replaceType) {
+          return res.status(400).json({ message: "replaceType is required for replace action" });
+        }
+
+        const timeSlot = removedActivity.time;
+        const durationHint = removedActivity.duration || "2 hours";
+        const location = day.location || "the destination";
+        const prevTitle = activityIndex > 0 ? day.activities[activityIndex - 1].title : null;
+        const nextTitle = activityIndex < day.activities.length - 1 ? day.activities[activityIndex + 1].title : null;
+
+        const contextActivities = day.activities
+          .filter((_: any, i: number) => i !== activityIndex)
+          .map((a: any) => a.title)
+          .join(", ");
+
+        const response = await anthropic.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 1024,
+          messages: [{
+            role: "user",
+            content: `Suggest ONE replacement activity for a travel itinerary in ${location}.
+
+Time slot: ${timeSlot}, Duration: ${durationHint}
+Type requested: ${replaceType}
+${prevTitle ? `Previous activity: ${prevTitle}` : "First activity of the day"}
+${nextTitle ? `Next activity: ${nextTitle}` : "Last activity of the day"}
+Other activities already planned this day: ${contextActivities || "none"}
+
+Return a JSON object (no markdown, no code fences, just raw JSON):
+{
+  "time": "${timeSlot}",
+  "title": "Activity Name",
+  "type": "${replaceType}",
+  "duration": "${durationHint}",
+  "description": "Brief description",
+  "cost": "Free or estimated cost",
+  "tip": "Optional insider tip",
+  "lat": 0.0000,
+  "lng": 0.0000,
+  "image_query": "Wikipedia article title for this specific place",
+  "travel_to_next": ${nextTitle ? `{ "mode": "walk|drive|taxi|transit|bus|train", "duration": "estimated", "distance": "estimated" }` : "null"}
+}
+
+Rules:
+- Must be a REAL place that exists in ${location}
+- Use accurate lat/lng coordinates
+- Must be type "${replaceType}"
+- Should complement the other planned activities (don't duplicate what's already there)
+- For image_query, use the exact Wikipedia article title`
+          }],
+        });
+
+        const textContent = response.content.find(c => c.type === "text");
+        if (!textContent || textContent.type !== "text") {
+          return res.status(500).json({ message: "No response from AI" });
+        }
+
+        let newActivity;
+        try {
+          const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          newActivity = JSON.parse(cleaned);
+        } catch {
+          return res.status(422).json({ message: "AI returned invalid format. Please try again." });
+        }
+
+        const imageUrl = await fetchDestinationImage(newActivity.image_query || newActivity.title, newActivity.type || "culture");
+        newActivity.image_url = imageUrl;
+
+        if (!newActivity.travel_to_next || !nextTitle) {
+          delete newActivity.travel_to_next;
+        }
+
+        day.activities[activityIndex] = newActivity;
+
+        const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
+        return res.json(updated);
+      }
+
+      if (action === "remove") {
+        if (activityIndex > 0 && removedActivity.travel_to_next) {
+          day.activities[activityIndex - 1].travel_to_next = removedActivity.travel_to_next;
+        }
+        day.activities.splice(activityIndex, 1);
+        if (day.activities.length > 0 && activityIndex === day.activities.length) {
+          delete day.activities[day.activities.length - 1].travel_to_next;
+        }
+        const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
+        return res.json(updated);
+      }
+
+      return res.status(400).json({ message: "Invalid action. Use 'extend_previous', 'replace', or 'remove'" });
+    } catch (error) {
+      console.error("Error modifying activity:", error);
+      res.status(500).json({ message: "Failed to modify activity" });
     }
   });
 
