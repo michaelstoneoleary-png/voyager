@@ -26,7 +26,7 @@ export default function LandingPage() {
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
-            Premium Travel Curation
+            Travel Without Limits
           </p>
           <h2 className="font-serif text-5xl md:text-7xl font-bold leading-tight mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700" data-testid="text-hero-headline">
             Your journeys, curated.
@@ -118,7 +118,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-border py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-sm text-muted-foreground">
-          <span className="font-serif font-bold text-foreground">VOYAGER</span>
+          <span className="font-serif font-bold text-foreground">VOYAGER <span className="font-sans font-normal text-xs text-muted-foreground ml-1.5">Travel Without Limits</span></span>
           <span>© {new Date().getFullYear()} Voyager. All rights reserved.</span>
         </div>
       </footer>
