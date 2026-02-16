@@ -80,7 +80,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <aside className={cn(
-        "fixed inset-0 z-40 bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:w-64 md:flex-shrink-0 flex flex-col",
+        "fixed inset-0 z-40 bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out md:translate-x-0 md:w-64 md:h-screen md:top-0 md:left-0 md:bottom-0 flex flex-col",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-8 hidden md:block">
@@ -270,7 +270,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-background/50 relative">
+      <main className="flex-1 overflow-y-auto bg-background/50 relative md:ml-64">
         <div className="max-w-7xl mx-auto p-4 md:p-8 pb-20">
           {children}
         </div>
