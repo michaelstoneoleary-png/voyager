@@ -32,6 +32,7 @@ import {
   Loader2,
   Plane,
   CheckCircle2,
+  Scale,
 } from "lucide-react";
 
 const ACTIVITY_OPTIONS = [
@@ -70,6 +71,7 @@ interface PackingItem {
   quantity: number;
   reason: string;
   packed: boolean;
+  weight_grams?: number;
 }
 
 interface PackingCategory {
@@ -284,13 +286,21 @@ export default function PackingList() {
     }
   };
 
-  const { totalItems, packedItems, progress } = useMemo(() => {
-    if (!categories) return { totalItems: 0, packedItems: 0, progress: 0 };
+  const { totalItems, packedItems, progress, totalWeightGrams, packedWeightGrams, estimatedBagWeightGrams } = useMemo(() => {
+    if (!categories) return { totalItems: 0, packedItems: 0, progress: 0, totalWeightGrams: 0, packedWeightGrams: 0, estimatedBagWeightGrams: 0 };
     const all = categories.flatMap((c) => c.items);
     const total = all.length;
     const packed = all.filter((i) => i.packed).length;
-    return { totalItems: total, packedItems: packed, progress: total > 0 ? Math.round((packed / total) * 100) : 0 };
+    const totalW = all.reduce((sum, i) => sum + (i.weight_grams || 0) * i.quantity, 0);
+    const packedW = all.filter((i) => i.packed).reduce((sum, i) => sum + (i.weight_grams || 0) * i.quantity, 0);
+    const bagW = totalW <= 5000 ? 800 : totalW <= 10000 ? 1500 : totalW <= 20000 ? 2500 : 3500;
+    return { totalItems: total, packedItems: packed, progress: total > 0 ? Math.round((packed / total) * 100) : 0, totalWeightGrams: totalW, packedWeightGrams: packedW, estimatedBagWeightGrams: bagW };
   }, [categories]);
+
+  const formatWeight = (grams: number) => {
+    if (grams >= 1000) return `${(grams / 1000).toFixed(1)} kg`;
+    return `${grams} g`;
+  };
 
   const getCategoryIcon = (iconName: string) => {
     const key = iconName.toLowerCase();
@@ -366,6 +376,44 @@ export default function PackingList() {
             </CardContent>
           </Card>
 
+          {totalWeightGrams > 0 && (
+            <Card className="mb-6 border-border" data-testid="card-weight-summary">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Scale className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Weight Estimate</span>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-lg font-bold text-foreground" data-testid="text-contents-weight">{formatWeight(totalWeightGrams)}</div>
+                    <span className="text-xs text-muted-foreground">Contents</span>
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-foreground" data-testid="text-bag-weight">+ {formatWeight(estimatedBagWeightGrams)}</div>
+                    <span className="text-xs text-muted-foreground">Est. bag</span>
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-primary" data-testid="text-total-weight">{formatWeight(totalWeightGrams + estimatedBagWeightGrams)}</div>
+                    <span className="text-xs text-muted-foreground">Total packed</span>
+                  </div>
+                </div>
+                {totalWeightGrams + estimatedBagWeightGrams > 23000 && (
+                  <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md" data-testid="banner-weight-warning">
+                    <p className="text-xs text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                      <Info className="h-3 w-3 flex-shrink-0" />
+                      Over 23 kg — most airlines charge for checked bags above this weight.
+                    </p>
+                  </div>
+                )}
+                {packedWeightGrams > 0 && packedWeightGrams < totalWeightGrams && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Packed so far: {formatWeight(packedWeightGrams)} of {formatWeight(totalWeightGrams)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {!journeyCreated && !form.journeyId && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6" data-testid="banner-create-journey">
               <div className="flex items-start gap-3 flex-1">
@@ -440,9 +488,16 @@ export default function PackingList() {
                               <span className={`font-medium text-sm ${item.packed ? "line-through text-muted-foreground" : "text-foreground"}`}>
                                 {item.name}
                               </span>
-                              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground flex-shrink-0">
-                                Qty: {item.quantity}
-                              </Badge>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {item.weight_grams && (
+                                  <span className="text-[10px] text-muted-foreground/70">
+                                    {formatWeight(item.weight_grams * item.quantity)}
+                                  </span>
+                                )}
+                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground">
+                                  Qty: {item.quantity}
+                                </Badge>
+                              </div>
                             </div>
                             {item.reason && (
                               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">

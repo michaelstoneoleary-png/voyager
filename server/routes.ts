@@ -309,7 +309,8 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
   "summary": "Brief trip summary"
 }
 
-Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, and local experiences. Use the actual correct coordinates for each place.
+Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, shopping, and local experiences. Use the actual correct coordinates for each place.
+SHOPPING ACTIVITIES: Include at least one shopping activity per destination that highlights products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to the area. Examples: silverwork and turquoise jewelry in Santa Fe, saffron in Spain, hand-painted azulejo tiles in Portugal, Murano blown glass in Venice, silk in Thailand, leather goods in Florence, ceramics in Oaxaca. For each shopping activity, the description MUST name the specific local product(s) and explain their cultural significance. The tip should include where to find authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".
 TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance, and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
@@ -484,7 +485,8 @@ Rules:
 - Use accurate lat/lng coordinates
 - Must be type "${replaceType}"
 - Should complement the other planned activities (don't duplicate what's already there)
-- For image_query, use the exact Wikipedia article title`
+- For image_query, use the exact Wikipedia article title
+- If type is "shopping": Focus on products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to ${location}. The description MUST name the specific local product(s) and their cultural significance. The tip should recommend authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".`
           }],
         });
 
@@ -1224,6 +1226,7 @@ Return a JSON object with a "categories" array. Each category has:
   - name: item name
   - quantity: number to pack
   - reason: brief reason why this item is needed for THIS specific trip
+  - weight_grams: estimated weight PER UNIT in grams (be realistic — e.g., t-shirt ~180g, laptop ~1500g, toothbrush ~30g, passport ~50g, jeans ~850g, phone charger ~80g, sunscreen bottle ~200g)
 
 Tailor items to the destination's climate, culture, and planned activities. Be specific (e.g., "Light rain jacket" not just "Jacket"). Include destination-specific items (power adapters, modest clothing for temples, etc.).${itineraryContext ? "\nIMPORTANT: You have the full day-by-day itinerary above. Use it to recommend items specific to the planned activities (e.g., comfortable walking shoes for walking tours, swimwear if there's a beach day, formal attire if there's a fine dining reservation, hiking gear for nature activities). Reference specific activities in your 'reason' field." : ""}
 
