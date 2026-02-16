@@ -80,7 +80,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <aside className={cn(
-        "fixed inset-0 z-40 bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out md:translate-x-0 md:w-64 md:h-screen md:top-0 md:left-0 md:bottom-0 flex flex-col",
+        "fixed inset-0 z-40 bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out flex flex-col",
+        "md:translate-x-0 md:inset-auto md:top-0 md:left-0 md:w-64 md:h-screen",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-8 hidden md:block">

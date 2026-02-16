@@ -472,7 +472,7 @@ export default function PackingList() {
                 {form.destination} · {duration} {duration === 1 ? "day" : "days"}{duration > 0 ? `, ${duration - 1} ${duration - 1 === 1 ? "night" : "nights"}` : ""} · {form.activities.length > 0 ? form.activities.join(", ") : "General travel"}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={() => { setShowSmsInput(!showSmsInput); setSmsSent(false); }} data-testid="button-send-to-phone">
                 <Smartphone className="h-4 w-4 mr-2" /> Send to Phone
               </Button>
