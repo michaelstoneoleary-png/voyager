@@ -867,17 +867,47 @@ ${truncated}`,
 
   app.post("/api/packing-list/generate", isAuthenticated, async (req: any, res) => {
     try {
-      const { destination, origin, dates, duration, activities, gender } = req.body;
-      if (!destination) {
-        return res.status(400).json({ message: "Destination is required" });
+      const { destination, origin, dates, duration, activities, gender, journeyId } = req.body;
+      if (!destination && !journeyId) {
+        return res.status(400).json({ message: "Destination or journey is required" });
       }
 
       const userId = getUserId(req)!;
       const user = await storage.getUser(userId);
 
       const contextParts: string[] = [];
+      let itineraryContext = "";
+
+      if (journeyId) {
+        const journey = await storage.getJourney(journeyId, userId);
+        if (journey) {
+          const allStops = [journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean);
+          if (allStops.length > 0) contextParts.push(`Destinations: ${allStops.join(" → ")}`);
+          if (journey.origin) contextParts.push(`Starting from: ${journey.origin}`);
+          if (journey.finalDestination) contextParts.push(`Ending at: ${journey.finalDestination}`);
+          if (journey.days) contextParts.push(`Duration: ${journey.days} days`);
+          if (journey.cost) contextParts.push(`Budget: ${journey.cost}`);
+          if (journey.dates) contextParts.push(`Travel dates: ${journey.dates}`);
+
+          const itinerary = journey.itinerary as any;
+          if (itinerary?.days && Array.isArray(itinerary.days)) {
+            const dayDescriptions = itinerary.days.map((day: any) => {
+              const loc = day.location || "Unknown";
+              const acts = (day.activities || []).map((a: any) =>
+                `${a.title} (${a.type}${a.duration ? ", " + a.duration : ""})`
+              ).join("; ");
+              const hotels = (day.hotels || []).map((h: any) => h.name).join(", ");
+              let desc = `Day ${day.day} - ${loc}: ${acts}`;
+              if (hotels) desc += ` | Hotels: ${hotels}`;
+              return desc;
+            });
+            itineraryContext = `\n\nDETAILED ITINERARY (pack specifically for these activities and locations):\n${dayDescriptions.join("\n")}`;
+          }
+        }
+      }
+
       if (origin) contextParts.push(`Traveling from: ${origin}`);
-      contextParts.push(`Destination: ${destination}`);
+      if (destination) contextParts.push(`Destination: ${destination}`);
       if (dates) contextParts.push(`Travel dates: ${dates}`);
       if (duration) contextParts.push(`Duration: ${duration} days`);
       if (activities && activities.length > 0) contextParts.push(`Activities: ${activities.join(", ")}`);
@@ -892,7 +922,7 @@ ${truncated}`,
             role: "user",
             content: `You are a smart packing assistant. Generate a comprehensive, personalized packing checklist for this trip:
 
-${contextParts.join("\n")}
+${contextParts.join("\n")}${itineraryContext}
 
 Return a JSON object with a "categories" array. Each category has:
 - name: category name (Clothing, Toiletries, Electronics, Documents, Health, Accessories)
@@ -902,7 +932,7 @@ Return a JSON object with a "categories" array. Each category has:
   - quantity: number to pack
   - reason: brief reason why this item is needed for THIS specific trip
 
-Tailor items to the destination's climate, culture, and planned activities. Be specific (e.g., "Light rain jacket" not just "Jacket"). Include destination-specific items (power adapters, modest clothing for temples, etc.).
+Tailor items to the destination's climate, culture, and planned activities. Be specific (e.g., "Light rain jacket" not just "Jacket"). Include destination-specific items (power adapters, modest clothing for temples, etc.).${itineraryContext ? "\nIMPORTANT: You have the full day-by-day itinerary above. Use it to recommend items specific to the planned activities (e.g., comfortable walking shoes for walking tours, swimwear if there's a beach day, formal attire if there's a fine dining reservation, hiking gear for nature activities). Reference specific activities in your 'reason' field." : ""}
 
 Return ONLY the JSON object, no other text.`,
           },

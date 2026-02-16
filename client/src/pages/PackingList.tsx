@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import {
   Shirt,
@@ -30,6 +30,8 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Plane,
+  CheckCircle2,
 } from "lucide-react";
 
 const ACTIVITY_OPTIONS = [
@@ -82,6 +84,18 @@ interface FormData {
   startDate: string;
   endDate: string;
   activities: string[];
+  journeyId?: string;
+}
+
+interface JourneyOption {
+  id: string;
+  title: string;
+  origin?: string;
+  finalDestination?: string;
+  destinations?: string[];
+  dates?: string;
+  days?: number;
+  itinerary?: any;
 }
 
 export default function PackingList() {
@@ -89,6 +103,16 @@ export default function PackingList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: journeys } = useQuery<JourneyOption[]>({
+    queryKey: ["/api/journeys"],
+    queryFn: async () => {
+      const res = await fetch("/api/journeys", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({
     destination: "",
     origin: "",
@@ -101,6 +125,39 @@ export default function PackingList() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isCreatingJourney, setIsCreatingJourney] = useState(false);
   const [journeyCreated, setJourneyCreated] = useState(false);
+
+  const selectJourney = (journey: JourneyOption) => {
+    setSelectedJourneyId(journey.id);
+    const allStops = [
+      ...(journey.destinations || []),
+      journey.finalDestination,
+    ].filter(Boolean);
+    const destination = allStops.join(", ") || journey.title;
+
+    const activityTypes = new Set<string>();
+    const itinerary = journey.itinerary as any;
+    if (itinerary?.days) {
+      for (const day of itinerary.days) {
+        for (const act of day.activities || []) {
+          const t = (act.type || "").toLowerCase();
+          if (t === "nature" || t === "relaxation") activityTypes.add("Hiking");
+          if (t === "food") activityTypes.add("Cultural");
+          if (t === "culture") activityTypes.add("Cultural");
+          if (t === "nightlife") activityTypes.add("Nightlife");
+          if (t === "shopping") activityTypes.add("City");
+        }
+      }
+    }
+
+    setForm({
+      destination,
+      origin: journey.origin || "",
+      startDate: journey.dates?.split(" - ")?.[0] || "",
+      endDate: journey.dates?.split(" - ")?.[1] || "",
+      activities: Array.from(activityTypes),
+      journeyId: journey.id,
+    });
+  };
 
   const duration = useMemo(() => {
     if (!form.startDate || !form.endDate) return 0;
@@ -120,15 +177,16 @@ export default function PackingList() {
   };
 
   const handleGenerate = async () => {
-    if (!form.destination || !form.startDate || !form.endDate) {
+    const hasJourney = !!form.journeyId;
+    if (!hasJourney && (!form.destination || !form.startDate || !form.endDate)) {
       toast({
         title: "Missing fields",
-        description: "Please fill in destination and travel dates.",
+        description: "Please select a journey or fill in destination and travel dates.",
         variant: "destructive",
       });
       return;
     }
-    if (duration <= 0) {
+    if (!hasJourney && duration <= 0) {
       toast({
         title: "Invalid dates",
         description: "End date must be after start date.",
@@ -139,13 +197,16 @@ export default function PackingList() {
 
     setIsGenerating(true);
     try {
+      const selectedJourney = journeys?.find(j => j.id === form.journeyId);
+      const effectiveDuration = duration > 0 ? duration : (selectedJourney?.days || 7);
       const res = await apiRequest("POST", "/api/packing-list/generate", {
-        destination: form.destination,
+        destination: form.destination || undefined,
         origin: form.origin || undefined,
-        dates: { start: form.startDate, end: form.endDate },
-        duration,
+        dates: form.startDate && form.endDate ? { start: form.startDate, end: form.endDate } : undefined,
+        duration: effectiveDuration,
         activities: form.activities,
         gender: settings.gender || undefined,
+        journeyId: form.journeyId || undefined,
       });
       const data = await res.json();
       const cats: PackingCategory[] = (data.categories || []).map((cat: any) => ({
@@ -195,6 +256,8 @@ export default function PackingList() {
     setCategories(null);
     setJourneyCreated(false);
     setCollapsedCategories(new Set());
+    setSelectedJourneyId(null);
+    setForm({ destination: "", origin: "", startDate: "", endDate: "", activities: [] });
   };
 
   const handleCreateJourney = async () => {
@@ -303,7 +366,7 @@ export default function PackingList() {
             </CardContent>
           </Card>
 
-          {!journeyCreated && (
+          {!journeyCreated && !form.journeyId && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6" data-testid="banner-create-journey">
               <div className="flex items-start gap-3 flex-1">
                 <Globe className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -400,6 +463,11 @@ export default function PackingList() {
     );
   }
 
+  const journeysWithItinerary = journeys?.filter(j => j.itinerary) || [];
+  const hasJourneySelected = !!selectedJourneyId;
+  const selectedJourney = journeys?.find(j => j.id === selectedJourneyId);
+  const canGenerate = hasJourneySelected || (form.destination && form.startDate && form.endDate && duration > 0);
+
   return (
     <Layout>
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
@@ -409,9 +477,74 @@ export default function PackingList() {
           </div>
           <h1 className="font-serif text-3xl font-bold mb-2">Smart Packing</h1>
           <p className="text-muted-foreground max-w-md mx-auto">
-            Tell us about your trip and Marco will generate a personalized packing list for you.
+            {journeysWithItinerary.length > 0
+              ? "Select a journey and Marco will build a packing list based on your actual itinerary."
+              : "Tell us about your trip and Marco will generate a personalized packing list for you."}
           </p>
         </div>
+
+        {journeysWithItinerary.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-serif flex items-center gap-2">
+                <Plane className="h-4 w-4 text-primary" /> Pack for a Journey
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {journeysWithItinerary.map((journey) => {
+                  const isSelected = selectedJourneyId === journey.id;
+                  const stops = [journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean);
+                  const hasItinerary = !!(journey.itinerary as any)?.days?.length;
+                  return (
+                    <div
+                      key={journey.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-border hover:border-primary/40 hover:bg-muted/30"
+                      }`}
+                      onClick={() => selectJourney(journey)}
+                      data-testid={`journey-option-${journey.id}`}
+                    >
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                        {isSelected ? <CheckCircle2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate">{journey.title}</h4>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {stops.join(" → ")}
+                          {journey.days ? ` · ${journey.days} days` : ""}
+                        </p>
+                      </div>
+                      {hasItinerary && (
+                        <Badge variant="secondary" className="text-[10px] flex-shrink-0">
+                          Itinerary ready
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {selectedJourney && (
+                <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3 w-3 text-primary" />
+                    Marco will analyze your full itinerary — activities, destinations, hotels, and travel modes — to create the perfect packing list.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {!hasJourneySelected && journeysWithItinerary.length > 0 && (
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-border"></div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">or enter trip details manually</span>
+            <div className="flex-1 h-px bg-border"></div>
+          </div>
+        )}
 
         <Card>
           <CardContent className="p-6 space-y-6">
@@ -428,50 +561,62 @@ export default function PackingList() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="origin" className="text-sm font-medium flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" /> Origin <span className="text-xs text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="origin"
-                placeholder="e.g. New York, US"
-                value={form.origin}
-                onChange={(e) => setForm((p) => ({ ...p, origin: e.target.value }))}
-                data-testid="input-origin"
-              />
-            </div>
+            {!hasJourneySelected && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="origin" className="text-sm font-medium flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground" /> Origin <span className="text-xs text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="origin"
+                    placeholder="e.g. New York, US"
+                    value={form.origin}
+                    onChange={(e) => setForm((p) => ({ ...p, origin: e.target.value }))}
+                    data-testid="input-origin"
+                  />
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-sm font-medium flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" /> Start Date
-                </Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
-                  data-testid="input-start-date"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate" className="text-sm font-medium flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" /> End Date
-                </Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
-                  data-testid="input-end-date"
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate" className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" /> Start Date
+                    </Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={form.startDate}
+                      onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+                      data-testid="input-start-date"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate" className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" /> End Date
+                    </Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={form.endDate}
+                      onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                      data-testid="input-end-date"
+                    />
+                  </div>
+                </div>
 
-            {duration > 0 && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2" data-testid="text-duration">
+                {duration > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2" data-testid="text-duration">
+                    <Clock className="h-4 w-4" />
+                    <span>Trip duration: <strong className="text-foreground">{duration} {duration === 1 ? "day" : "days"}</strong></span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {hasJourneySelected && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
                 <Clock className="h-4 w-4" />
-                <span>Trip duration: <strong className="text-foreground">{duration} {duration === 1 ? "day" : "days"}</strong></span>
+                <span>Trip duration: <strong className="text-foreground">{selectedJourney?.days || duration || "?"} days</strong></span>
+                {form.origin && <span className="ml-2">from <strong className="text-foreground">{form.origin}</strong></span>}
               </div>
             )}
 
@@ -502,10 +647,10 @@ export default function PackingList() {
             <Button
               className="w-full h-12 text-base"
               onClick={handleGenerate}
-              disabled={!form.destination || !form.startDate || !form.endDate || duration <= 0}
+              disabled={!canGenerate}
               data-testid="button-generate"
             >
-              <Sparkles className="h-5 w-5 mr-2" /> Generate My Packing List
+              <Sparkles className="h-5 w-5 mr-2" /> {hasJourneySelected ? "Generate Packing List for This Journey" : "Generate My Packing List"}
             </Button>
           </CardContent>
         </Card>
