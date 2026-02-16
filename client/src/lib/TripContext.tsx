@@ -35,6 +35,7 @@ export interface Trip {
     health: string;
   } | null;
   destinations?: string[] | null;
+  travelMode?: string | null;
 }
 
 interface TripContextType {
@@ -76,6 +77,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
         cost: tripData.cost,
         status: tripData.status || "Planning",
         destinations: tripData.destinations || [],
+        travelMode: tripData.travelMode || "mixed",
       });
       return res.json();
     },

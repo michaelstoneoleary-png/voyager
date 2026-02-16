@@ -404,6 +404,7 @@ export default function TripPlanner() {
               {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || "No destinations set"} 
               {journey.days ? ` • ${journey.days} days` : ""}
               {journey.cost && journey.cost !== "TBD" ? ` • ${journey.cost}` : ""}
+              {(journey as any).travelMode && (journey as any).travelMode !== "mixed" ? ` • ${({drive:"Road Trip",fly:"Flying",train:"Train",bus:"Bus",ferry:"Ferry"} as Record<string,string>)[(journey as any).travelMode] || (journey as any).travelMode}` : ""}
             </p>
           </div>
 

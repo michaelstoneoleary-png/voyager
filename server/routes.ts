@@ -256,12 +256,25 @@ export async function registerRoutes(
         ? `\n\nThe traveler has specifically requested to include these places, activities, or interests in their itinerary:\n${wishlist}\n\nPrioritize incorporating these requests into the itinerary where possible, fitting them into the most logical days and times.`
         : "";
 
+      const travelMode = (journey as any).travelMode || "mixed";
+      const travelModeLabels: Record<string, string> = {
+        drive: "ROAD TRIP — the traveler is DRIVING the entire trip. All travel between stops must be by car/driving. Include realistic driving times and distances between cities. Suggest scenic routes, interesting roadside stops, and rest breaks for long drives. No flights. Plan logistics activities as 'drive' mode only.",
+        fly: "The traveler will FLY between distant cities. Use flights for long-distance travel and local transport (taxi/transit/walk) within cities.",
+        train: "The traveler prefers TRAIN travel between cities. Plan rail journeys between destinations with station names and estimated journey times. Use local transport within cities.",
+        bus: "The traveler will use BUS/COACH between cities. Plan bus routes between destinations with realistic journey times. Use local transport within cities.",
+        ferry: "The traveler will use FERRY/BOAT between destinations where applicable. Plan water crossings and maritime routes. Use appropriate local transport for land portions.",
+        mixed: "The traveler is open to ALL modes of transport. Choose the best option for each leg — driving for short distances, trains for medium, flights for long distances, ferries where relevant."
+      };
+      const travelModeNote = travelModeLabels[travelMode] || travelModeLabels.mixed;
+
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 6000,
         messages: [{
           role: "user",
           content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}
+
+TRAVEL MODE: ${travelModeNote}
 
 Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
 {
@@ -1183,6 +1196,17 @@ Return a JSON array (no markdown, no code fences, just raw JSON):
           if (journey.days) contextParts.push(`Duration: ${journey.days} days`);
           if (journey.cost) contextParts.push(`Budget: ${journey.cost}`);
           if (journey.dates) contextParts.push(`Travel dates: ${journey.dates}`);
+          const jTravelMode = (journey as any).travelMode;
+          if (jTravelMode && jTravelMode !== "mixed") {
+            const modeLabels: Record<string, string> = {
+              drive: "Road trip (driving)",
+              fly: "Flying between cities",
+              train: "Train travel",
+              bus: "Bus/coach travel",
+              ferry: "Ferry/boat travel",
+            };
+            contextParts.push(`Travel mode: ${modeLabels[jTravelMode] || jTravelMode}`);
+          }
 
           const itinerary = journey.itinerary as any;
           if (itinerary?.days && Array.isArray(itinerary.days)) {
@@ -1229,6 +1253,7 @@ Return a JSON object with a "categories" array. Each category has:
   - weight_grams: estimated weight PER UNIT in grams (be realistic — e.g., t-shirt ~180g, laptop ~1500g, toothbrush ~30g, passport ~50g, jeans ~850g, phone charger ~80g, sunscreen bottle ~200g)
 
 Tailor items to the destination's climate, culture, and planned activities. Be specific (e.g., "Light rain jacket" not just "Jacket"). Include destination-specific items (power adapters, modest clothing for temples, etc.).${itineraryContext ? "\nIMPORTANT: You have the full day-by-day itinerary above. Use it to recommend items specific to the planned activities (e.g., comfortable walking shoes for walking tours, swimwear if there's a beach day, formal attire if there's a fine dining reservation, hiking gear for nature activities). Reference specific activities in your 'reason' field." : ""}
+${contextParts.some(p => p.includes("Road trip")) ? "\nROAD TRIP PACKING: Since they are driving, there are NO airline liquid restrictions or carry-on size limits. They can pack more freely — include car-specific items (phone mount/charger, snacks, cooler bag, sunglasses, emergency car kit, reusable water bottle). They have more luggage flexibility so suggest full-size toiletries instead of travel-size." : ""}
 
 Return ONLY the JSON object, no other text.`,
           },

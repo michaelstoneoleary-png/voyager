@@ -32,7 +32,12 @@ import {
   ArrowLeft,
   Plus,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Car,
+  Train,
+  Ship,
+  Bus,
+  Shuffle,
 } from "lucide-react";
 import { useTrips } from "@/lib/TripContext";
 import { useLocation } from "wouter";
@@ -72,6 +77,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
     durationType: "estimated", // estimated | max
 
     // Step 2: Budget & Prefs
+    travelMode: "mixed", // drive | fly | train | bus | ferry | mixed
     budgetType: "estimated", // estimated | fixed | later
     budgetAmount: "" as string | number,
     preferences: { ...USER_DEFAULTS.preferences },
@@ -133,7 +139,8 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       days: formData.duration,
       cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
       status: "Planning",
-      destinations: allStops
+      destinations: allStops,
+      travelMode: formData.travelMode,
     }, (journey) => {
       onOpenChange(false);
       toast({
@@ -290,6 +297,40 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
           {step === 2 && (
             <div className="space-y-6 py-2">
               <div className="space-y-3">
+                <Label>How are you getting there?</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: "drive", label: "Road Trip", icon: Car, desc: "Driving the whole way" },
+                    { value: "fly", label: "Fly", icon: Plane, desc: "Air travel between cities" },
+                    { value: "train", label: "Train", icon: Train, desc: "Rail journeys" },
+                    { value: "bus", label: "Bus", icon: Bus, desc: "Coach or bus routes" },
+                    { value: "ferry", label: "Ferry / Boat", icon: Ship, desc: "Water crossings" },
+                    { value: "mixed", label: "Mix of Modes", icon: Shuffle, desc: "Whatever works best" },
+                  ].map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-all cursor-pointer text-center ${
+                        formData.travelMode === mode.value
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-muted hover:border-primary/30 hover:bg-muted/30"
+                      }`}
+                      onClick={() => setFormData({ ...formData, travelMode: mode.value })}
+                      data-testid={`button-mode-${mode.value}`}
+                    >
+                      <mode.icon className={`h-5 w-5 ${formData.travelMode === mode.value ? "text-primary" : "text-muted-foreground"}`} />
+                      <span className="text-xs font-medium leading-tight">{mode.label}</span>
+                    </button>
+                  ))}
+                </div>
+                {formData.travelMode === "drive" && (
+                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-md p-2.5">
+                    Marco will plan driving routes with scenic stops, rest breaks, and realistic drive times between destinations.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3 pt-4 border-t">
                 <Label>Budget Preferences</Label>
                 <RadioGroup 
                   value={formData.budgetType} 
@@ -337,31 +378,35 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
               )}
 
               <div className="space-y-4 pt-4 border-t">
-                <Label>Travel Preferences (Defaults Applied)</Label>
-                
-                <div className="flex items-center justify-between space-x-2">
-                  <Label htmlFor="pref-direct" className="flex flex-col">
-                    <span>Direct Flights Only</span>
-                    <span className="font-normal text-xs text-muted-foreground">Prioritize non-stop routes</span>
-                  </Label>
-                  <Switch 
-                    id="pref-direct" 
-                    checked={formData.preferences.directFlights}
-                    onCheckedChange={() => togglePreference('directFlights')}
-                  />
-                </div>
+                <Label>Travel Preferences</Label>
 
-                <div className="flex items-center justify-between space-x-2">
-                  <Label htmlFor="pref-stop" className="flex flex-col">
-                    <span>Minimize Stopovers</span>
-                    <span className="font-normal text-xs text-muted-foreground">Avoid long layovers (&gt;4h)</span>
-                  </Label>
-                  <Switch 
-                    id="pref-stop" 
-                    checked={formData.preferences.avoidStopovers}
-                    onCheckedChange={() => togglePreference('avoidStopovers')}
-                  />
-                </div>
+                {(formData.travelMode === "fly" || formData.travelMode === "mixed") && (
+                  <>
+                    <div className="flex items-center justify-between space-x-2">
+                      <Label htmlFor="pref-direct" className="flex flex-col">
+                        <span>Direct Flights Only</span>
+                        <span className="font-normal text-xs text-muted-foreground">Prioritize non-stop routes</span>
+                      </Label>
+                      <Switch 
+                        id="pref-direct" 
+                        checked={formData.preferences.directFlights}
+                        onCheckedChange={() => togglePreference('directFlights')}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between space-x-2">
+                      <Label htmlFor="pref-stop" className="flex flex-col">
+                        <span>Minimize Stopovers</span>
+                        <span className="font-normal text-xs text-muted-foreground">Avoid long layovers (&gt;4h)</span>
+                      </Label>
+                      <Switch 
+                        id="pref-stop" 
+                        checked={formData.preferences.avoidStopovers}
+                        onCheckedChange={() => togglePreference('avoidStopovers')}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="flex items-center justify-between space-x-2">
                   <Label htmlFor="pref-eco" className="flex flex-col">
@@ -382,9 +427,9 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
             <div className="space-y-6 py-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Departure Origin</Label>
+                  <Label>Starting Point</Label>
                   <div className="relative">
-                     <Plane className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                      <Input 
                        className="pl-9"
                        placeholder="Your starting city"
