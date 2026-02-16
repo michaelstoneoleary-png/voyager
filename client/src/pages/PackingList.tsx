@@ -168,13 +168,18 @@ export default function PackingList() {
     });
   };
 
+  const selectedJourneyForDisplay = journeys?.find(j => j.id === form.journeyId);
+
   const duration = useMemo(() => {
-    if (!form.startDate || !form.endDate) return 0;
-    const start = new Date(form.startDate);
-    const end = new Date(form.endDate);
-    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff > 0 ? diff : 0;
-  }, [form.startDate, form.endDate]);
+    if (form.startDate && form.endDate) {
+      const start = new Date(form.startDate);
+      const end = new Date(form.endDate);
+      const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff > 0) return diff;
+    }
+    if (selectedJourneyForDisplay?.days) return selectedJourneyForDisplay.days;
+    return 0;
+  }, [form.startDate, form.endDate, selectedJourneyForDisplay]);
 
   const toggleActivity = (activity: string) => {
     setForm((prev) => ({
@@ -393,7 +398,7 @@ export default function PackingList() {
             <div>
               <h1 className="font-serif text-3xl font-bold mb-1">Smart Packing</h1>
               <p className="text-muted-foreground">
-                {form.destination} · {duration} days · {form.activities.length > 0 ? form.activities.join(", ") : "General travel"}
+                {form.destination} · {duration} {duration === 1 ? "day" : "days"}{duration > 0 ? `, ${duration - 1} ${duration - 1 === 1 ? "night" : "nights"}` : ""} · {form.activities.length > 0 ? form.activities.join(", ") : "General travel"}
               </p>
             </div>
             <div className="flex items-center gap-2">
