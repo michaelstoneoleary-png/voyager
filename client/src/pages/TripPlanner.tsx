@@ -29,7 +29,9 @@ import {
   ExternalLink,
   ShieldCheck,
   ListPlus,
-  X
+  X,
+  Building2,
+  BedDouble
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -61,11 +63,26 @@ interface Activity {
   image_query?: string;
 }
 
+interface Hotel {
+  name: string;
+  category: string;
+  price_per_night: string;
+  rating: number;
+  review_summary: string;
+  why_this_hotel: string;
+  neighborhood: string;
+  lat?: number;
+  lng?: number;
+  image_url?: string;
+  image_query?: string;
+}
+
 interface ItineraryDay {
   day: number;
   date_label: string;
   location: string;
   activities: Activity[];
+  hotels?: Hotel[];
 }
 
 interface Itinerary {
@@ -132,6 +149,33 @@ function createNumberedIcon(num: number, isSelected: boolean) {
   });
 }
 
+function createHotelIcon(isSelected: boolean) {
+  return L.divIcon({
+    className: "custom-hotel-marker",
+    html: `<div style="
+      width: 30px; height: 30px; border-radius: 6px;
+      background: ${isSelected ? "#d97706" : "#f59e0b"};
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,${isSelected ? "0.4" : "0.2"});
+      transform: ${isSelected ? "scale(1.3)" : "scale(1)"};
+      transition: transform 0.2s, background 0.2s;
+    ">🏨</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -18],
+  });
+}
+
+const HOTEL_CATEGORY_COLORS: Record<string, string> = {
+  luxury: "bg-yellow-100 text-yellow-800 border-yellow-300",
+  upscale: "bg-orange-100 text-orange-800 border-orange-300",
+  "mid-range": "bg-blue-100 text-blue-700 border-blue-300",
+  budget: "bg-green-100 text-green-700 border-green-300",
+  boutique: "bg-purple-100 text-purple-700 border-purple-300",
+  hostel: "bg-teal-100 text-teal-700 border-teal-300",
+};
+
 const TYPE_COLORS: Record<string, string> = {
   culture: "bg-violet-100 text-violet-700 border-violet-200",
   food: "bg-amber-100 text-amber-700 border-amber-200",
@@ -160,6 +204,7 @@ export default function TripPlanner() {
     enabled: !!journeyId,
   });
 
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeHighlightDest, setActiveHighlightDest] = useState(0);
   const [showHighlights, setShowHighlights] = useState(false);
   const [wishlist, setWishlist] = useState("");
@@ -229,17 +274,31 @@ export default function TripPlanner() {
     return markers;
   }, [currentDayData]);
 
+  const hotelMarkers = useMemo(() => {
+    const markers: { lat: number; lng: number; name: string; hotel: Hotel }[] = [];
+    if (currentDayData?.hotels) {
+      currentDayData.hotels.forEach((h) => {
+        if (h.lat && h.lng && typeof h.lat === "number" && typeof h.lng === "number") {
+          markers.push({ lat: h.lat, lng: h.lng, name: h.name, hotel: h });
+        }
+      });
+    }
+    return markers;
+  }, [currentDayData]);
+
   const routePath = useMemo(() => {
     return allMarkers.map(m => [m.lat, m.lng] as [number, number]);
   }, [allMarkers]);
 
-  const mapCenter: [number, number] = selectedActivity?.lat && selectedActivity?.lng
-    ? [selectedActivity.lat, selectedActivity.lng]
-    : allMarkers.length > 0
-      ? [allMarkers[0].lat, allMarkers[0].lng]
-      : [48.8566, 2.3522];
+  const mapCenter: [number, number] = selectedHotel?.lat && selectedHotel?.lng
+    ? [selectedHotel.lat, selectedHotel.lng]
+    : selectedActivity?.lat && selectedActivity?.lng
+      ? [selectedActivity.lat, selectedActivity.lng]
+      : allMarkers.length > 0
+        ? [allMarkers[0].lat, allMarkers[0].lng]
+        : [48.8566, 2.3522];
 
-  const mapZoom = selectedActivity?.lat ? 15 : allMarkers.length > 1 ? 12 : 14;
+  const mapZoom = (selectedHotel?.lat || selectedActivity?.lat) ? 15 : allMarkers.length > 1 ? 12 : 14;
 
   if (isLoading) {
     return (
@@ -416,7 +475,7 @@ export default function TripPlanner() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           <div className="lg:col-span-1 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
-              <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); }} className="w-full">
+              <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); }} className="w-full">
                 <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
                   {itinerary.days.map((d, idx) => (
                     <TabsTrigger key={idx} value={`day${idx}`} className="text-xs">
@@ -440,7 +499,7 @@ export default function TripPlanner() {
                   <div 
                     key={idx} 
                     className="relative z-10 flex gap-4 group cursor-pointer"
-                    onClick={() => setSelectedActivity(activity)}
+                    onClick={() => { setSelectedActivity(activity); setSelectedHotel(null); }}
                     data-testid={`activity-card-${idx}`}
                   >
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
@@ -479,6 +538,46 @@ export default function TripPlanner() {
                     </Card>
                   </div>
                 ))}
+              {currentDayData?.hotels && currentDayData.hotels.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-border">
+                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-3 flex items-center gap-1.5 px-1">
+                    <BedDouble className="h-3.5 w-3.5" /> Where to Stay
+                  </h3>
+                  <div className="space-y-2">
+                    {currentDayData.hotels.map((hotel, idx) => (
+                      <div
+                        key={idx}
+                        className={`cursor-pointer rounded-lg border p-3 transition-all hover:shadow-md ${selectedHotel === hotel ? "border-amber-400 bg-amber-50/50 shadow-md" : "border-border hover:border-amber-200"}`}
+                        onClick={() => { setSelectedHotel(hotel); setSelectedActivity(null); }}
+                        data-testid={`hotel-card-${idx}`}
+                      >
+                        <div className="flex gap-3">
+                          {hotel.image_url && (
+                            <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                              <img src={hotel.image_url} alt={hotel.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-1">
+                              <h4 className="font-serif font-medium text-sm leading-tight">{hotel.name}</h4>
+                              <Badge variant="outline" className={`text-[9px] uppercase tracking-wider border flex-shrink-0 ${HOTEL_CATEGORY_COLORS[hotel.category] || ""}`}>
+                                {hotel.category}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="flex items-center gap-0.5 text-xs font-medium text-amber-600">
+                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {hotel.rating}
+                              </span>
+                              <span className="text-xs font-medium text-emerald-700">{hotel.price_per_night}/night</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{hotel.neighborhood}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               </div>
             </ScrollArea>
           </div>
@@ -504,11 +603,24 @@ export default function TripPlanner() {
                           key={m.index}
                           position={[m.lat, m.lng]}
                           icon={createNumberedIcon(m.index + 1, selectedActivity === m.activity)}
-                          eventHandlers={{ click: () => setSelectedActivity(m.activity) }}
+                          eventHandlers={{ click: () => { setSelectedActivity(m.activity); setSelectedHotel(null); } }}
                         >
                           <Popup>
                             <div style={{ fontFamily: "serif", fontWeight: "bold" }}>{m.index + 1}. {m.title}</div>
                             <div style={{ fontSize: "12px", color: "#666" }}>{m.activity.time}{m.activity.duration ? ` (${m.activity.duration})` : ""}</div>
+                          </Popup>
+                        </Marker>
+                      ))}
+                      {hotelMarkers.map((m, idx) => (
+                        <Marker
+                          key={`hotel-${idx}`}
+                          position={[m.lat, m.lng]}
+                          icon={createHotelIcon(selectedHotel === m.hotel)}
+                          eventHandlers={{ click: () => { setSelectedHotel(m.hotel); setSelectedActivity(null); } }}
+                        >
+                          <Popup>
+                            <div style={{ fontFamily: "serif", fontWeight: "bold" }}>{m.name}</div>
+                            <div style={{ fontSize: "12px", color: "#666" }}>{m.hotel.price_per_night}/night • ⭐ {m.hotel.rating}</div>
                           </Popup>
                         </Marker>
                       ))}
@@ -520,7 +632,71 @@ export default function TripPlanner() {
                    </div>
                  </div>
 
-                 {selectedActivity ? (
+                 {selectedHotel ? (
+                   <Card className="min-h-[200px] overflow-hidden" data-testid="hotel-detail-panel">
+                     <div className="flex flex-col md:flex-row">
+                       {selectedHotel.image_url && (
+                         <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
+                           <img src={selectedHotel.image_url} alt={selectedHotel.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }} data-testid="hotel-detail-image" />
+                         </div>
+                       )}
+                       <div className="flex-1">
+                         <CardHeader className="pb-2">
+                           <div className="flex justify-between items-start">
+                             <div>
+                               <CardTitle className="text-xl font-serif flex items-center gap-2">
+                                 <Building2 className="h-5 w-5 text-amber-500" /> {selectedHotel.name}
+                               </CardTitle>
+                               <CardDescription className="mt-1">{selectedHotel.neighborhood}</CardDescription>
+                             </div>
+                             <Badge variant="outline" className={`${HOTEL_CATEGORY_COLORS[selectedHotel.category] || ""}`}>
+                               {selectedHotel.category}
+                             </Badge>
+                           </div>
+                         </CardHeader>
+                         <CardContent>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                             <div className="space-y-1">
+                               <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> Rating</span>
+                               <p className="font-medium text-amber-700">{selectedHotel.rating} / 5</p>
+                             </div>
+                             <div className="space-y-1">
+                               <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><DollarSign className="h-3 w-3" /> Price</span>
+                               <p className="font-medium text-emerald-700">{selectedHotel.price_per_night} per night</p>
+                             </div>
+                           </div>
+                           {selectedHotel.review_summary && (
+                             <div className="mb-3 p-2 bg-amber-50 rounded-md border border-amber-100">
+                               <p className="text-xs text-amber-800 flex items-start gap-1.5">
+                                 <Star className="h-3 w-3 mt-0.5 flex-shrink-0 fill-amber-400 text-amber-400" />
+                                 {selectedHotel.review_summary}
+                               </p>
+                             </div>
+                           )}
+                           {selectedHotel.why_this_hotel && (
+                             <div className="p-2 bg-blue-50 rounded-md border border-blue-100">
+                               <p className="text-xs text-blue-800 flex items-start gap-1.5">
+                                 <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0 text-blue-500" />
+                                 {selectedHotel.why_this_hotel}
+                               </p>
+                             </div>
+                           )}
+                           <div className="mt-3">
+                             <a
+                               href={`https://www.google.com/maps/search/${encodeURIComponent(selectedHotel.name + " " + (currentDayData?.location || ""))}`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="text-xs font-medium text-amber-600 hover:text-amber-800 flex items-center gap-1 transition-colors"
+                               data-testid="hotel-google-maps-link"
+                             >
+                               View on Google Maps <ExternalLink className="h-3 w-3" />
+                             </a>
+                           </div>
+                         </CardContent>
+                       </div>
+                     </div>
+                   </Card>
+                 ) : selectedActivity ? (
                    <Card className="min-h-[200px] overflow-hidden" data-testid="activity-detail-panel">
                      <div className="flex flex-col md:flex-row">
                        {selectedActivity.image_url && (

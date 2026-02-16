@@ -235,7 +235,7 @@ export async function registerRoutes(
 
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 4096,
+        max_tokens: 6000,
         messages: [{
           role: "user",
           content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}
@@ -247,6 +247,20 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
       "day": 1,
       "date_label": "Day 1",
       "location": "City Name",
+      "hotels": [
+        {
+          "name": "Hotel Name",
+          "category": "luxury|upscale|mid-range|budget|boutique|hostel",
+          "price_per_night": "$150",
+          "rating": 4.5,
+          "review_summary": "One-line summary of what reviewers love about this hotel",
+          "why_this_hotel": "Why it makes sense for this day's itinerary and location",
+          "neighborhood": "District or neighborhood name",
+          "lat": 42.6980,
+          "lng": 23.3225,
+          "image_query": "Wikipedia article title for this hotel or its neighborhood"
+        }
+      ],
       "activities": [
         {
           "time": "09:00",
@@ -267,7 +281,9 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
 }
 
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, and local experiences. Use the actual correct coordinates for each place.
-For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.`
+For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
+
+HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.`
         }],
       });
 
@@ -292,27 +308,37 @@ For image_query, provide the exact Wikipedia article title for each specific pla
         if (!day.activities || !Array.isArray(day.activities)) {
           day.activities = [];
         }
+        if (!day.hotels || !Array.isArray(day.hotels)) {
+          day.hotels = [];
+        }
         if (!day.location) day.location = "Unknown";
         if (!day.day) day.day = itinerary.days.indexOf(day) + 1;
         if (!day.date_label) day.date_label = `Day ${day.day}`;
+
+        for (const hotel of day.hotels) {
+          if (typeof hotel.rating === "string") hotel.rating = parseFloat(hotel.rating) || 0;
+        }
+        day.hotels.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
       }
 
-      const allActivities: { activity: any; searchTerm: string }[] = [];
+      const allItems: { item: any; searchTerm: string }[] = [];
       for (const day of itinerary.days) {
         for (const activity of day.activities) {
-          const searchTerm = activity.image_query || activity.title;
-          allActivities.push({ activity, searchTerm });
+          allItems.push({ item: activity, searchTerm: activity.image_query || activity.title });
+        }
+        for (const hotel of day.hotels) {
+          allItems.push({ item: hotel, searchTerm: hotel.image_query || hotel.neighborhood || hotel.name });
         }
       }
 
       const CONCURRENCY = 5;
-      for (let i = 0; i < allActivities.length; i += CONCURRENCY) {
-        const batch = allActivities.slice(i, i + CONCURRENCY);
+      for (let i = 0; i < allItems.length; i += CONCURRENCY) {
+        const batch = allItems.slice(i, i + CONCURRENCY);
         const images = await Promise.all(
           batch.map(({ searchTerm }) => fetchDestinationImage(searchTerm, "culture"))
         );
         for (let j = 0; j < batch.length; j++) {
-          batch[j].activity.image_url = images[j];
+          batch[j].item.image_url = images[j];
         }
       }
 
