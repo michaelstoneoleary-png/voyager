@@ -84,7 +84,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}>
         <div className="p-8 hidden md:block">
           <h1 className="font-serif text-2xl font-bold tracking-tight text-primary">VOYAGER</h1>
-          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Travel Curator</p>
+          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Travel Without Limits</p>
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">

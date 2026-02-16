@@ -60,7 +60,7 @@ export default function Onboarding() {
       <div className="w-full max-w-lg space-y-8">
         <div className="text-center space-y-2">
           <h1 className="font-serif text-4xl font-bold text-primary tracking-tight">VOYAGER</h1>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest">Travel Curator</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest">Travel Without Limits</p>
         </div>
 
         <Card className="border-sidebar-border shadow-lg">
