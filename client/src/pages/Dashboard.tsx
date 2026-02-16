@@ -206,8 +206,8 @@ export default function Dashboard() {
 
             <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
               <CardHeader>
-                <CardTitle className="font-serif text-lg text-primary">Explore</CardTitle>
-                <CardDescription>Trending destinations for you</CardDescription>
+                <CardTitle className="font-serif text-lg text-primary">Inspire</CardTitle>
+                <CardDescription>Discover the voyage of your dreams</CardDescription>
               </CardHeader>
               <CardContent>
                  <div className="aspect-video rounded-md bg-muted mb-3 relative overflow-hidden group cursor-pointer">

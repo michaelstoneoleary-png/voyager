@@ -65,8 +65,8 @@ export default function LandingPage() {
             {[
               {
                 icon: Globe,
-                title: "Explore Destinations",
-                description: "Discover curated destinations with insider knowledge and seasonal recommendations."
+                title: "Get Inspired",
+                description: "Let Marco help you discover your dream voyage with personalized destination inspiration."
               },
               {
                 icon: Map,
@@ -106,7 +106,7 @@ export default function LandingPage() {
             Start planning your next adventure
           </h3>
           <p className="text-muted-foreground text-lg mb-10 max-w-xl mx-auto">
-            Join travelers who plan smarter, explore deeper, and create unforgettable journeys.
+            Join travelers who plan smarter, dream bigger, and create unforgettable journeys.
           </p>
           <a href="/register" data-testid="link-cta-bottom">
             <Button size="lg" className="text-base px-8 py-6 shadow-lg hover:shadow-xl transition-shadow">

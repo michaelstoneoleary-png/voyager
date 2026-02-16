@@ -1017,16 +1017,16 @@ ${truncated}`,
     }
   });
 
-  const exploreCache = new Map<string, { data: any; timestamp: number }>();
+  const inspireCache = new Map<string, { data: any; timestamp: number }>();
 
-  app.get("/api/explore/suggestions", isAuthenticated, async (req: any, res) => {
+  app.get("/api/inspire/suggestions", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      const cacheKey = `explore_${userId}`;
-      const cached = exploreCache.get(cacheKey);
+      const cacheKey = `inspire_${userId}`;
+      const cached = inspireCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
         return res.json(cached.data);
       }
@@ -1049,7 +1049,7 @@ ${truncated}`,
         max_tokens: 4096,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator. Generate 12 personalized destination suggestions for a traveler.
+          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions that could become the voyage of a lifetime for this traveler. Think beyond the obvious — surprise them with places that resonate with who they are.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1115,19 +1115,19 @@ Return a JSON array (no markdown, no code fences, just raw JSON):
       }
 
       const result = { suggestions, generatedAt: new Date().toISOString() };
-      exploreCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      inspireCache.set(cacheKey, { data: result, timestamp: Date.now() });
       res.json(result);
     } catch (error) {
-      console.error("Error generating explore suggestions:", error);
+      console.error("Error generating inspire suggestions:", error);
       res.status(500).json({ message: "Failed to generate suggestions" });
     }
   });
 
-  app.post("/api/explore/refresh", isAuthenticated, async (req: any, res) => {
+  app.post("/api/inspire/refresh", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
-      const cacheKey = `explore_${userId}`;
-      exploreCache.delete(cacheKey);
+      const cacheKey = `inspire_${userId}`;
+      inspireCache.delete(cacheKey);
       res.json({ cleared: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to refresh" });

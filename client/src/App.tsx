@@ -12,7 +12,7 @@ import TripPlanner from "@/pages/TripPlanner";
 import PackingList from "@/pages/PackingList";
 import Intel from "@/pages/Intel";
 import Journeys from "@/pages/Journeys";
-import Explore from "@/pages/Explore";
+import Inspire from "@/pages/Inspire";
 import Community from "@/pages/Community";
 import PastJourneys from "@/pages/PastJourneys";
 import Onboarding from "@/pages/Onboarding";
@@ -98,7 +98,7 @@ function Router() {
       <Route path="/intel">{() => <ProtectedRoute component={Intel} />}</Route>
       <Route path="/journeys">{() => <ProtectedRoute component={Journeys} />}</Route>
       <Route path="/community">{() => <ProtectedRoute component={Community} />}</Route>
-      <Route path="/explore">{() => <ProtectedRoute component={Explore} />}</Route>
+      <Route path="/inspire">{() => <ProtectedRoute component={Inspire} />}</Route>
       <Route path="/history">{() => <ProtectedRoute component={PastJourneys} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
       <Route component={NotFound} />

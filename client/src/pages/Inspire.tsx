@@ -46,7 +46,7 @@ interface Suggestion {
   why_for_you: string;
 }
 
-interface ExploreData {
+interface InspireData {
   suggestions: Suggestion[];
   generatedAt: string;
 }
@@ -75,7 +75,7 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
   const fallbackBg = "bg-gradient-to-br from-primary/20 to-primary/5";
 
   return (
-    <Card className="group overflow-hidden border-0 shadow-none bg-transparent hover:bg-card hover:shadow-lg transition-all duration-300 rounded-xl" data-testid={`explore-card-${gem.title.toLowerCase().replace(/\s+/g, "-")}`}>
+    <Card className="group overflow-hidden border-0 shadow-none bg-transparent hover:bg-card hover:shadow-lg transition-all duration-300 rounded-xl" data-testid={`inspire-card-${gem.title.toLowerCase().replace(/\s+/g, "-")}`}>
       <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
         {gem.image_url ? (
           <img 
@@ -156,16 +156,16 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
   );
 }
 
-export default function Explore() {
+export default function Inspire() {
   const { settings } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data, isLoading, error } = useQuery<ExploreData>({
-    queryKey: ["/api/explore/suggestions"],
+  const { data, isLoading, error } = useQuery<InspireData>({
+    queryKey: ["/api/inspire/suggestions"],
     queryFn: async () => {
-      const res = await fetch("/api/explore/suggestions", { credentials: "include" });
+      const res = await fetch("/api/inspire/suggestions", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load suggestions");
       return res.json();
     },
@@ -174,14 +174,14 @@ export default function Explore() {
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/explore/refresh");
-      const res = await fetch("/api/explore/suggestions", { credentials: "include" });
+      await apiRequest("POST", "/api/inspire/refresh");
+      const res = await fetch("/api/inspire/suggestions", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to refresh");
       return res.json();
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["/api/explore/suggestions"], data);
-      toast({ title: "Fresh suggestions", description: "Marco has curated new destinations just for you." });
+      queryClient.setQueryData(["/api/inspire/suggestions"], data);
+      toast({ title: "Fresh inspiration", description: "Marco has curated new dream destinations just for you." });
     },
     onError: () => {
       toast({ title: "Refresh failed", description: "Please try again.", variant: "destructive" });
@@ -242,11 +242,11 @@ export default function Explore() {
             <Loader2 className="h-10 w-10 text-primary animate-spin" />
           </div>
           <div className="text-center">
-            <h2 className="font-serif text-2xl font-bold mb-2">Marco is curating destinations for you</h2>
+            <h2 className="font-serif text-2xl font-bold mb-2">Marco is finding your dream voyage</h2>
             <p className="text-muted-foreground max-w-md">
               {hasPreferences 
-                ? "Analyzing your travel preferences and past journeys to find your perfect next destinations..."
-                : "Discovering amazing destinations from around the world..."}
+                ? "Analyzing your travel soul to uncover destinations you didn't know you were dreaming of..."
+                : "Curating inspiring destinations from every corner of the world..."}
             </p>
           </div>
         </div>
@@ -262,9 +262,9 @@ export default function Explore() {
             <Compass className="h-10 w-10 text-primary" />
           </div>
           <div className="text-center">
-            <h2 className="font-serif text-2xl font-bold mb-2">Couldn't load suggestions</h2>
-            <p className="text-muted-foreground mb-4">Marco had trouble generating destinations. Try again?</p>
-            <Button onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid="button-retry-explore">
+            <h2 className="font-serif text-2xl font-bold mb-2">Couldn't load inspiration</h2>
+            <p className="text-muted-foreground mb-4">Marco had trouble finding destinations. Try again?</p>
+            <Button onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid="button-retry-inspire">
               {refreshMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Try Again
             </Button>
@@ -280,16 +280,16 @@ export default function Explore() {
         
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
           <div className="max-w-xl">
-            <h1 className="font-serif text-4xl font-bold mb-3" data-testid="text-explore-title">Explore Destinations</h1>
+            <h1 className="font-serif text-4xl font-bold mb-3" data-testid="text-inspire-title">Find Your Dream Voyage</h1>
             <p className="text-muted-foreground text-lg">
               {hasPreferences 
-                ? "Personalized destinations curated by Marco based on your travel style and preferences."
-                : "Discover incredible destinations around the world, curated by Marco."}
+                ? "Marco has handpicked destinations that match your travel soul. Your next great adventure starts here."
+                : "Let Marco inspire your wanderlust with destinations you didn't know you were dreaming of."}
             </p>
             {!hasPreferences && (
               <p className="text-sm text-primary mt-2 flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5" />
-                <Link href="/settings" className="underline underline-offset-2 hover:text-primary/80">Set your travel preferences</Link> for more personalized suggestions.
+                <Link href="/settings" className="underline underline-offset-2 hover:text-primary/80">Tell Marco about your travel style</Link> for deeply personal inspiration.
               </p>
             )}
           </div>
@@ -298,11 +298,11 @@ export default function Explore() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
                 type="search" 
-                placeholder="Search destinations..." 
+                placeholder="Search dream destinations..." 
                 className="pl-9 bg-background" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                data-testid="input-search-explore"
+                data-testid="input-search-inspire"
               />
             </div>
             <Button 
@@ -311,7 +311,7 @@ export default function Explore() {
               onClick={() => refreshMutation.mutate()} 
               disabled={refreshMutation.isPending}
               className="flex-shrink-0"
-              data-testid="button-refresh-explore"
+              data-testid="button-refresh-inspire"
             >
               {refreshMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>

@@ -12,6 +12,7 @@ import {
   MapPin,
   History,
   Compass,
+  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -63,7 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const bottomNavItems = [
     { href: "/packing", label: "Smart Pack", icon: Luggage },
-    { href: "/explore", label: "Explore", icon: Compass },
+    { href: "/inspire", label: "Inspire", icon: Sparkles },
     { href: "/community", label: "Community", icon: Users },
   ];
 

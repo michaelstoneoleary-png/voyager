@@ -35,7 +35,7 @@ Preferred communication style: Simple, everyday language.
   - Travel Intel (cultural/safety info, accessible from journey details)
   - Journeys (trip management)
   - Past Journeys (trip history with file upload and map)
-  - Explore (discover destinations)
+  - Inspire at `/inspire` (dream voyage discovery — AI-curated personalized destination inspiration)
   - Community (social features)
 - **Auth Flow**: Protected routes redirect to `/api/login` for Replit Auth. The `useAuth` hook manages auth state via `/api/auth/user` endpoint.
 
