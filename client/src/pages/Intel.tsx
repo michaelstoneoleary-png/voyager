@@ -16,10 +16,7 @@ import {
 } from "lucide-react";
 
 export default function Intel() {
-  const playAudio = (text: string) => {
-    // In a real app, this would play an audio file.
-    // For prototype, we'll just log it or show a toast if we had one here.
-    console.log(`Playing audio for: ${text}`);
+  const playAudio = (_text: string) => {
   };
 
   return (

@@ -42,48 +42,40 @@ import {
 import { useTrips } from "@/lib/TripContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/lib/UserContext";
 
 interface NewTripDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-// Mock User Defaults
-const USER_DEFAULTS = {
-  origin: "New York, JFK",
-  currency: "USD",
-  preferences: {
-    directFlights: true,
-    ecoFriendly: false,
-    avoidStopovers: true
-  }
-};
-
 export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   const [step, setStep] = useState(1);
   const { addTrip } = useTrips();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { settings } = useUser();
 
   const [formData, setFormData] = useState({
-    // Step 1: Logistics
     travelers: 2,
     shareAccommodation: true,
     genderGroup: "mixed",
-    dateType: "estimated", // estimated | fixed
+    dateType: "estimated",
     startDate: "",
     endDate: "",
-    duration: 7, // days
-    durationType: "estimated", // estimated | max
+    duration: 7,
+    durationType: "estimated",
 
-    // Step 2: Budget & Prefs
-    travelMode: "mixed", // drive | fly | train | bus | ferry | mixed
-    budgetType: "estimated", // estimated | fixed | later
+    travelMode: "mixed",
+    budgetType: "estimated",
     budgetAmount: "" as string | number,
-    preferences: { ...USER_DEFAULTS.preferences },
+    preferences: {
+      directFlights: true,
+      ecoFriendly: false,
+      avoidStopovers: true
+    },
 
-    // Step 3: Destinations
-    origin: USER_DEFAULTS.origin,
+    origin: settings.homeLocation || "",
     finalDestination: "",
     destinations: [] as string[],
     newDestination: ""
@@ -363,7 +355,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
               {formData.budgetType !== "later" && (
                  <div className="space-y-2">
-                   <Label>Budget Amount ({USER_DEFAULTS.currency})</Label>
+                   <Label>Budget Amount ({settings.currency || "USD"})</Label>
                    <div className="relative">
                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                      <Input 
