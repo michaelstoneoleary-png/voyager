@@ -45,32 +45,34 @@ async function getCredentials() {
   if (cachedCredentials) return cachedCredentials;
 
   const connectorCreds = await getConnectorCredentials();
+  const accountSid = process.env.TWILIO_ACCOUNT_SID || connectorCreds?.accountSid;
+  const phoneNumber = connectorCreds?.phoneNumber;
 
-  if (connectorCreds?.accountSid) {
+  if (accountSid) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     if (authToken) {
       cachedCredentials = {
-        accountSid: connectorCreds.accountSid,
+        accountSid,
         authToken,
-        phoneNumber: connectorCreds.phoneNumber,
+        phoneNumber,
         mode: 'auth_token'
       };
       return cachedCredentials;
     }
 
-    if (connectorCreds.apiKey && connectorCreds.apiKeySecret) {
+    if (connectorCreds?.apiKey && connectorCreds?.apiKeySecret) {
       cachedCredentials = {
-        accountSid: connectorCreds.accountSid,
+        accountSid,
         apiKey: connectorCreds.apiKey,
         apiKeySecret: connectorCreds.apiKeySecret,
-        phoneNumber: connectorCreds.phoneNumber,
+        phoneNumber,
         mode: 'api_key'
       };
       return cachedCredentials;
     }
   }
 
-  throw new Error('Twilio not configured. Please set up the Twilio connection or provide TWILIO_AUTH_TOKEN.');
+  throw new Error('Twilio not configured. Please set up the Twilio connection or provide TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.');
 }
 
 export async function getTwilioClient() {
