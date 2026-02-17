@@ -17,6 +17,7 @@ import Community from "@/pages/Community";
 import PastJourneys from "@/pages/PastJourneys";
 import Onboarding from "@/pages/Onboarding";
 import Settings from "@/pages/Settings";
+import SmsConsent from "@/pages/SmsConsent";
 import { UserProvider, useUser } from "@/lib/UserContext";
 import { TripProvider } from "@/lib/TripContext";
 import { useAuth } from "@/hooks/use-auth";
@@ -92,6 +93,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/sms-consent" component={SmsConsent} />
       <Route path="/onboarding" component={OnboardingRoute} />
       <Route path="/planner/:id">{() => <ProtectedRoute component={TripPlanner} />}</Route>
       <Route path="/packing">{() => <ProtectedRoute component={PackingList} />}</Route>
