@@ -433,19 +433,9 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
           prevActivity.travel_to_next = removedActivity.travel_to_next;
         } else {
           delete prevActivity.travel_to_next;
-          if (activityIndex > 1) {
-            const beforePrev = day.activities[activityIndex - 2];
-            if (beforePrev.travel_to_next) {
-              // keep existing travel_to_next on beforePrev
-            }
-          }
         }
 
         day.activities.splice(activityIndex, 1);
-
-        for (let i = activityIndex; i < day.activities.length; i++) {
-          // just leave times as-is, they are informational
-        }
 
         const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
         return res.json(updated);
@@ -1372,6 +1362,85 @@ Return ONLY the JSON object, no other text.`,
     } catch (error) {
       console.error("Error deleting packing list:", error);
       res.status(500).json({ message: "Failed to delete packing list" });
+    }
+  });
+
+  // Travel Intelligence generation
+  const intelCache = new Map<string, { data: any; timestamp: number }>();
+  const INTEL_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+  app.post("/api/intel/generate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { journeyId } = req.body;
+      if (!journeyId) return res.status(400).json({ message: "journeyId is required" });
+
+      const journey = await storage.getJourney(journeyId, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const cacheKey = `intel_${journeyId}`;
+      const cached = intelCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < INTEL_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
+      const allStops = [journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean);
+      const destStr = allStops.join(", ") || "unspecified destination";
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 2048,
+        messages: [{
+          role: "user",
+          content: `Generate accurate travel intelligence for a trip to: ${destStr}
+
+Return a JSON object (no markdown, no code fences, just raw JSON):
+{
+  "emergency_number": "the actual emergency number(s) for these countries",
+  "emergency_note": "one sentence about emergency services",
+  "etiquette": ["3-5 specific cultural rules or norms for these destinations"],
+  "safety": ["2-3 specific safety tips relevant to these destinations"],
+  "phrases": [
+    { "english": "Hello", "local": "local script", "transliteration": "pronunciation", "language": "Language name" },
+    { "english": "Thank you", "local": "local script", "transliteration": "pronunciation", "language": "Language name" },
+    { "english": "Please", "local": "local script", "transliteration": "pronunciation", "language": "Language name" },
+    { "english": "Yes", "local": "local script", "transliteration": "pronunciation", "language": "Language name" },
+    { "english": "No", "local": "local script", "transliteration": "pronunciation", "language": "Language name" },
+    { "english": "Excuse me", "local": "local script", "transliteration": "pronunciation", "language": "Language name" }
+  ],
+  "languages": ["primary language(s) spoken at the destinations"]
+}
+
+Rules:
+- All information must be REAL and ACCURATE
+- For phrases: use the actual native script/alphabet for the "local" field
+- For multi-country trips: include phrases for each country's primary language
+- Emergency number must be the actual number used in these countries
+- Etiquette must be specific to these destinations' culture, not generic
+- Return ONLY the JSON object, no other text`,
+        }],
+      });
+
+      const textContent = response.content.find(c => c.type === "text");
+      if (!textContent || textContent.type !== "text") {
+        return res.status(500).json({ message: "No response from AI" });
+      }
+
+      let intel;
+      try {
+        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON found");
+        intel = JSON.parse(jsonMatch[0]);
+      } catch {
+        return res.status(422).json({ message: "AI returned invalid format. Please try again." });
+      }
+
+      intelCache.set(cacheKey, { data: intel, timestamp: Date.now() });
+      res.json(intel);
+    } catch (error) {
+      console.error("Error generating travel intel:", error);
+      res.status(500).json({ message: "Failed to generate travel intelligence" });
     }
   });
 

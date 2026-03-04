@@ -3,12 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Calendar, 
-  MapPin, 
-  CloudSun, 
-  CheckCircle2, 
-  Plus, 
+import {
+  Calendar,
+  MapPin,
+  CheckCircle2,
+  Plus,
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -61,9 +60,6 @@ export default function Dashboard() {
                <h3 className="font-serif text-xl font-bold flex items-center gap-2">
                  <MapPin className="h-5 w-5 text-primary" /> {planningTrip ? "Current Focus" : "Recent Journey"}
                </h3>
-               <div className="text-xs text-muted-foreground">
-                 Last edited 2 hours ago
-               </div>
             </div>
             
             {activeTrip ? (
@@ -210,16 +206,10 @@ export default function Dashboard() {
                 <CardDescription>Discover the voyage of your dreams</CardDescription>
               </CardHeader>
               <CardContent>
-                 <div className="aspect-video rounded-md bg-muted mb-3 relative overflow-hidden group cursor-pointer">
-                   <img 
-                     src="https://images.unsplash.com/photo-1499678329028-101435549a4e?q=80&w=2070&auto=format&fit=crop" 
-                     alt="Tuscany" 
-                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                   />
-                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                   <div className="absolute bottom-2 left-2 text-white font-bold text-sm shadow-sm">Tuscany in May</div>
-                 </div>
-                 <Button variant="link" className="px-0 text-primary h-auto text-xs">View 3 more recommendations</Button>
+                <p className="text-sm text-muted-foreground mb-4">Get AI-powered destination suggestions tailored to your travel style and places you haven't been yet.</p>
+                <Link href="/inspire">
+                  <Button size="sm" className="w-full">Browse Destinations</Button>
+                </Link>
               </CardContent>
             </Card>
           </div>
