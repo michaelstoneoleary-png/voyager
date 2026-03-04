@@ -46,7 +46,7 @@ async function getCredentials() {
 
   const connectorCreds = await getConnectorCredentials();
   const accountSid = process.env.TWILIO_ACCOUNT_SID || connectorCreds?.accountSid;
-  const phoneNumber = connectorCreds?.phoneNumber;
+  const phoneNumber = process.env.TWILIO_PHONE_NUMBER || connectorCreds?.phoneNumber;
 
   if (accountSid) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
