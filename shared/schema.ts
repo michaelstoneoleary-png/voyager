@@ -2,7 +2,7 @@ export * from "./models/auth";
 export * from "./models/chat";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, jsonb, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./models/auth";
@@ -78,18 +78,40 @@ export const packingLists = pgTable("packing_lists", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const journeyPhotos = pgTable("journey_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeyId: varchar("journey_id").notNull().references(() => journeys.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  cloudinaryPublicId: text("cloudinary_public_id").notNull(),
+  url: text("url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  takenAt: timestamp("taken_at"),
+  caption: text("caption"),
+  dayIndex: integer("day_index"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
   journeyMemberships: many(journeyMembers),
   pastTrips: many(pastTrips),
   bookmarks: many(bookmarks),
   packingLists: many(packingLists),
+  journeyPhotos: many(journeyPhotos),
 }));
 
 export const journeysRelations = relations(journeys, ({ one, many }) => ({
   user: one(users, { fields: [journeys.userId], references: [users.id] }),
   members: many(journeyMembers),
   pastTrips: many(pastTrips),
+  photos: many(journeyPhotos),
+}));
+
+export const journeyPhotosRelations = relations(journeyPhotos, ({ one }) => ({
+  journey: one(journeys, { fields: [journeyPhotos.journeyId], references: [journeys.id] }),
+  user: one(users, { fields: [journeyPhotos.userId], references: [users.id] }),
 }));
 
 export const journeyMembersRelations = relations(journeyMembers, ({ one }) => ({
@@ -169,3 +191,11 @@ export type InsertBookmark = z.infer<typeof insertBookmarkSchema>;
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type InsertPackingList = z.infer<typeof insertPackingListSchema>;
 export type PackingList = typeof packingLists.$inferSelect;
+
+export const insertJourneyPhotoSchema = createInsertSchema(journeyPhotos).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertJourneyPhoto = z.infer<typeof insertJourneyPhotoSchema>;
+export type JourneyPhoto = typeof journeyPhotos.$inferSelect;

@@ -5,6 +5,7 @@ import {
   pastTrips, type PastTrip, type InsertPastTrip,
   bookmarks, type Bookmark, type InsertBookmark,
   packingLists, type PackingList, type InsertPackingList,
+  journeyPhotos, type JourneyPhoto, type InsertJourneyPhoto,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -38,6 +39,12 @@ export interface IStorage {
   createPackingList(data: InsertPackingList): Promise<PackingList>;
   updatePackingList(id: string, userId: string, data: Partial<InsertPackingList>): Promise<PackingList | undefined>;
   deletePackingList(id: string, userId: string): Promise<boolean>;
+
+  getJourneyPhotos(journeyId: string): Promise<JourneyPhoto[]>;
+  getJourneyPhoto(id: string, userId: string): Promise<JourneyPhoto | undefined>;
+  createJourneyPhoto(photo: InsertJourneyPhoto): Promise<JourneyPhoto>;
+  updateJourneyPhoto(id: string, userId: string, data: Pick<InsertJourneyPhoto, "caption" | "dayIndex">): Promise<JourneyPhoto | undefined>;
+  deleteJourneyPhoto(id: string, userId: string): Promise<JourneyPhoto | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -191,6 +198,37 @@ export class DatabaseStorage implements IStorage {
     if (!existing) return false;
     await db.delete(packingLists).where(eq(packingLists.id, id));
     return true;
+  }
+
+  async getJourneyPhotos(journeyId: string): Promise<JourneyPhoto[]> {
+    return db.select().from(journeyPhotos)
+      .where(eq(journeyPhotos.journeyId, journeyId))
+      .orderBy(journeyPhotos.takenAt, journeyPhotos.createdAt);
+  }
+
+  async getJourneyPhoto(id: string, userId: string): Promise<JourneyPhoto | undefined> {
+    const [photo] = await db.select().from(journeyPhotos).where(eq(journeyPhotos.id, id));
+    if (photo && photo.userId !== userId) return undefined;
+    return photo || undefined;
+  }
+
+  async createJourneyPhoto(photo: InsertJourneyPhoto): Promise<JourneyPhoto> {
+    const [created] = await db.insert(journeyPhotos).values(photo).returning();
+    return created;
+  }
+
+  async updateJourneyPhoto(id: string, userId: string, data: Pick<InsertJourneyPhoto, "caption" | "dayIndex">): Promise<JourneyPhoto | undefined> {
+    const existing = await this.getJourneyPhoto(id, userId);
+    if (!existing) return undefined;
+    const [updated] = await db.update(journeyPhotos).set(data).where(eq(journeyPhotos.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteJourneyPhoto(id: string, userId: string): Promise<JourneyPhoto | undefined> {
+    const existing = await this.getJourneyPhoto(id, userId);
+    if (!existing) return undefined;
+    await db.delete(journeyPhotos).where(eq(journeyPhotos.id, id));
+    return existing;
   }
 }
 

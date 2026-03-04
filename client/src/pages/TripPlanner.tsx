@@ -4,15 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PhotoGallery } from "@/components/PhotoGallery";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useParams } from "wouter";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  MapPin, 
-  Calendar, 
-  Car, 
+import {
+  MapPin,
+  Calendar,
+  Car,
   Info,
   Plus,
   Loader2,
@@ -41,7 +42,8 @@ import {
   RefreshCw,
   TimerReset,
   MoreVertical,
-  Replace
+  Replace,
+  Camera,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -245,6 +247,7 @@ export default function TripPlanner() {
     enabled: !!journeyId,
   });
 
+  const [viewMode, setViewMode] = useState<"itinerary" | "photos">("itinerary");
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeHighlightDest, setActiveHighlightDest] = useState(0);
   const [showHighlights, setShowHighlights] = useState(false);
@@ -514,42 +517,63 @@ export default function TripPlanner() {
           </div>
           <div className="flex gap-2">
             <Button
-              variant={showHighlights ? "default" : "outline"}
+              variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
-              onClick={() => {
-                if (highlights && highlights.destinations?.length > 0) {
-                  setShowHighlights(!showHighlights);
-                } else {
-                  highlightsMutation.mutate();
-                }
-              }}
-              disabled={highlightsMutation.isPending}
-              data-testid="button-highlights"
+              onClick={() => setViewMode((m) => m === "photos" ? "itinerary" : "photos")}
             >
-              {highlightsMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Star className="mr-2 h-4 w-4" />
-              )}
-              {highlightsMutation.isPending ? "Generating..." : highlights ? (showHighlights ? "Show Map" : "Highlights") : "Get Highlights"}
+              <Camera className="mr-2 h-4 w-4" />
+              Photos
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => generateMutation.mutate()} 
-              disabled={generateMutation.isPending}
-              data-testid="button-regenerate"
-            >
-              {generateMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-2 h-4 w-4" />
-              )}
-              Regenerate
-            </Button>
+            {viewMode === "itinerary" && (
+              <>
+                <Button
+                  variant={showHighlights ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (highlights && highlights.destinations?.length > 0) {
+                      setShowHighlights(!showHighlights);
+                    } else {
+                      highlightsMutation.mutate();
+                    }
+                  }}
+                  disabled={highlightsMutation.isPending}
+                  data-testid="button-highlights"
+                >
+                  {highlightsMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Star className="mr-2 h-4 w-4" />
+                  )}
+                  {highlightsMutation.isPending ? "Generating..." : highlights ? (showHighlights ? "Show Map" : "Highlights") : "Get Highlights"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateMutation.mutate()}
+                  disabled={generateMutation.isPending}
+                  data-testid="button-regenerate"
+                >
+                  {generateMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Regenerate
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
+        {viewMode === "photos" && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto py-2">
+              <PhotoGallery journeyId={journeyId!} />
+            </div>
+          </div>
+        )}
+
+        {viewMode === "itinerary" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           <div className="lg:col-span-1 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
@@ -1077,6 +1101,7 @@ export default function TripPlanner() {
              )}
           </div>
         </div>
+        )}
       </div>
     </Layout>
   );

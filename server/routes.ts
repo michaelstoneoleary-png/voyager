@@ -8,6 +8,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
+import multer from "multer";
+import ExifReader from "exifreader";
+import { photoProvider } from "./photoStorage";
 
 function formatUserSettings(user: User) {
   return {
@@ -1492,6 +1495,126 @@ Rules:
         userMsg = error.message;
       }
       res.status(500).json({ message: userMsg });
+    }
+  });
+
+  // ── Photo upload routes ──────────────────────────────────────────────────────
+
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB per file
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith("image/")) cb(null, true);
+      else cb(new Error("Only image files are allowed"));
+    },
+  });
+
+  // GET /api/journeys/:id/photos
+  app.get("/api/journeys/:id/photos", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journeyId = String(req.params.id);
+      const journey = await storage.getJourney(journeyId, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+      const photos = await storage.getJourneyPhotos(journeyId);
+      res.json(photos);
+    } catch (err) {
+      console.error("Error fetching photos:", err);
+      res.status(500).json({ message: "Failed to fetch photos" });
+    }
+  });
+
+  // POST /api/journeys/:id/photos  (multipart, field name "photos", up to 20 files)
+  app.post("/api/journeys/:id/photos", isAuthenticated, upload.array("photos", 20), async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journeyId = String(req.params.id);
+      const journey = await storage.getJourney(journeyId, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
+
+      const results = await Promise.all(files.map(async (file) => {
+        // Parse EXIF for GPS and original date
+        let lat: number | undefined;
+        let lng: number | undefined;
+        let takenAt: Date | undefined;
+        try {
+          const tags = ExifReader.load(file.buffer);
+          if (tags.GPSLatitude && tags.GPSLongitude) {
+            const latVal = Number(tags.GPSLatitude.description);
+            const lngVal = Number(tags.GPSLongitude.description);
+            const latRef = String(tags.GPSLatitudeRef?.description ?? "N");
+            const lngRef = String(tags.GPSLongitudeRef?.description ?? "E");
+            lat = latRef === "S" ? -latVal : latVal;
+            lng = lngRef === "W" ? -lngVal : lngVal;
+          }
+          if (tags.DateTimeOriginal?.description) {
+            const raw = String(tags.DateTimeOriginal.description);
+            // EXIF date format: "YYYY:MM:DD HH:MM:SS"
+            const normalized = raw.replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3");
+            const parsed = new Date(normalized);
+            if (!isNaN(parsed.getTime())) takenAt = parsed;
+          }
+        } catch {
+          // EXIF parsing is best-effort; continue without it
+        }
+
+        const uploaded = await photoProvider.upload(file.buffer, file.originalname, `voyager/journeys/${journeyId}`);
+
+        return storage.createJourneyPhoto({
+          journeyId,
+          userId,
+          cloudinaryPublicId: uploaded.publicId,
+          url: uploaded.url,
+          thumbnailUrl: uploaded.thumbnailUrl,
+          lat: lat ?? null,
+          lng: lng ?? null,
+          takenAt: takenAt ?? null,
+          caption: null,
+          dayIndex: null,
+        });
+      }));
+
+      res.status(201).json(results);
+    } catch (err: any) {
+      console.error("Error uploading photos:", err);
+      res.status(500).json({ message: err.message || "Failed to upload photos" });
+    }
+  });
+
+  // PATCH /api/journeys/:journeyId/photos/:photoId
+  app.patch("/api/journeys/:journeyId/photos/:photoId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { caption, dayIndex } = req.body;
+      const updated = await storage.updateJourneyPhoto(String(req.params.photoId), userId, {
+        caption: caption ?? undefined,
+        dayIndex: dayIndex ?? undefined,
+      });
+      if (!updated) return res.status(404).json({ message: "Photo not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating photo:", err);
+      res.status(500).json({ message: "Failed to update photo" });
+    }
+  });
+
+  // DELETE /api/journeys/:journeyId/photos/:photoId
+  app.delete("/api/journeys/:journeyId/photos/:photoId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const deleted = await storage.deleteJourneyPhoto(String(req.params.photoId), userId);
+      if (!deleted) return res.status(404).json({ message: "Photo not found" });
+      // Remove from Cloudinary (fire and forget — don't fail the request if CDN delete fails)
+      photoProvider.delete(deleted.cloudinaryPublicId).catch((err) =>
+        console.error("Cloudinary delete failed:", err)
+      );
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting photo:", err);
+      res.status(500).json({ message: "Failed to delete photo" });
     }
   });
 
