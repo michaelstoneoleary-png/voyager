@@ -273,8 +273,8 @@ export async function registerRoutes(
       const travelModeNote = travelModeLabels[travelMode] || travelModeLabels.mixed;
 
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 6000,
+        model: "claude-sonnet-4-6",
+        max_tokens: 8000,
         messages: [{
           role: "user",
           content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}
@@ -343,7 +343,10 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
 
       let itinerary;
       try {
-        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        const cleaned = textContent.text
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```\s*$/i, "")
+          .trim();
         itinerary = JSON.parse(cleaned);
       } catch {
         return res.status(422).json({ message: "AI returned an invalid itinerary format. Please try again." });
