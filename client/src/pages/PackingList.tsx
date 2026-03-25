@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useSearch } from "wouter";
 import {
   Shirt,
   Droplets,
@@ -107,6 +108,7 @@ export default function PackingList() {
   const { settings } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const search = useSearch();
 
   const { data: journeys } = useQuery<JourneyOption[]>({
     queryKey: ["/api/journeys"],
@@ -118,6 +120,7 @@ export default function PackingList() {
   });
 
   const [selectedJourneyId, setSelectedJourneyId] = useState<string | null>(null);
+  const [autoSelectedFromUrl, setAutoSelectedFromUrl] = useState(false);
   const [form, setForm] = useState<FormData>({
     destination: "",
     origin: "",
@@ -211,6 +214,19 @@ export default function PackingList() {
       journeyId: journey.id,
     });
   };
+
+  // Auto-select journey from URL param (e.g. /packing?journeyId=123)
+  useEffect(() => {
+    if (autoSelectedFromUrl || !journeys?.length) return;
+    const params = new URLSearchParams(search);
+    const journeyId = params.get("journeyId");
+    if (!journeyId) return;
+    const journey = journeys.find(j => j.id === journeyId);
+    if (journey) {
+      setAutoSelectedFromUrl(true);
+      selectJourney(journey);
+    }
+  }, [journeys, search, autoSelectedFromUrl]);
 
   const selectedJourneyForDisplay = journeys?.find(j => j.id === form.journeyId);
 

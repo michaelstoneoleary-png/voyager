@@ -108,7 +108,7 @@ export default function Dashboard() {
                        {activeTrip.status === "Completed" ? (
                          <Button variant="outline" onClick={() => setIsNewTripOpen(true)} data-testid="button-plan-new">Plan New Trip</Button>
                        ) : (
-                         <Link href="/packing"><Button variant="outline" data-testid="button-view-packing">View Packing List</Button></Link>
+                         <Link href={`/packing?journeyId=${activeTrip.id}`}><Button variant="outline" data-testid="button-view-packing">View Packing List</Button></Link>
                        )}
                      </div>
                   </div>
