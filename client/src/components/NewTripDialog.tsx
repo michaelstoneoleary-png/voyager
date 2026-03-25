@@ -49,6 +49,10 @@ interface NewTripDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function toTitleCase(str: string): string {
+  return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
+}
+
 export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   const [step, setStep] = useState(1);
   const { addTrip } = useTrips();
@@ -120,13 +124,15 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       datesStr = `Flexible (${formData.duration} days)`;
     }
 
-    const allStops = formData.destinations;
-    const titleDest = formData.finalDestination || (allStops.length > 0 ? allStops[allStops.length - 1] : null);
+    const allStops = formData.destinations.map(toTitleCase);
+    const finalDest = formData.finalDestination ? toTitleCase(formData.finalDestination) : undefined;
+    const origin = formData.origin ? toTitleCase(formData.origin) : undefined;
+    const titleDest = finalDest || (allStops.length > 0 ? allStops[allStops.length - 1] : null);
 
     addTrip({
       title: titleDest ? `Journey to ${titleDest}` : "New Adventure",
-      origin: formData.origin || undefined,
-      finalDestination: formData.finalDestination || undefined,
+      origin,
+      finalDestination: finalDest,
       dates: datesStr,
       days: formData.duration,
       cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
