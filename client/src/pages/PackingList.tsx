@@ -184,10 +184,9 @@ export default function PackingList() {
 
   const selectJourney = (journey: JourneyOption) => {
     setSelectedJourneyId(journey.id);
-    const allStops = [
-      ...(journey.destinations || []),
-      journey.finalDestination,
-    ].filter(Boolean);
+    const seen = new Set<string>();
+    const allStops = [...(journey.destinations || []), journey.finalDestination]
+      .filter((s): s is string => !!s && !seen.has(s) && !!seen.add(s));
     const destination = allStops.join(", ") || journey.title;
 
     const activityTypes = new Set<string>();
