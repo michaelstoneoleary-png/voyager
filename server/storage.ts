@@ -10,6 +10,20 @@ import {
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 
+function toTitleCase(str: string): string {
+  return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
+}
+
+function normalizeJourney(j: Journey): Journey {
+  return {
+    ...j,
+    title: j.title ? toTitleCase(j.title) : j.title,
+    origin: j.origin ? toTitleCase(j.origin) : j.origin,
+    finalDestination: j.finalDestination ? toTitleCase(j.finalDestination) : j.finalDestination,
+    destinations: Array.isArray(j.destinations) ? (j.destinations as string[]).map(toTitleCase) : j.destinations,
+  };
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
@@ -63,14 +77,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJourneys(userId: string): Promise<Journey[]> {
-    return db.select().from(journeys).where(eq(journeys.userId, userId));
+    const rows = await db.select().from(journeys).where(eq(journeys.userId, userId));
+    return rows.map(normalizeJourney);
   }
 
   async getJourney(id: string, userId: string): Promise<Journey | undefined> {
     const [journey] = await db.select().from(journeys)
       .where(eq(journeys.id, id));
     if (journey && journey.userId !== userId) return undefined;
-    return journey || undefined;
+    return journey ? normalizeJourney(journey) : undefined;
   }
 
   async createJourney(journey: InsertJourney): Promise<Journey> {
