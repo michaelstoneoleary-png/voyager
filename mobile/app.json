@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Voyager",
+    "slug": "voyager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "voyager",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F0E8"
+    },
+    "ios": {
+      "bundleIdentifier": "com.moleary.voyagertravel",
+      "appleTeamId": "TUHBB6AB6Z",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Voyager uses your location in the background to automatically detect when you leave home and begin a Voyage, log your current city, and close your Voyage when you return.",
+        "NSLocationWhenInUseUsageDescription": "Voyager uses your location to detect when you're traveling and log your journey.",
+        "NSLocationAlwaysUsageDescription": "Voyager needs background location access to detect when you leave and return home, even when the app is closed.",
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.voyager.travel",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2D6A4F"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Voyager detects when you leave home to automatically start a Voyage journal.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2D6A4F"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -6,6 +6,7 @@ import {
   bookmarks, type Bookmark, type InsertBookmark,
   packingLists, type PackingList, type InsertPackingList,
   journeyPhotos, type JourneyPhoto, type InsertJourneyPhoto,
+  voyages, type Voyage, type InsertVoyage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -244,6 +245,32 @@ export class DatabaseStorage implements IStorage {
     if (!existing) return undefined;
     await db.delete(journeyPhotos).where(eq(journeyPhotos.id, id));
     return existing;
+  }
+
+  async getVoyages(userId: string): Promise<Voyage[]> {
+    return db.select().from(voyages)
+      .where(eq(voyages.userId, userId))
+      .orderBy(desc(voyages.startedAt));
+  }
+
+  async getActiveVoyage(userId: string): Promise<Voyage | undefined> {
+    const [voyage] = await db.select().from(voyages)
+      .where(and(eq(voyages.userId, userId), eq(voyages.status, "active")));
+    return voyage || undefined;
+  }
+
+  async createVoyage(data: InsertVoyage): Promise<Voyage> {
+    const [created] = await db.insert(voyages).values(data).returning();
+    return created;
+  }
+
+  async updateVoyage(id: string, userId: string, data: Partial<InsertVoyage>): Promise<Voyage | undefined> {
+    const [existing] = await db.select().from(voyages)
+      .where(and(eq(voyages.id, id), eq(voyages.userId, userId)));
+    if (!existing) return undefined;
+    const [updated] = await db.update(voyages).set(data)
+      .where(eq(voyages.id, id)).returning();
+    return updated || undefined;
   }
 }
 

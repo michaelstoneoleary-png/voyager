@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -323,7 +323,7 @@ export async function registerRoutes(
 
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 8000,
+        max_tokens: 32000,
         messages: [{
           role: "user",
           content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${restaurantNote}
@@ -384,6 +384,8 @@ For image_query, provide the exact Wikipedia article title for each specific pla
 HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.`
         }],
       });
+
+      console.log("[generate-itinerary] stop_reason:", response.stop_reason, "| output_tokens:", response.usage?.output_tokens);
 
       const textContent = response.content.find(c => c.type === "text");
       if (!textContent || textContent.type !== "text") {
@@ -1087,7 +1089,12 @@ ${truncated}`,
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      const cacheKey = `inspire_${userId}`;
+      // Qualifier params from the frontend
+      const duration  = (req.query.duration  as string) || "week";
+      const transport = (req.query.transport as string) || "either";
+      const budget    = (req.query.budget    as string) || "midrange";
+
+      const cacheKey = `inspire_${userId}_${duration}_${transport}_${budget}`;
       const cached = inspireCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
         return res.json(cached.data);
@@ -1106,12 +1113,32 @@ ${truncated}`,
       ];
       const uniqueVisited = Array.from(new Set(visitedPlaces.filter((p): p is string => !!p)));
 
+      // Human-readable qualifier descriptions for the prompt
+      const durationDesc: Record<string, string> = {
+        weekend:  "a quick 2–3 day weekend getaway",
+        week:     "a 5–7 day trip",
+        twoweeks: "a 10–14 day trip",
+        month:    "an extended trip of 3 weeks or more",
+        unlimited:"an open-ended trip with no time constraint",
+      };
+      const transportDesc: Record<string, string> = {
+        flying:  "flying (international destinations are fine, any distance)",
+        driving: `driving only — destinations must be reachable by car from ${homeLocation || "their home"} within 6–8 hours`,
+        either:  "open to flying or driving",
+      };
+      const budgetDesc: Record<string, string> = {
+        budget:    "$50–100/day (backpacker / hostel / budget hotel style)",
+        midrange:  "$100–250/day (comfortable hotels, good restaurants)",
+        luxury:    "$300–600/day (high-end hotels, premium experiences)",
+        unlimited: "unlimited — money is no object, recommend only the finest",
+      };
+
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 4096,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions that could become the voyage of a lifetime for this traveler. Think beyond the obvious — surprise them with places that resonate with who they are.
+          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1119,30 +1146,35 @@ TRAVELER PROFILE:
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
 - Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}
 
+TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all three):
+- Duration: ${durationDesc[duration] || durationDesc.week}
+- Transport: ${transportDesc[transport] || transportDesc.either}
+- Budget: ${budgetDesc[budget] || budgetDesc.midrange}
+
 RULES:
 - Suggest destinations they have NOT already visited
-- Each suggestion should be a SPECIFIC destination (city, region, or unique place) — not a country
-- Match suggestions to their travel styles and preferences
-- Include a diverse global mix (don't cluster all in one region)
-- For each, provide a compelling reason WHY it suits this traveler
+- Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
+- Every suggestion must realistically fit the duration, transport, and budget constraints above
+- If transport is "driving", ALL suggestions must be within driving distance of their home
+- avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
+- Include a diverse mix; if transport is "flying" spread across different continents
 - All data must be REAL — real places, accurate coordinates, factual descriptions
-- Categories: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
-- If no travel styles are set, suggest a well-rounded global mix
+- Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
-Return a JSON array (no markdown, no code fences, just raw JSON):
+Return ONLY a JSON array (no markdown, no code fences):
 [
   {
-    "title": "Specific Place or City Name",
+    "title": "Destination Name",
     "country": "Country",
-    "category": "Adventure|Culture|Food & Drink|Nature|Urban|Beach|Wellness",
-    "description": "2-3 sentences about what makes this place special and why it suits this traveler. Be specific and evocative.",
-    "best_months": "Best months to visit (e.g. 'Mar-May, Sep-Nov')",
-    "avg_daily_budget": "$80-120",
+    "category": "One of the categories above",
+    "description": "2-3 sentence vivid description of what makes this place special",
+    "best_months": "e.g. April–October",
+    "avg_daily_budget": "e.g. $80-120",
     "tags": ["3-4 relevant tags"],
     "lat": 0.0000,
     "lng": 0.0000,
     "image_query": "Wikipedia article title for this specific place (e.g. 'Hallstatt', 'Chefchaouen', 'Luang_Prabang')",
-    "why_for_you": "One sentence explaining why Marco picked this for this specific traveler"
+    "why_for_you": "One sentence explaining why Marco picked this given their duration, transport, budget, and travel style"
   }
 ]`
         }],
@@ -1188,11 +1220,63 @@ Return a JSON array (no markdown, no code fences, just raw JSON):
   app.post("/api/inspire/refresh", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
-      const cacheKey = `inspire_${userId}`;
-      inspireCache.delete(cacheKey);
+      // Clear all qualifier variants for this user
+      for (const key of inspireCache.keys()) {
+        if (key.startsWith(`inspire_${userId}`)) inspireCache.delete(key);
+      }
       res.json({ cleared: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to refresh" });
+    }
+  });
+
+  // ── Day Trips ─────────────────────────────────────────────────────────────
+
+  const dayTripCache = new Map<string, { data: any; timestamp: number }>();
+
+  app.get("/api/inspire/day-trips", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (!user.homeLocation) {
+        return res.status(400).json({
+          message: "Set your home location in Settings so Marco can find day trips near you.",
+        });
+      }
+
+      // Mobile can pass current GPS coords; falls back to home location geocoding
+      const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+      const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
+      const locationLabel = (req.query.locationLabel as string) || user.homeLocation;
+      // Round coords to 2 decimal places (~1km) for cache key
+      const coordKey = lat && lng ? `_${lat.toFixed(2)}_${lng.toFixed(2)}` : "";
+      const cacheKey = `daytrips_${userId}${coordKey}`;
+      const cached = dayTripCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
+        return res.json(cached.data);
+      }
+
+      const travelStyles = (user.travelStyles as string[]) || [];
+      const results = await searchDayTrips({
+        homeLocation: locationLabel,
+        homeCoords: lat && lng ? { lat, lng } : undefined,
+        travelStyles,
+      });
+
+      if (!results.length) {
+        return res.status(404).json({
+          message: "No day trips found near your home location. Make sure GOOGLE_PLACES_API_KEY is set.",
+        });
+      }
+
+      const result = { dayTrips: results, homeLocation: locationLabel, generatedAt: new Date().toISOString() };
+      dayTripCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching day trips:", error);
+      res.status(500).json({ message: "Failed to fetch day trips" });
     }
   });
 
@@ -1682,6 +1766,123 @@ Rules:
     } catch (err) {
       console.error("Error deleting photo:", err);
       res.status(500).json({ message: "Failed to delete photo" });
+    }
+  });
+
+  // ── Voyages ──────────────────────────────────────────────────────────────
+
+  // GET /api/voyages — list all voyages for current user
+  app.get("/api/voyages", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const list = await storage.getVoyages(userId);
+      res.json(list);
+    } catch (err) {
+      console.error("Error fetching voyages:", err);
+      res.status(500).json({ message: "Failed to fetch voyages" });
+    }
+  });
+
+  // POST /api/voyages — create / open a new voyage (called by mobile app when geofence exit detected)
+  app.post("/api/voyages", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      // Close any lingering active voyage first
+      const active = await storage.getActiveVoyage(userId);
+      if (active) {
+        await storage.updateVoyage(active.id, userId, {
+          status: "completed",
+          endedAt: new Date(),
+        });
+      }
+      const { startLocation, currentLocation, distanceMiles } = req.body;
+      const voyage = await storage.createVoyage({
+        userId,
+        status: "active",
+        startLocation: startLocation ?? null,
+        currentLocation: currentLocation ?? startLocation ?? null,
+        distanceMiles: distanceMiles ?? null,
+        startedAt: new Date(),
+      });
+      res.status(201).json(voyage);
+    } catch (err) {
+      console.error("Error creating voyage:", err);
+      res.status(500).json({ message: "Failed to create voyage" });
+    }
+  });
+
+  // PATCH /api/voyages/:id — update location / notes on an active voyage
+  app.patch("/api/voyages/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { currentLocation, distanceMiles, notes } = req.body;
+      const updated = await storage.updateVoyage(String(req.params.id), userId, {
+        ...(currentLocation !== undefined && { currentLocation }),
+        ...(distanceMiles !== undefined && { distanceMiles }),
+        ...(notes !== undefined && { notes }),
+      });
+      if (!updated) return res.status(404).json({ message: "Voyage not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating voyage:", err);
+      res.status(500).json({ message: "Failed to update voyage" });
+    }
+  });
+
+  // POST /api/voyages/close — close the user's currently active voyage (used by mobile background task)
+  app.post("/api/voyages/close", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const active = await storage.getActiveVoyage(userId);
+      if (!active) return res.status(404).json({ message: "No active voyage" });
+      const { notes, distanceMiles } = req.body;
+      const updated = await storage.updateVoyage(active.id, userId, {
+        status: "completed",
+        endedAt: new Date(),
+        ...(notes !== undefined && { notes }),
+        ...(distanceMiles !== undefined && { distanceMiles }),
+      });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error closing active voyage:", err);
+      res.status(500).json({ message: "Failed to close voyage" });
+    }
+  });
+
+  // POST /api/voyages/:id/close — mark a voyage as completed (geofence return)
+  app.post("/api/voyages/:id/close", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { notes, distanceMiles } = req.body;
+      const updated = await storage.updateVoyage(String(req.params.id), userId, {
+        status: "completed",
+        endedAt: new Date(),
+        ...(notes !== undefined && { notes }),
+        ...(distanceMiles !== undefined && { distanceMiles }),
+      });
+      if (!updated) return res.status(404).json({ message: "Voyage not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error closing voyage:", err);
+      res.status(500).json({ message: "Failed to close voyage" });
+    }
+  });
+
+  // ── Push Notifications ───────────────────────────────────────────────────
+
+  // POST /api/push/register — store Expo push token for the current user
+  app.post("/api/push/register", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { token } = req.body;
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "token is required" });
+      }
+      await storage.updateUser(userId, { expoPushToken: token });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Error registering push token:", err);
+      res.status(500).json({ message: "Failed to register push token" });
     }
   });
 

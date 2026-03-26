@@ -78,6 +78,19 @@ export const packingLists = pgTable("packing_lists", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const voyages = pgTable("voyages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: text("status").notNull().default("active"), // "active" | "completed"
+  startLocation: text("start_location"),
+  currentLocation: text("current_location"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+  distanceMiles: doublePrecision("distance_miles"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const journeyPhotos = pgTable("journey_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   journeyId: varchar("journey_id").notNull().references(() => journeys.id, { onDelete: "cascade" }),
@@ -100,6 +113,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   bookmarks: many(bookmarks),
   packingLists: many(packingLists),
   journeyPhotos: many(journeyPhotos),
+  voyages: many(voyages),
+}));
+
+export const voyagesRelations = relations(voyages, ({ one }) => ({
+  user: one(users, { fields: [voyages.userId], references: [users.id] }),
 }));
 
 export const journeysRelations = relations(journeys, ({ one, many }) => ({
@@ -202,3 +220,11 @@ export const insertJourneyPhotoSchema = createInsertSchema(journeyPhotos).omit({
 
 export type InsertJourneyPhoto = z.infer<typeof insertJourneyPhotoSchema>;
 export type JourneyPhoto = typeof journeyPhotos.$inferSelect;
+
+export const insertVoyageSchema = createInsertSchema(voyages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
+export type Voyage = typeof voyages.$inferSelect;

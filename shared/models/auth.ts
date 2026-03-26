@@ -45,6 +45,7 @@ export const users = pgTable("users", {
   cuisinePreferences: text("cuisine_preferences").array(),
   dietaryRestrictions: text("dietary_restrictions").array(),
   diningPriceRange: varchar("dining_price_range"),
+  expoPushToken: varchar("expo_push_token"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
