@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -1227,6 +1227,56 @@ Return ONLY a JSON array (no markdown, no code fences):
       res.json({ cleared: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to refresh" });
+    }
+  });
+
+  // ── Day Trips ─────────────────────────────────────────────────────────────
+
+  const dayTripCache = new Map<string, { data: any; timestamp: number }>();
+
+  app.get("/api/inspire/day-trips", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (!user.homeLocation) {
+        return res.status(400).json({
+          message: "Set your home location in Settings so Marco can find day trips near you.",
+        });
+      }
+
+      // Mobile can pass current GPS coords; falls back to home location geocoding
+      const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+      const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
+      const locationLabel = (req.query.locationLabel as string) || user.homeLocation;
+      // Round coords to 2 decimal places (~1km) for cache key
+      const coordKey = lat && lng ? `_${lat.toFixed(2)}_${lng.toFixed(2)}` : "";
+      const cacheKey = `daytrips_${userId}${coordKey}`;
+      const cached = dayTripCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
+        return res.json(cached.data);
+      }
+
+      const travelStyles = (user.travelStyles as string[]) || [];
+      const results = await searchDayTrips({
+        homeLocation: locationLabel,
+        homeCoords: lat && lng ? { lat, lng } : undefined,
+        travelStyles,
+      });
+
+      if (!results.length) {
+        return res.status(404).json({
+          message: "No day trips found near your home location. Make sure GOOGLE_PLACES_API_KEY is set.",
+        });
+      }
+
+      const result = { dayTrips: results, homeLocation: locationLabel, generatedAt: new Date().toISOString() };
+      dayTripCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching day trips:", error);
+      res.status(500).json({ message: "Failed to fetch day trips" });
     }
   });
 
