@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiGet, apiPost, API_BASE, getSessionCookie } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/constants/theme";
@@ -13,11 +14,21 @@ interface Conversation { id: number; title: string; }
 
 export default function ChatScreen() {
   const queryClient = useQueryClient();
+  const { prompt: deepLinkPrompt } = useLocalSearchParams<{ prompt?: string }>();
   const [input, setInput] = useState("");
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const listRef = useRef<FlatList>(null);
+  const promptConsumed = useRef(false);
+
+  // Pre-fill input when opened via notification deep link
+  useEffect(() => {
+    if (deepLinkPrompt && !promptConsumed.current) {
+      promptConsumed.current = true;
+      setInput(deepLinkPrompt);
+    }
+  }, [deepLinkPrompt]);
 
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: ["messages", conversationId],

@@ -16,10 +16,10 @@
       "bundleIdentifier": "com.voyager.travel",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Voyager detects when you leave home to automatically start a Voyage journal.",
-        "NSLocationWhenInUseUsageDescription": "Voyager uses your location to detect when you're traveling.",
-        "NSLocationAlwaysUsageDescription": "Voyager uses your location in the background to track your voyages.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Voyager uses your location in the background to automatically detect when you leave home and begin a Voyage, log your current city, and close your Voyage when you return.",
+        "NSLocationWhenInUseUsageDescription": "Voyager uses your location to detect when you're traveling and log your journey.",
+        "NSLocationAlwaysUsageDescription": "Voyager needs background location access to detect when you leave and return home, even when the app is closed.",
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
       }
     },
     "android": {

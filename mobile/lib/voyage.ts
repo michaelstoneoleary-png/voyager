@@ -1,7 +1,11 @@
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
-import * as Notifications from "expo-notifications";
 import { apiPost, apiGet } from "./api";
+import {
+  scheduleEveningJournalPrompt,
+  cancelEveningJournalPrompts,
+  scheduleWelcomeHomeJournalPrompt,
+} from "./notifications";
 
 export const VOYAGE_TASK = "VOYAGE_GEOFENCE_TASK";
 export const DEFAULT_RADIUS_MILES = 50;
@@ -26,41 +30,47 @@ TaskManager.defineTask(VOYAGE_TASK, async ({ data, error }: any) => {
     return;
   }
 
-  const { eventType, region } = data;
+  const { eventType } = data;
 
   if (eventType === Location.GeofencingEventType.Exit) {
-    // User has left home — start a voyage
+    // User has left home — open a new voyage on the server
     try {
+      // Try to get a reverse-geocoded location name
+      let locationName = "away from home";
+      try {
+        const [pos] = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const [geo] = await Location.reverseGeocodeAsync({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        if (geo) {
+          locationName = geo.city || geo.region || geo.country || locationName;
+        }
+      } catch {}
+
       await apiPost("/api/voyages", {
-        trigger: "geofence_exit",
-        regionIdentifier: region.identifier,
+        startLocation: locationName,
+        currentLocation: locationName,
       });
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Voyage started! ✈️",
-          body: "You've left home — Voyager is logging your trip.",
-        },
-        trigger: null,
-      });
+
+      // Schedule 8pm journal prompt for every evening of the voyage
+      await scheduleEveningJournalPrompt(locationName);
     } catch (err) {
       console.error("Failed to start voyage:", err);
     }
   }
 
   if (eventType === Location.GeofencingEventType.Enter) {
-    // User has returned home — close the voyage
+    // User has returned home — close the active voyage
     try {
-      await apiPost("/api/voyages/close", {
-        trigger: "geofence_enter",
-        regionIdentifier: region.identifier,
-      });
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Welcome home! 🏠",
-          body: "Your voyage has been saved. Want Marco to write it up?",
-        },
-        trigger: null,
-      });
+      await apiPost("/api/voyages/close", {});
+      await cancelEveningJournalPrompts();
+
+      // Retrieve the just-closed voyage to get its location for the welcome home prompt
+      const voyages = await apiGet<Voyage[]>("/api/voyages");
+      const last = voyages.find(v => v.status === "completed");
+      const location = last?.currentLocation ?? "your destination";
+      await scheduleWelcomeHomeJournalPrompt(location);
     } catch (err) {
       console.error("Failed to close voyage:", err);
     }
@@ -96,7 +106,10 @@ export async function startVoyageDetection(
 
 export async function stopVoyageDetection(): Promise<void> {
   const isRegistered = await TaskManager.isTaskRegisteredAsync(VOYAGE_TASK);
-  if (isRegistered) await Location.stopGeofencingAsync(VOYAGE_TASK);
+  if (isRegistered) {
+    await Location.stopGeofencingAsync(VOYAGE_TASK);
+    await cancelEveningJournalPrompts();
+  }
 }
 
 export async function isVoyageDetectionActive(): Promise<boolean> {

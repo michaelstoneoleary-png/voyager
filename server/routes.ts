@@ -1747,6 +1747,26 @@ Rules:
     }
   });
 
+  // POST /api/voyages/close — close the user's currently active voyage (used by mobile background task)
+  app.post("/api/voyages/close", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const active = await storage.getActiveVoyage(userId);
+      if (!active) return res.status(404).json({ message: "No active voyage" });
+      const { notes, distanceMiles } = req.body;
+      const updated = await storage.updateVoyage(active.id, userId, {
+        status: "completed",
+        endedAt: new Date(),
+        ...(notes !== undefined && { notes }),
+        ...(distanceMiles !== undefined && { distanceMiles }),
+      });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error closing active voyage:", err);
+      res.status(500).json({ message: "Failed to close voyage" });
+    }
+  });
+
   // POST /api/voyages/:id/close — mark a voyage as completed (geofence return)
   app.post("/api/voyages/:id/close", isAuthenticated, async (req, res) => {
     try {
@@ -1763,6 +1783,24 @@ Rules:
     } catch (err) {
       console.error("Error closing voyage:", err);
       res.status(500).json({ message: "Failed to close voyage" });
+    }
+  });
+
+  // ── Push Notifications ───────────────────────────────────────────────────
+
+  // POST /api/push/register — store Expo push token for the current user
+  app.post("/api/push/register", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { token } = req.body;
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "token is required" });
+      }
+      await storage.updateUser(userId, { expoPushToken: token });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Error registering push token:", err);
+      res.status(500).json({ message: "Failed to register push token" });
     }
   });
 
