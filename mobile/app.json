@@ -13,7 +13,7 @@
       "backgroundColor": "#F5F0E8"
     },
     "ios": {
-      "bundleIdentifier": "com.voyager.travel",
+      "bundleIdentifier": "com.moleary.voyagertravel",
       "appleTeamId": "TUHBB6AB6Z",
       "supportsTablet": false,
       "infoPlist": {
