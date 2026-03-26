@@ -323,7 +323,7 @@ export async function registerRoutes(
 
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 8000,
+        max_tokens: 32000,
         messages: [{
           role: "user",
           content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${restaurantNote}
@@ -384,6 +384,8 @@ For image_query, provide the exact Wikipedia article title for each specific pla
 HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.`
         }],
       });
+
+      console.log("[generate-itinerary] stop_reason:", response.stop_reason, "| output_tokens:", response.usage?.output_tokens);
 
       const textContent = response.content.find(c => c.type === "text");
       if (!textContent || textContent.type !== "text") {
@@ -1682,6 +1684,85 @@ Rules:
     } catch (err) {
       console.error("Error deleting photo:", err);
       res.status(500).json({ message: "Failed to delete photo" });
+    }
+  });
+
+  // ── Voyages ──────────────────────────────────────────────────────────────
+
+  // GET /api/voyages — list all voyages for current user
+  app.get("/api/voyages", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const list = await storage.getVoyages(userId);
+      res.json(list);
+    } catch (err) {
+      console.error("Error fetching voyages:", err);
+      res.status(500).json({ message: "Failed to fetch voyages" });
+    }
+  });
+
+  // POST /api/voyages — create / open a new voyage (called by mobile app when geofence exit detected)
+  app.post("/api/voyages", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      // Close any lingering active voyage first
+      const active = await storage.getActiveVoyage(userId);
+      if (active) {
+        await storage.updateVoyage(active.id, userId, {
+          status: "completed",
+          endedAt: new Date(),
+        });
+      }
+      const { startLocation, currentLocation, distanceMiles } = req.body;
+      const voyage = await storage.createVoyage({
+        userId,
+        status: "active",
+        startLocation: startLocation ?? null,
+        currentLocation: currentLocation ?? startLocation ?? null,
+        distanceMiles: distanceMiles ?? null,
+        startedAt: new Date(),
+      });
+      res.status(201).json(voyage);
+    } catch (err) {
+      console.error("Error creating voyage:", err);
+      res.status(500).json({ message: "Failed to create voyage" });
+    }
+  });
+
+  // PATCH /api/voyages/:id — update location / notes on an active voyage
+  app.patch("/api/voyages/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { currentLocation, distanceMiles, notes } = req.body;
+      const updated = await storage.updateVoyage(String(req.params.id), userId, {
+        ...(currentLocation !== undefined && { currentLocation }),
+        ...(distanceMiles !== undefined && { distanceMiles }),
+        ...(notes !== undefined && { notes }),
+      });
+      if (!updated) return res.status(404).json({ message: "Voyage not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating voyage:", err);
+      res.status(500).json({ message: "Failed to update voyage" });
+    }
+  });
+
+  // POST /api/voyages/:id/close — mark a voyage as completed (geofence return)
+  app.post("/api/voyages/:id/close", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { notes, distanceMiles } = req.body;
+      const updated = await storage.updateVoyage(String(req.params.id), userId, {
+        status: "completed",
+        endedAt: new Date(),
+        ...(notes !== undefined && { notes }),
+        ...(distanceMiles !== undefined && { distanceMiles }),
+      });
+      if (!updated) return res.status(404).json({ message: "Voyage not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error closing voyage:", err);
+      res.status(500).json({ message: "Failed to close voyage" });
     }
   });
 

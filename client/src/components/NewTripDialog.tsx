@@ -507,7 +507,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
                 />
               ))}
             </div>
-            <Button onClick={step === 3 ? handleFinish : handleNext} disabled={step === 3 && formData.destinations.length === 0}>
+            <Button onClick={step === 3 ? handleFinish : handleNext} disabled={step === 3 && !formData.finalDestination && formData.destinations.length === 0}>
               {step === 3 ? <><CheckCircle2 className="mr-2 h-4 w-4" /> Create Plan</> : <><ArrowRight className="ml-2 h-4 w-4" /> Next</>}
             </Button>
           </div>
