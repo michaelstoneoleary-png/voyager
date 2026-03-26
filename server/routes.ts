@@ -1089,7 +1089,12 @@ ${truncated}`,
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      const cacheKey = `inspire_${userId}`;
+      // Qualifier params from the frontend
+      const duration  = (req.query.duration  as string) || "week";
+      const transport = (req.query.transport as string) || "either";
+      const budget    = (req.query.budget    as string) || "midrange";
+
+      const cacheKey = `inspire_${userId}_${duration}_${transport}_${budget}`;
       const cached = inspireCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
         return res.json(cached.data);
@@ -1108,12 +1113,32 @@ ${truncated}`,
       ];
       const uniqueVisited = Array.from(new Set(visitedPlaces.filter((p): p is string => !!p)));
 
+      // Human-readable qualifier descriptions for the prompt
+      const durationDesc: Record<string, string> = {
+        weekend:  "a quick 2–3 day weekend getaway",
+        week:     "a 5–7 day trip",
+        twoweeks: "a 10–14 day trip",
+        month:    "an extended trip of 3 weeks or more",
+        unlimited:"an open-ended trip with no time constraint",
+      };
+      const transportDesc: Record<string, string> = {
+        flying:  "flying (international destinations are fine, any distance)",
+        driving: `driving only — destinations must be reachable by car from ${homeLocation || "their home"} within 6–8 hours`,
+        either:  "open to flying or driving",
+      };
+      const budgetDesc: Record<string, string> = {
+        budget:    "$50–100/day (backpacker / hostel / budget hotel style)",
+        midrange:  "$100–250/day (comfortable hotels, good restaurants)",
+        luxury:    "$300–600/day (high-end hotels, premium experiences)",
+        unlimited: "unlimited — money is no object, recommend only the finest",
+      };
+
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 4096,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions that could become the voyage of a lifetime for this traveler. Think beyond the obvious — surprise them with places that resonate with who they are.
+          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1121,30 +1146,35 @@ TRAVELER PROFILE:
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
 - Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}
 
+TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all three):
+- Duration: ${durationDesc[duration] || durationDesc.week}
+- Transport: ${transportDesc[transport] || transportDesc.either}
+- Budget: ${budgetDesc[budget] || budgetDesc.midrange}
+
 RULES:
 - Suggest destinations they have NOT already visited
-- Each suggestion should be a SPECIFIC destination (city, region, or unique place) — not a country
-- Match suggestions to their travel styles and preferences
-- Include a diverse global mix (don't cluster all in one region)
-- For each, provide a compelling reason WHY it suits this traveler
+- Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
+- Every suggestion must realistically fit the duration, transport, and budget constraints above
+- If transport is "driving", ALL suggestions must be within driving distance of their home
+- avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
+- Include a diverse mix; if transport is "flying" spread across different continents
 - All data must be REAL — real places, accurate coordinates, factual descriptions
-- Categories: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
-- If no travel styles are set, suggest a well-rounded global mix
+- Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
-Return a JSON array (no markdown, no code fences, just raw JSON):
+Return ONLY a JSON array (no markdown, no code fences):
 [
   {
-    "title": "Specific Place or City Name",
+    "title": "Destination Name",
     "country": "Country",
-    "category": "Adventure|Culture|Food & Drink|Nature|Urban|Beach|Wellness",
-    "description": "2-3 sentences about what makes this place special and why it suits this traveler. Be specific and evocative.",
-    "best_months": "Best months to visit (e.g. 'Mar-May, Sep-Nov')",
-    "avg_daily_budget": "$80-120",
+    "category": "One of the categories above",
+    "description": "2-3 sentence vivid description of what makes this place special",
+    "best_months": "e.g. April–October",
+    "avg_daily_budget": "e.g. $80-120",
     "tags": ["3-4 relevant tags"],
     "lat": 0.0000,
     "lng": 0.0000,
     "image_query": "Wikipedia article title for this specific place (e.g. 'Hallstatt', 'Chefchaouen', 'Luang_Prabang')",
-    "why_for_you": "One sentence explaining why Marco picked this for this specific traveler"
+    "why_for_you": "One sentence explaining why Marco picked this given their duration, transport, budget, and travel style"
   }
 ]`
         }],
@@ -1190,8 +1220,10 @@ Return a JSON array (no markdown, no code fences, just raw JSON):
   app.post("/api/inspire/refresh", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
-      const cacheKey = `inspire_${userId}`;
-      inspireCache.delete(cacheKey);
+      // Clear all qualifier variants for this user
+      for (const key of inspireCache.keys()) {
+        if (key.startsWith(`inspire_${userId}`)) inspireCache.delete(key);
+      }
       res.json({ cleared: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to refresh" });
