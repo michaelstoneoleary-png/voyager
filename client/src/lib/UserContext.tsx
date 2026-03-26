@@ -15,6 +15,9 @@ export interface UserSettings {
   distanceUnit: string;
   dateFormat: string;
   travelStyles: string[];
+  cuisinePreferences: string[];
+  dietaryRestrictions: string[];
+  diningPriceRange: string;
   onboardingCompleted: boolean;
   socialInstagram: string;
   socialBlogUrl: string;
@@ -48,6 +51,9 @@ const defaultSettings: UserSettings = {
   distanceUnit: "mi",
   dateFormat: "MM/DD/YYYY",
   travelStyles: [],
+  cuisinePreferences: [],
+  dietaryRestrictions: [],
+  diningPriceRange: "",
   onboardingCompleted: false,
   socialInstagram: "",
   socialBlogUrl: "",
