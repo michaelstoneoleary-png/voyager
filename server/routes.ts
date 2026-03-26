@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, buildYelpCategories, formatYelpRestaurantsForPrompt } from "./services/yelp";
+import { searchRestaurants, buildYelpCategories, formatYelpRestaurantsForPrompt, matchActivityToYelp, type YelpBusiness } from "./services/yelp";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -303,6 +303,7 @@ export async function registerRoutes(
       const yelpPrice = (user as any)?.diningPriceRange || undefined;
 
       const yelpByStop: Record<string, string> = {};
+      const yelpBusinessesByStop: Record<string, YelpBusiness[]> = {};
       await Promise.all(
         uniqueStops.map(async (stop) => {
           const businesses = await searchRestaurants({
@@ -314,6 +315,7 @@ export async function registerRoutes(
           });
           if (businesses.length) {
             yelpByStop[stop] = formatYelpRestaurantsForPrompt(businesses);
+            yelpBusinessesByStop[stop] = businesses;
           }
         })
       );
@@ -425,6 +427,21 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
           if (typeof hotel.rating === "string") hotel.rating = parseFloat(hotel.rating) || 0;
         }
         day.hotels.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
+
+        // Attach Yelp data to food activities where we can match by name
+        const stopBusinesses = yelpBusinessesByStop[day.location] ||
+          Object.values(yelpBusinessesByStop).flat();
+        for (const activity of day.activities) {
+          if (activity.type === "food" && stopBusinesses.length) {
+            const match = matchActivityToYelp(activity.title, stopBusinesses);
+            if (match) {
+              activity.yelp_url = match.url;
+              activity.yelp_rating = match.rating;
+              activity.yelp_review_count = match.review_count;
+              activity.yelp_price = match.price || undefined;
+            }
+          }
+        }
       }
 
       const allItems: { item: any; searchTerm: string }[] = [];

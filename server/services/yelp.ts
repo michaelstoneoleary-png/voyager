@@ -110,3 +110,24 @@ export function formatYelpRestaurantsForPrompt(businesses: YelpBusiness[]): stri
     })
     .join("\n");
 }
+
+/**
+ * Try to match an activity title to a Yelp business by name overlap.
+ * Returns the matched business or undefined.
+ */
+export function matchActivityToYelp(
+  activityTitle: string,
+  businesses: YelpBusiness[]
+): YelpBusiness | undefined {
+  const title = activityTitle.toLowerCase().trim();
+  return businesses.find((b) => {
+    const name = b.name.toLowerCase().trim();
+    // Direct inclusion check
+    if (title.includes(name) || name.includes(title)) return true;
+    // Word-overlap check: at least 2 words in common (filters out single common words)
+    const titleWords = title.split(/\s+/).filter((w) => w.length > 3);
+    const nameWords = name.split(/\s+/).filter((w) => w.length > 3);
+    const overlap = titleWords.filter((w) => nameWords.includes(w));
+    return overlap.length >= 2;
+  });
+}
