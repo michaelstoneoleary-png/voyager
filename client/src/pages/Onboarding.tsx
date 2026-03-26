@@ -29,6 +29,9 @@ export default function Onboarding() {
     distanceUnit: "mi",
     dateFormat: "MM/DD/YYYY",
     travelStyles: [],
+    cuisinePreferences: [],
+    dietaryRestrictions: [],
+    diningPriceRange: "",
   });
 
   const handleFinish = async () => {

@@ -81,6 +81,10 @@ interface Activity {
   image_url?: string;
   image_query?: string;
   travel_to_next?: TravelToNext;
+  place_url?: string;
+  place_rating?: number;
+  place_review_count?: number;
+  place_price?: string;
 }
 
 interface Hotel {
@@ -656,6 +660,7 @@ export default function TripPlanner() {
                             <p className="text-xs text-muted-foreground line-clamp-1">
                               {activity.duration && `${activity.duration}`}
                               {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
+                              {activity.place_rating && ` • ⭐ ${activity.place_rating} on Google`}
                             </p>
                           </CardContent>
                         </div>
@@ -995,6 +1000,26 @@ export default function TripPlanner() {
                                 </div>
                               )}
                            </div>
+                           {selectedActivity.place_url && (
+                             <div className="mt-4 pt-3 border-t flex items-center justify-between">
+                               <div className="flex items-center gap-2 text-sm">
+                                 <span className="font-semibold text-[#4285F4]">Google</span>
+                                 <span className="text-muted-foreground">
+                                   ⭐ {selectedActivity.place_rating}
+                                   {selectedActivity.place_review_count && ` (${selectedActivity.place_review_count.toLocaleString()} reviews)`}
+                                   {selectedActivity.place_price && ` · ${selectedActivity.place_price}`}
+                                 </span>
+                               </div>
+                               <a
+                                 href={selectedActivity.place_url}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-xs text-[#4285F4] hover:underline font-medium"
+                               >
+                                 View on Google Maps →
+                               </a>
+                             </div>
+                           )}
                          </CardContent>
                        </div>
                      </div>

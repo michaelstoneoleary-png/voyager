@@ -42,6 +42,9 @@ export const users = pgTable("users", {
   gender: varchar("gender"),
   phoneNumber: varchar("phone_number"),
   publishBlog: boolean("publish_blog").default(false),
+  cuisinePreferences: text("cuisine_preferences").array(),
+  dietaryRestrictions: text("dietary_restrictions").array(),
+  diningPriceRange: varchar("dining_price_range"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

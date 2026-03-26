@@ -5,6 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -166,6 +167,21 @@ export async function registerRoutes(
     }
   });
 
+  // Restaurant search via Yelp
+  app.get("/api/restaurants/search", isAuthenticated, async (req: any, res) => {
+    try {
+      const { location, cuisines, dietary, price } = req.query as Record<string, string>;
+      if (!location) return res.status(400).json({ message: "location is required" });
+      const cuisineList = cuisines ? cuisines.split(",") : [];
+      const dietaryList = dietary ? dietary.split(",") : [];
+      const businesses = await searchRestaurants({ location, cuisinePreferences: cuisineList, dietaryRestrictions: dietaryList, priceRange: price, limit: 20 });
+      res.json(businesses);
+    } catch (error) {
+      console.error("Error searching restaurants:", error);
+      res.status(500).json({ message: "Failed to search restaurants" });
+    }
+  });
+
   // Journeys CRUD
   app.get("/api/journeys", isAuthenticated, async (req: any, res) => {
     try {
@@ -272,12 +288,45 @@ export async function registerRoutes(
       };
       const travelModeNote = travelModeLabels[travelMode] || travelModeLabels.mixed;
 
+      // Fetch Yelp restaurants for each unique destination stop
+      const uniqueStops = [...new Set([
+        journey.origin,
+        ...(journey.destinations || []),
+        journey.finalDestination,
+      ].filter(Boolean))] as string[];
+
+      const restaurantsByStop: Record<string, string> = {};
+      const placesByStop: Record<string, PlaceResult[]> = {};
+      await Promise.all(
+        uniqueStops.map(async (stop) => {
+          const businesses = await searchRestaurants({
+            location: stop,
+            cuisinePreferences: (user as any)?.cuisinePreferences || [],
+            dietaryRestrictions: (user as any)?.dietaryRestrictions || [],
+            priceRange: (user as any)?.diningPriceRange || undefined,
+            limit: 8,
+          });
+          if (businesses.length) {
+            restaurantsByStop[stop] = formatRestaurantsForPrompt(businesses);
+            placesByStop[stop] = businesses;
+          }
+        })
+      );
+
+      const restaurantNote = Object.entries(restaurantsByStop).length
+        ? `\n\nVERIFIED GOOGLE RESTAURANTS — use these real, highly-rated restaurants when scheduling food/dining activities. Prioritise these over invented names:\n${
+            Object.entries(restaurantsByStop)
+              .map(([stop, list]) => `\n${stop}:\n${list}`)
+              .join("\n")
+          }\n`
+        : "";
+
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 8000,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${restaurantNote}
 
 TRAVEL MODE: ${travelModeNote}
 
@@ -371,6 +420,21 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
           if (typeof hotel.rating === "string") hotel.rating = parseFloat(hotel.rating) || 0;
         }
         day.hotels.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
+
+        // Attach Yelp data to food activities where we can match by name
+        const stopBusinesses = placesByStop[day.location] ||
+          Object.values(placesByStop).flat();
+        for (const activity of day.activities) {
+          if (activity.type === "food" && stopBusinesses.length) {
+            const match = matchActivityToPlace(activity.title, stopBusinesses);
+            if (match) {
+              activity.place_url = match.url;
+              activity.place_rating = match.rating;
+              activity.place_review_count = match.review_count;
+              activity.place_price = match.price || undefined;
+            }
+          }
+        }
       }
 
       const allItems: { item: any; searchTerm: string }[] = [];

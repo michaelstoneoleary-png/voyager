@@ -50,6 +50,9 @@ export default function Settings() {
     distanceUnit: "mi",
     dateFormat: "MM/DD/YYYY",
     travelStyles: [],
+    cuisinePreferences: [],
+    dietaryRestrictions: [],
+    diningPriceRange: "",
   });
 
   const [socialData, setSocialData] = useState({
@@ -75,6 +78,9 @@ export default function Settings() {
         distanceUnit: settings.distanceUnit || "mi",
         dateFormat: settings.dateFormat || "MM/DD/YYYY",
         travelStyles: settings.travelStyles || [],
+        cuisinePreferences: settings.cuisinePreferences || [],
+        dietaryRestrictions: settings.dietaryRestrictions || [],
+        diningPriceRange: settings.diningPriceRange || "",
       });
       setSocialData({
         socialInstagram: settings.socialInstagram || "",

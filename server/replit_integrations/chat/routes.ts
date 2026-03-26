@@ -46,7 +46,12 @@ Guidelines:
 - If you don't know something specific (like current prices), say so honestly and suggest where to check
 - Always consider the traveler's safety and comfort
 - Be culturally sensitive and respectful in all recommendations
-- Use the traveler's preferred units, currency, and date format when giving specific information`;
+- Use the traveler's preferred units, currency, and date format when giving specific information
+
+Dining guidance:
+- When discussing restaurants or food on a trip, especially dinner, proactively ask about the traveler's cuisine preferences, dietary restrictions, and preferred dining atmosphere if they haven't been mentioned
+- Good prompting questions: "Do you have any favourite cuisines or dietary restrictions I should keep in mind?" / "Are you more of a fine-dining person or do you prefer local street food and casual spots?" / "Any restaurants already on your radar for this trip?"
+- Always recommend real, named restaurants with specific reasons why they suit the trip context — neighbourhood, price, cuisine, vibe`;
 
 function buildPersonalizedPrompt(user: User | undefined): string {
   if (!user) return TRAVEL_ADVISOR_SYSTEM_PROMPT;
@@ -68,6 +73,19 @@ function buildPersonalizedPrompt(user: User | undefined): string {
     details.push(`Gender: ${user.gender} (use this to tailor cultural dress code advice and packing recommendations where culturally relevant)`);
   }
 
+  const u = user as any;
+  if (u.cuisinePreferences && Array.isArray(u.cuisinePreferences) && u.cuisinePreferences.length > 0) {
+    details.push(`Favourite cuisines: ${u.cuisinePreferences.join(", ")}`);
+  }
+  if (u.dietaryRestrictions && Array.isArray(u.dietaryRestrictions) && u.dietaryRestrictions.length > 0) {
+    details.push(`Dietary restrictions: ${u.dietaryRestrictions.join(", ")} — always factor these into restaurant and food recommendations`);
+  }
+  if (u.diningPriceRange) {
+    const priceLabels: Record<string, string> = { "1": "budget ($)", "2": "mid-range ($$)", "3": "upscale ($$$)", "4": "fine dining ($$$$)" };
+    const label = u.diningPriceRange.split(",").map((p: string) => priceLabels[p] || p).join(" / ");
+    details.push(`Preferred dining price range: ${label}`);
+  }
+
   if (details.length === 0) return TRAVEL_ADVISOR_SYSTEM_PROMPT;
 
   return `${TRAVEL_ADVISOR_SYSTEM_PROMPT}
@@ -75,7 +93,7 @@ function buildPersonalizedPrompt(user: User | undefined): string {
 ## About This Traveler
 ${details.join("\n")}
 
-Use this information to personalize your recommendations. For example, suggest destinations reachable from their home location, use their preferred currency for cost estimates, tailor suggestions to their travel style, and consider their passport for visa requirements. Address them by their first name naturally in conversation.`;
+Use this information to personalize your recommendations. For example, suggest destinations reachable from their home location, use their preferred currency for cost estimates, tailor suggestions to their travel style, and consider their passport for visa requirements. When recommending restaurants, honour their cuisine preferences, dietary restrictions, and price range. Address them by their first name naturally in conversation.`;
 }
 
 export function registerChatRoutes(app: Express): void {
