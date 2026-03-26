@@ -45,7 +45,7 @@ export default function PackingScreen() {
     if (!journeyId) return;
     setGenerating(true);
     try {
-      await apiPost(`/api/packing-lists/generate`, { journeyId });
+      await apiPost(`/api/packing-list/generate`, { journeyId });
       await refetch();
     } catch (err) {
       // ignore — user can retry
