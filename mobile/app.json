@@ -14,6 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.voyager.travel",
+      "appleTeamId": "TUHBB6AB6Z",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Voyager uses your location in the background to automatically detect when you leave home and begin a Voyage, log your current city, and close your Voyage when you return.",
