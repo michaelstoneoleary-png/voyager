@@ -26,9 +26,7 @@
   "submit": {
     "production": {
       "ios": {
-        "appleTeamId": "TUHBB6AB6Z",
-        "language": "en-US",
-        "copyright": "2025 Voyager Travel Inc."
+        "appleTeamId": "TUHBB6AB6Z"
       }
     }
   }
