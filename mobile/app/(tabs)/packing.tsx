@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { apiGet, apiPut } from "@/lib/api";
+import { apiGet, apiPost, apiPut } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/constants/theme";
 
 interface PackingItem {
@@ -28,12 +29,30 @@ interface PackingList {
 
 export default function PackingScreen() {
   const queryClient = useQueryClient();
+  const { journeyId, journeyTitle } = useLocalSearchParams<{ journeyId?: string; journeyTitle?: string }>();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [generating, setGenerating] = useState(false);
+
+  // If a journeyId is passed (from Quick Trip creation), fetch that journey's packing list
+  const endpoint = journeyId ? `/api/packing-lists?journeyId=${journeyId}` : "/api/packing-lists/latest";
 
   const { data: list, isLoading, refetch, isRefetching } = useQuery<PackingList>({
-    queryKey: ["packing-latest"],
-    queryFn: () => apiGet("/api/packing-lists/latest"),
+    queryKey: ["packing", journeyId ?? "latest"],
+    queryFn: () => apiGet(endpoint),
   });
+
+  const generateList = async () => {
+    if (!journeyId) return;
+    setGenerating(true);
+    try {
+      await apiPost(`/api/packing-lists/generate`, { journeyId });
+      await refetch();
+    } catch (err) {
+      // ignore — user can retry
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: (categories: PackingCategory[]) =>
@@ -72,7 +91,25 @@ export default function PackingScreen() {
       <View style={styles.center}>
         <Ionicons name="briefcase-outline" size={48} color={colors.textMuted} />
         <Text style={styles.emptyText}>No packing list yet</Text>
-        <Text style={styles.emptySubtext}>Generate one from the Smart Pack page on web</Text>
+        {journeyId ? (
+          <>
+            <Text style={styles.emptySubtext}>
+              {journeyTitle ? `Ready to pack for ${journeyTitle}?` : "Let Marco build your packing list."}
+            </Text>
+            <TouchableOpacity
+              style={styles.generateBtn}
+              onPress={generateList}
+              disabled={generating}
+            >
+              {generating
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.generateBtnText}>Generate Packing List</Text>
+              }
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={styles.emptySubtext}>Generate one from the Smart Pack page on web</Text>
+        )}
       </View>
     );
   }
@@ -164,4 +201,6 @@ const styles = StyleSheet.create({
   itemReason: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   emptyText: { fontSize: 16, fontWeight: "600", color: colors.textSecondary },
   emptySubtext: { fontSize: 13, color: colors.textMuted, textAlign: "center", paddingHorizontal: spacing.xl },
+  generateBtn: { marginTop: spacing.md, backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
+  generateBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });
