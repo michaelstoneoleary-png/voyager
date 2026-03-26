@@ -24,7 +24,7 @@ services:
         sync: false
       - key: TWILIO_PHONE_NUMBER
         sync: false
-      - key: YELP_API_KEY
+      - key: GOOGLE_PLACES_API_KEY
         sync: false
 
 databases:

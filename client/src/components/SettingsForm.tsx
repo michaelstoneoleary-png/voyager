@@ -410,7 +410,7 @@ export function SettingsForm({ data, onChange, step }: SettingsFormProps) {
             <Label className="flex items-center gap-2 text-sm font-medium">
               <UtensilsCrossed className="h-4 w-4 text-primary" /> Favourite Cuisines
             </Label>
-            <p className="text-xs text-muted-foreground">Marco and Yelp will use these to suggest restaurants you'll love</p>
+            <p className="text-xs text-muted-foreground">Marco and Google will use these to suggest restaurants you'll love</p>
             <div className="flex flex-wrap gap-2">
               {CUISINE_OPTIONS.map((cuisine) => {
                 const selected = (data.cuisinePreferences || []).includes(cuisine);

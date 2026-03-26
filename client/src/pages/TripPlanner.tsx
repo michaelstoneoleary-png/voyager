@@ -81,10 +81,10 @@ interface Activity {
   image_url?: string;
   image_query?: string;
   travel_to_next?: TravelToNext;
-  yelp_url?: string;
-  yelp_rating?: number;
-  yelp_review_count?: number;
-  yelp_price?: string;
+  place_url?: string;
+  place_rating?: number;
+  place_review_count?: number;
+  place_price?: string;
 }
 
 interface Hotel {
@@ -660,7 +660,7 @@ export default function TripPlanner() {
                             <p className="text-xs text-muted-foreground line-clamp-1">
                               {activity.duration && `${activity.duration}`}
                               {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
-                              {activity.yelp_rating && ` • ⭐ ${activity.yelp_rating} on Yelp`}
+                              {activity.place_rating && ` • ⭐ ${activity.place_rating} on Google`}
                             </p>
                           </CardContent>
                         </div>
@@ -1000,23 +1000,23 @@ export default function TripPlanner() {
                                 </div>
                               )}
                            </div>
-                           {selectedActivity.yelp_url && (
+                           {selectedActivity.place_url && (
                              <div className="mt-4 pt-3 border-t flex items-center justify-between">
                                <div className="flex items-center gap-2 text-sm">
-                                 <span className="font-bold text-[#FF1A1A]">yelp</span>
+                                 <span className="font-semibold text-[#4285F4]">Google</span>
                                  <span className="text-muted-foreground">
-                                   ⭐ {selectedActivity.yelp_rating}
-                                   {selectedActivity.yelp_review_count && ` (${selectedActivity.yelp_review_count.toLocaleString()} reviews)`}
-                                   {selectedActivity.yelp_price && ` · ${selectedActivity.yelp_price}`}
+                                   ⭐ {selectedActivity.place_rating}
+                                   {selectedActivity.place_review_count && ` (${selectedActivity.place_review_count.toLocaleString()} reviews)`}
+                                   {selectedActivity.place_price && ` · ${selectedActivity.place_price}`}
                                  </span>
                                </div>
                                <a
-                                 href={selectedActivity.yelp_url}
+                                 href={selectedActivity.place_url}
                                  target="_blank"
                                  rel="noopener noreferrer"
-                                 className="text-xs text-[#FF1A1A] hover:underline font-medium"
+                                 className="text-xs text-[#4285F4] hover:underline font-medium"
                                >
-                                 View on Yelp →
+                                 View on Google Maps →
                                </a>
                              </div>
                            )}

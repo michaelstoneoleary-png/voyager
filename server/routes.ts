@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, buildYelpCategories, formatYelpRestaurantsForPrompt, matchActivityToYelp, type YelpBusiness } from "./services/yelp";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -174,8 +174,7 @@ export async function registerRoutes(
       if (!location) return res.status(400).json({ message: "location is required" });
       const cuisineList = cuisines ? cuisines.split(",") : [];
       const dietaryList = dietary ? dietary.split(",") : [];
-      const categories = buildYelpCategories(cuisineList, dietaryList);
-      const businesses = await searchRestaurants({ location, categories, price, limit: 20, sort_by: "rating" });
+      const businesses = await searchRestaurants({ location, cuisinePreferences: cuisineList, dietaryRestrictions: dietaryList, priceRange: price, limit: 20 });
       res.json(businesses);
     } catch (error) {
       console.error("Error searching restaurants:", error);
@@ -296,33 +295,27 @@ export async function registerRoutes(
         journey.finalDestination,
       ].filter(Boolean))] as string[];
 
-      const yelpCategories = buildYelpCategories(
-        (user as any)?.cuisinePreferences || [],
-        (user as any)?.dietaryRestrictions || []
-      );
-      const yelpPrice = (user as any)?.diningPriceRange || undefined;
-
-      const yelpByStop: Record<string, string> = {};
-      const yelpBusinessesByStop: Record<string, YelpBusiness[]> = {};
+      const restaurantsByStop: Record<string, string> = {};
+      const placesByStop: Record<string, PlaceResult[]> = {};
       await Promise.all(
         uniqueStops.map(async (stop) => {
           const businesses = await searchRestaurants({
             location: stop,
-            categories: yelpCategories,
-            price: yelpPrice,
+            cuisinePreferences: (user as any)?.cuisinePreferences || [],
+            dietaryRestrictions: (user as any)?.dietaryRestrictions || [],
+            priceRange: (user as any)?.diningPriceRange || undefined,
             limit: 8,
-            sort_by: "rating",
           });
           if (businesses.length) {
-            yelpByStop[stop] = formatYelpRestaurantsForPrompt(businesses);
-            yelpBusinessesByStop[stop] = businesses;
+            restaurantsByStop[stop] = formatRestaurantsForPrompt(businesses);
+            placesByStop[stop] = businesses;
           }
         })
       );
 
-      const yelpNote = Object.entries(yelpByStop).length
-        ? `\n\nVERIFIED YELP RESTAURANTS — use these real, highly-rated restaurants when scheduling food/dining activities. Prioritise these over invented names:\n${
-            Object.entries(yelpByStop)
+      const restaurantNote = Object.entries(restaurantsByStop).length
+        ? `\n\nVERIFIED GOOGLE RESTAURANTS — use these real, highly-rated restaurants when scheduling food/dining activities. Prioritise these over invented names:\n${
+            Object.entries(restaurantsByStop)
               .map(([stop, list]) => `\n${stop}:\n${list}`)
               .join("\n")
           }\n`
@@ -333,7 +326,7 @@ export async function registerRoutes(
         max_tokens: 8000,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${yelpNote}
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${restaurantNote}
 
 TRAVEL MODE: ${travelModeNote}
 
@@ -429,16 +422,16 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
         day.hotels.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
 
         // Attach Yelp data to food activities where we can match by name
-        const stopBusinesses = yelpBusinessesByStop[day.location] ||
-          Object.values(yelpBusinessesByStop).flat();
+        const stopBusinesses = placesByStop[day.location] ||
+          Object.values(placesByStop).flat();
         for (const activity of day.activities) {
           if (activity.type === "food" && stopBusinesses.length) {
-            const match = matchActivityToYelp(activity.title, stopBusinesses);
+            const match = matchActivityToPlace(activity.title, stopBusinesses);
             if (match) {
-              activity.yelp_url = match.url;
-              activity.yelp_rating = match.rating;
-              activity.yelp_review_count = match.review_count;
-              activity.yelp_price = match.price || undefined;
+              activity.place_url = match.url;
+              activity.place_rating = match.rating;
+              activity.place_review_count = match.review_count;
+              activity.place_price = match.price || undefined;
             }
           }
         }
