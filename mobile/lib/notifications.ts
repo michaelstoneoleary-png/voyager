@@ -93,6 +93,7 @@ export async function cancelEveningJournalPrompts(): Promise<void> {
 
 export async function scheduleWelcomeHomeJournalPrompt(location: string): Promise<void> {
   await Notifications.scheduleNotificationAsync({
+    identifier: "welcome-home-journal",
     content: {
       title: "Welcome home! 🏠",
       body: `Your voyage is saved. Want Marco to help you write up your trip to ${location}?`,
