@@ -1258,16 +1258,36 @@ Return ONLY a JSON array (no markdown, no code fences):
         return res.json(cached.data);
       }
 
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+      if (!apiKey) {
+        console.error("[day-trips] GOOGLE_PLACES_API_KEY is not set");
+        return res.status(503).json({ message: "Day trips are not configured on this server (missing API key)." });
+      }
+
+      // Test geocoding first so we can give a specific error if it fails
+      const resolvedCoords = (lat && lng) ? { lat, lng } : await (async () => {
+        const { geocodeLocation } = await import("./services/places");
+        const coords = await geocodeLocation(locationLabel);
+        if (!coords) console.error("[day-trips] Geocoding failed for:", locationLabel);
+        return coords;
+      })();
+
+      if (!resolvedCoords) {
+        return res.status(400).json({
+          message: `Marco couldn't find "${locationLabel}" on the map. Check that your home location in Settings is a real city or address.`,
+        });
+      }
+
       const travelStyles = (user.travelStyles as string[]) || [];
       const results = await searchDayTrips({
         homeLocation: locationLabel,
-        homeCoords: lat && lng ? { lat, lng } : undefined,
+        homeCoords: resolvedCoords,
         travelStyles,
       });
 
       if (!results.length) {
         return res.status(404).json({
-          message: "No day trips found near your home location. Make sure GOOGLE_PLACES_API_KEY is set.",
+          message: "No highly-rated attractions found within 2.5 hours of your home. Try updating your home location in Settings.",
         });
       }
 
