@@ -328,15 +328,22 @@ export async function searchDayTrips(params: {
       }
     }
 
+    const all = Array.from(seen.values());
+    console.log(`[day-trips] raw results: ${all.length} (A:${resultsA.length} B:${resultsB.length})`);
+    if (all.length > 0) {
+      console.log(`[day-trips] sample ratings:`, all.slice(0, 5).map(p => `${p.name} r=${p.rating} n=${p.review_count}`));
+    }
+
     // Sort by a simple quality score: rating × log(review_count + 1)
-    const ranked = Array.from(seen.values())
-      .filter(p => p.rating >= 3.5 && p.review_count >= 20)
+    const ranked = all
+      .filter(p => p.rating >= 3.0 && p.review_count >= 5)
       .sort((a, b) => {
         const scoreA = a.rating * Math.log(a.review_count + 1);
         const scoreB = b.rating * Math.log(b.review_count + 1);
         return scoreB - scoreA;
       });
 
+    console.log(`[day-trips] after quality filter: ${ranked.length}`);
     return ranked.slice(0, 15);
   } catch (err) {
     console.error("Day trips search failed:", err);
