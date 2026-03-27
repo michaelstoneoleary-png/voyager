@@ -623,7 +623,7 @@ export default function Inspire() {
     return (
       <Layout>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
               <h1 className="font-serif text-4xl font-bold mb-2">Day Trips Near You</h1>
               <p className="text-muted-foreground">
@@ -631,12 +631,11 @@ export default function Inspire() {
               </p>
               <div className="flex items-center gap-2 mt-2">
                 <span className="text-xs font-semibold" style={{ color: "#4285F4" }}>Powered by Google</span>
-                <span className="text-muted-foreground text-xs">·</span>
-                <button onClick={handleChangeSearch} className="text-xs text-primary underline underline-offset-2 hover:text-primary/70">
-                  Change trip type
-                </button>
               </div>
             </div>
+            <Button variant="outline" size="sm" onClick={handleChangeSearch} className="flex-shrink-0">
+              ← Change Trip Type
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -696,7 +695,7 @@ export default function Inspire() {
                 <Link href="/settings" className="underline underline-offset-2 hover:text-primary/80">Tell Marco about your travel style</Link> for deeply personal inspiration.
               </p>
             )}
-            {/* Qualifier summary + change link */}
+            {/* Qualifier summary + change button */}
             <div className="flex flex-wrap items-center gap-2 mt-3">
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <Calendar className="h-3 w-3" /> {durationLabel}
@@ -707,13 +706,15 @@ export default function Inspire() {
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <DollarSign className="h-3 w-3" /> {budgetLabel}
               </span>
-              <button
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={handleChangeSearch}
-                className="text-xs text-primary underline underline-offset-2 hover:text-primary/70"
+                className="h-7 rounded-full text-xs px-3"
                 data-testid="button-change-qualifier"
               >
-                Change
-              </button>
+                ← Change
+              </Button>
             </div>
           </div>
 
