@@ -1249,7 +1249,11 @@ Return ONLY a JSON array (no markdown, no code fences):
       // Mobile can pass current GPS coords; falls back to home location geocoding
       const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
       const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
-      const locationLabel = (req.query.locationLabel as string) || user.homeLocation;
+      const rawLocation = (req.query.locationLabel as string) || user.homeLocation;
+      // Append country for unambiguous geocoding (e.g. "Jacksonville" → "Jacksonville, United States")
+      const locationLabel = (user.passportCountry && !rawLocation.includes(","))
+        ? `${rawLocation}, ${user.passportCountry}`
+        : rawLocation;
       // Round coords to 2 decimal places (~1km) for cache key
       const coordKey = lat && lng ? `_${lat.toFixed(2)}_${lng.toFixed(2)}` : "";
       const cacheKey = `daytrips_${userId}${coordKey}`;
