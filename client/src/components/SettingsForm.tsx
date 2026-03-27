@@ -136,16 +136,16 @@ export function SettingsForm({ data, onChange, step }: SettingsFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="homeLocation" className="flex items-center gap-2 text-sm font-medium">
-              <MapPin className="h-4 w-4 text-primary" /> Home City
+              <MapPin className="h-4 w-4 text-primary" /> Home Location
             </Label>
             <Input
               id="homeLocation"
               value={data.homeLocation}
               onChange={(e) => update({ homeLocation: e.target.value })}
-              placeholder="e.g., San Francisco, CA"
+              placeholder="e.g., Jacksonville, FL, USA"
               data-testid="input-home-location"
             />
-            <p className="text-xs text-muted-foreground">Used for travel logistics like timezone differences and flight hubs</p>
+            <p className="text-xs text-muted-foreground">Include city, state/region, and country for best results (e.g. Jacksonville, FL, USA)</p>
           </div>
 
           <div className="space-y-2">
