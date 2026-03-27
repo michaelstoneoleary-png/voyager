@@ -176,12 +176,16 @@ export async function geocodeLocation(
   try {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) return null;
     const data = await res.json();
+    if (!res.ok || data.status !== "OK") {
+      console.error("[geocode] API error for", address, "— status:", data.status, "error_message:", data.error_message ?? "(none)");
+      return null;
+    }
     const loc = data.results?.[0]?.geometry?.location;
     if (!loc) return null;
     return { lat: loc.lat, lng: loc.lng };
-  } catch {
+  } catch (err) {
+    console.error("[geocode] fetch threw for", address, err);
     return null;
   }
 }
