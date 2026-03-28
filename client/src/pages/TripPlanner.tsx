@@ -257,6 +257,8 @@ export default function TripPlanner() {
   const [showHighlights, setShowHighlights] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
+  const [marcoThoughts, setMarcoThoughts] = useState("");
+  const marcoThoughtsRef = useRef<HTMLDivElement>(null);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -277,6 +279,33 @@ export default function TripPlanner() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
+      setMarcoThoughts("");
+
+      // Stream Marco's planning thoughts concurrently
+      const thinkingFetch = fetch(`/api/journeys/${journeyId}/marco-thinking`, { credentials: "include" });
+      thinkingFetch.then(async (thinkRes) => {
+        if (!thinkRes.body) return;
+        const reader = thinkRes.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+              try {
+                const { text } = JSON.parse(line.slice(6));
+                setMarcoThoughts(prev => prev + text);
+                if (marcoThoughtsRef.current) {
+                  marcoThoughtsRef.current.scrollTop = marcoThoughtsRef.current.scrollHeight;
+                }
+              } catch {}
+            }
+          }
+        }
+      }).catch(() => {});
+
       const wishlistText = wishlistItems.length > 0 ? wishlistItems.join("\n- ") : "";
       const res = await apiRequest("POST", `/api/journeys/${journeyId}/generate-itinerary`, {
         wishlist: wishlistText ? `- ${wishlistText}` : "",
@@ -286,9 +315,11 @@ export default function TripPlanner() {
     onSuccess: (data) => {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
+      setMarcoThoughts("");
       toast({ title: "Itinerary generated", description: "Your personalized itinerary from Marco is ready." });
     },
     onError: (err: any) => {
+      setMarcoThoughts("");
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
@@ -472,26 +503,55 @@ export default function TripPlanner() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-col items-center gap-3 w-full">
-            <Button 
-              size="lg" 
-              className="w-full max-w-sm"
-              onClick={() => generateMutation.mutate()} 
-              disabled={generateMutation.isPending}
-              data-testid="button-generate-itinerary"
-            >
-              {generateMutation.isPending ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating your itinerary...</>
-              ) : (
-                <><Sparkles className="mr-2 h-5 w-5" /> Let Marco Plan It{wishlistItems.length > 0 ? ` with ${wishlistItems.length} request${wishlistItems.length > 1 ? "s" : ""}` : ""}</>
-              )}
-            </Button>
-            <p className="text-xs text-muted-foreground text-center max-w-sm">
-              {wishlistItems.length > 0 
-                ? "Marco will prioritize your requests alongside curated local recommendations."
-                : "Marco will create a complete day-by-day itinerary with real places, local gems, and insider tips."}
-            </p>
-          </div>
+          {generateMutation.isPending && marcoThoughts ? (
+            <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center">
+                      <span className="text-primary font-bold text-sm font-serif">M</span>
+                    </div>
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-background animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-foreground">Marco is planning your trip</p>
+                    <p className="text-xs text-muted-foreground">Thinking through every detail...</p>
+                  </div>
+                  <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
+                </div>
+                <div
+                  ref={marcoThoughtsRef}
+                  className="px-5 py-4 max-h-56 overflow-y-auto scroll-smooth"
+                >
+                  <p className="text-sm leading-relaxed text-foreground/85 font-serif italic whitespace-pre-wrap">
+                    {marcoThoughts}
+                    <span className="inline-block w-0.5 h-4 bg-primary/60 ml-0.5 animate-pulse align-text-bottom" />
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 w-full">
+              <Button
+                size="lg"
+                className="w-full max-w-sm"
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
+                data-testid="button-generate-itinerary"
+              >
+                {generateMutation.isPending ? (
+                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Marco is thinking...</>
+                ) : (
+                  <><Sparkles className="mr-2 h-5 w-5" /> Let Marco Plan It{wishlistItems.length > 0 ? ` with ${wishlistItems.length} request${wishlistItems.length > 1 ? "s" : ""}` : ""}</>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center max-w-sm">
+                {wishlistItems.length > 0
+                  ? "Marco will prioritize your requests alongside curated local recommendations."
+                  : "Marco will create a complete day-by-day itinerary with real places, local gems, and insider tips."}
+              </p>
+            </div>
+          )}
 
           <Link href="/journeys">
             <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>

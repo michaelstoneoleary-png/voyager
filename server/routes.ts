@@ -281,6 +281,60 @@ export async function registerRoutes(
     }
   });
 
+  // Marco thinking — streams Marco's planning reasoning while itinerary generates
+  app.get("/api/journeys/:id/marco-thinking", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+      const user = await storage.getUser(userId);
+
+      const destStops = [
+        ...(journey.destinations || []),
+        journey.finalDestination,
+      ].filter(Boolean);
+      const destination = destStops.join(" → ") || "the destination";
+      const days = journey.days || 7;
+      const budget = journey.cost || "flexible";
+      const homeLocation = user?.homeLocation || journey.origin || "";
+      const travelStyles = (user?.travelStyles as string[] | null) || [];
+      const stylesNote = travelStyles.length ? `Their travel style leans ${travelStyles.join(", ").toLowerCase()}.` : "";
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 400,
+        messages: [{
+          role: "user",
+          content: `You are Marco, a world-class travel curator and dream-voyage architect. A traveler${homeLocation ? ` from ${homeLocation}` : ""} is about to receive their custom ${days}-day itinerary for ${destination}. Budget: ${budget}. ${stylesNote}
+
+Write a brief, enthusiastic stream-of-consciousness as Marco thinks through planning this specific trip — almost like you're narrating your thought process out loud. Be specific to THIS destination. Reference real places, cultural nuances, seasonal considerations, or insider angles. Sound like a well-traveled friend who has been there, not a brochure.
+
+Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flowing thought. Start mid-thought, as if you're already deep in planning mode.`,
+        }],
+      });
+
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+        }
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (err: any) {
+      console.error("[marco-thinking] error:", err.message);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
+  });
+
   // Generate AI Itinerary
   app.post("/api/journeys/:id/generate-itinerary", isAuthenticated, async (req: any, res) => {
     try {
@@ -289,8 +343,9 @@ export async function registerRoutes(
       if (!journey) return res.status(404).json({ message: "Journey not found" });
 
       const user = await storage.getUser(userId);
+      // Origin is the departure point only — exclude it from the destination list
+      // so the AI doesn't plan activities there before the trip starts
       const allStops = [
-        journey.origin,
         ...(journey.destinations || []),
         journey.finalDestination,
       ].filter(Boolean);
@@ -298,8 +353,10 @@ export async function registerRoutes(
       const days = journey.days || 7;
       const budget = journey.cost || "flexible";
       const currency = user?.currency || "USD";
-      const originNote = journey.origin ? `Starting from: ${journey.origin}. ` : "";
-      const finalNote = journey.finalDestination ? `Ending at: ${journey.finalDestination}. ` : "";
+      const originNote = journey.origin
+        ? `The traveler departs from ${journey.origin} — this is their home/departure city, NOT a destination to plan activities in. Do not include days or activities in ${journey.origin}. `
+        : "";
+      const finalNote = journey.finalDestination ? `Returning to: ${journey.finalDestination}. ` : "";
 
       const { wishlist } = req.body || {};
       const wishlistNote = wishlist && wishlist.trim()
@@ -317,9 +374,8 @@ export async function registerRoutes(
       };
       const travelModeNote = travelModeLabels[travelMode] || travelModeLabels.mixed;
 
-      // Fetch Yelp restaurants for each unique destination stop
+      // Fetch restaurants for actual destination stops only (not the home departure city)
       const uniqueStops = [...new Set([
-        journey.origin,
         ...(journey.destinations || []),
         journey.finalDestination,
       ].filter(Boolean))] as string[];

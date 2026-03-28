@@ -522,7 +522,7 @@ export default function Inspire() {
         origin: settings.homeLocation || "",
         finalDestination: `${gem.title}, ${gem.country}`,
         destinations: [],
-        days: 7,
+        days: qualifier?.days ?? 7,
         cost: gem.avg_daily_budget ? `${gem.avg_daily_budget}/day` : "TBD",
         status: "planning",
       });
