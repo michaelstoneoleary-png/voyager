@@ -84,34 +84,63 @@ function formatDurationMinutes(mins: number): string {
 async function fetchDestinationImage(destinationName: string, fallbackType: string): Promise<string> {
   const fallback = DESTINATION_FALLBACK_IMAGES[fallbackType] || DESTINATION_FALLBACK_IMAGES.city;
   try {
-    const searchTerm = destinationName.split(",")[0].trim();
+    const searchTerm = destinationName.trim();
     if (!searchTerm) return fallback;
 
-    if (imageCache.has(searchTerm.toLowerCase())) {
-      return imageCache.get(searchTerm.toLowerCase())!;
-    }
+    const cacheKey = searchTerm.toLowerCase();
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)!;
 
+    const isPhoto = (url: string) => /\.(jpg|jpeg|png)/i.test(url);
+
+    // Step 1: use the pageimages API which returns the canonical infobox photo
+    // (much more reliable than the summary API which can return unrelated images)
     const encoded = encodeURIComponent(searchTerm);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
-    const resp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`, {
-      headers: { "User-Agent": "Voyager-Travel-App/1.0" },
-      signal: controller.signal,
-    });
+    const resp = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&titles=${encoded}&prop=pageimages&piprop=original|thumbnail&pithumbsize=1200&redirects=1&format=json&origin=*`,
+      { headers: { "User-Agent": "Voyager-Travel-App/1.0" }, signal: controller.signal }
+    );
     clearTimeout(timeout);
 
-    if (!resp.ok) return fallback;
-    const data = await resp.json() as any;
-    const isPhoto = (url: string) => /\.(jpg|jpeg|png)/i.test(url);
-    const origUrl = data.originalimage?.source;
-    const thumbUrl = data.thumbnail?.source;
-    let result = fallback;
-    if (origUrl && isPhoto(origUrl)) result = origUrl;
-    else if (thumbUrl && isPhoto(thumbUrl)) result = thumbUrl;
+    if (resp.ok) {
+      const data = await resp.json() as any;
+      const pages = Object.values(data?.query?.pages ?? {}) as any[];
+      const page = pages[0];
+      const origUrl = page?.original?.source;
+      const thumbUrl = page?.thumbnail?.source;
+      const url = (origUrl && isPhoto(origUrl)) ? origUrl : (thumbUrl && isPhoto(thumbUrl)) ? thumbUrl : null;
+      if (url) {
+        imageCache.set(cacheKey, url);
+        return url;
+      }
+    }
 
-    imageCache.set(searchTerm.toLowerCase(), result);
-    return result;
+    // Step 2: fallback — search Wikipedia for the term and take the top result's image
+    const searchController = new AbortController();
+    const searchTimeout = setTimeout(() => searchController.abort(), 5000);
+    const searchResp = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encoded}&srlimit=1&srprop=&format=json&origin=*`,
+      { headers: { "User-Agent": "Voyager-Travel-App/1.0" }, signal: searchController.signal }
+    );
+    clearTimeout(searchTimeout);
+
+    if (searchResp.ok) {
+      const searchData = await searchResp.json() as any;
+      const topTitle = searchData?.query?.search?.[0]?.title;
+      if (topTitle && topTitle.toLowerCase() !== encoded.toLowerCase()) {
+        // Recurse once with the correct article title
+        const found = await fetchDestinationImage(topTitle, fallbackType);
+        if (found !== fallback) {
+          imageCache.set(cacheKey, found);
+          return found;
+        }
+      }
+    }
+
+    imageCache.set(cacheKey, fallback);
+    return fallback;
   } catch {
     return fallback;
   }
