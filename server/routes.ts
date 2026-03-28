@@ -463,7 +463,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
 
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, shopping, and local experiences. Use the actual correct coordinates for each place.
 SHOPPING ACTIVITIES: Include at least one shopping activity per destination that highlights products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to the area. Examples: silverwork and turquoise jewelry in Santa Fe, saffron in Spain, hand-painted azulejo tiles in Portugal, Murano blown glass in Venice, silk in Thailand, leather goods in Florence, ceramics in Oaxaca. For each shopping activity, the description MUST name the specific local product(s) and explain their cultural significance. The tip should include where to find authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".
-TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance, and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
+TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance (always in km — the app handles unit conversion for the user), and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
 HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.`
@@ -563,7 +563,7 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
       const itinerary = journey.itinerary as any;
       if (!itinerary?.days) return res.status(400).json({ message: "No itinerary found" });
 
-      const { dayIndex, activityIndex, action, replaceType } = req.body;
+      const { dayIndex, activityIndex, action, replaceType, customRequest } = req.body;
       if (typeof dayIndex !== "number" || typeof activityIndex !== "number") {
         return res.status(400).json({ message: "dayIndex and activityIndex are required" });
       }
@@ -600,8 +600,8 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
       }
 
       if (action === "replace") {
-        if (!replaceType) {
-          return res.status(400).json({ message: "replaceType is required for replace action" });
+        if (!replaceType && !customRequest) {
+          return res.status(400).json({ message: "replaceType or customRequest is required for replace action" });
         }
 
         const timeSlot = removedActivity.time;
@@ -623,7 +623,7 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
             content: `Suggest ONE replacement activity for a travel itinerary in ${location}.
 
 Time slot: ${timeSlot}, Duration: ${durationHint}
-Type requested: ${replaceType}
+${customRequest ? `Traveler's request: "${customRequest}"` : `Type requested: ${replaceType}`}
 ${prevTitle ? `Previous activity: ${prevTitle}` : "First activity of the day"}
 ${nextTitle ? `Next activity: ${nextTitle}` : "Last activity of the day"}
 Other activities already planned this day: ${contextActivities || "none"}
@@ -632,7 +632,7 @@ Return a JSON object (no markdown, no code fences, just raw JSON):
 {
   "time": "${timeSlot}",
   "title": "Activity Name",
-  "type": "${replaceType}",
+  "type": "culture|food|nature|shopping|nightlife|relaxation|logistics",
   "duration": "${durationHint}",
   "description": "Brief description",
   "cost": "Free or estimated cost",
@@ -640,16 +640,16 @@ Return a JSON object (no markdown, no code fences, just raw JSON):
   "lat": 0.0000,
   "lng": 0.0000,
   "image_query": "Wikipedia article title for this specific place",
-  "travel_to_next": ${nextTitle ? `{ "mode": "walk|drive|taxi|transit|bus|train", "duration": "estimated", "distance": "estimated" }` : "null"}
+  "travel_to_next": ${nextTitle ? `{ "mode": "walk|drive|taxi|transit|bus|train", "duration": "estimated", "distance": "Xkm" }` : "null"}
 }
 
 Rules:
 - Must be a REAL place that exists in ${location}
 - Use accurate lat/lng coordinates
-- Must be type "${replaceType}"
+- Should directly address the traveler's request if one was given
 - Should complement the other planned activities (don't duplicate what's already there)
 - For image_query, use the exact Wikipedia article title
-- If type is "shopping": Focus on products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to ${location}. The description MUST name the specific local product(s) and their cultural significance. The tip should recommend authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".`
+- If type is "shopping": Focus on products ENDEMIC to the region with cultural significance.`
           }],
         });
 
@@ -695,6 +695,28 @@ Rules:
     } catch (error) {
       console.error("Error modifying activity:", error);
       res.status(500).json({ message: "Failed to modify activity" });
+    }
+  });
+
+  app.post("/api/journeys/:id/activity-feedback", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { activityTitle, activityType, location, signal } = req.body;
+      if (!activityTitle || !signal || !["liked", "hard_reject"].includes(signal)) {
+        return res.status(400).json({ message: "activityTitle and signal ('liked' or 'hard_reject') are required" });
+      }
+      await storage.recordActivityFeedback({
+        userId,
+        journeyId: req.params.id,
+        activityTitle,
+        activityType,
+        location,
+        signal,
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Error recording activity feedback:", error);
+      res.status(500).json({ message: "Failed to record feedback" });
     }
   });
 
@@ -1167,6 +1189,56 @@ ${truncated}`,
     }
   });
 
+  // Marco thinking — streams Marco's curation reasoning while inspire suggestions load
+  app.get("/api/inspire/marco-thinking", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const user = await storage.getUser(userId);
+
+      const days           = parseInt(req.query.days as string) || 7;
+      const transports     = ((req.query.transport as string) || "flying").split(",").filter(Boolean);
+      const budget         = (req.query.budget as string) || "midrange";
+      const maxTravelHours = (req.query.maxTravelHours as string) || "any";
+      const homeLocation   = user?.homeLocation || "";
+      const travelStyles   = (user?.travelStyles as string[] | null) || [];
+
+      const durationText = days === 1 ? "a day trip" : days === 21 ? "an open-ended trip" : `${days} days`;
+      const travelText = maxTravelHours === "any" ? "anywhere in the world" : `within ${maxTravelHours} hours of travel`;
+      const modeText = transports.map(m => m === "train" ? "rail" : m).join(" or ");
+      const stylesText = travelStyles.length ? `, with a passion for ${travelStyles.join(", ").toLowerCase()}` : "";
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 350,
+        messages: [{
+          role: "user",
+          content: `You are Marco, a world-class travel curator. A traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText} has asked for destination inspiration. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+
+Write a brief, warm stream-of-consciousness as you think through curating the perfect destinations for them — like a knowledgeable friend thinking out loud. Be specific about what kinds of places fit these constraints. Reference real regions, seasons, or travel dynamics that make certain destinations shine right now. Sound genuinely excited and thoughtful, not like a brochure.
+
+3–4 short natural paragraphs, no headers, no lists. Start mid-thought as if you're already deep in the curation.`,
+        }],
+      });
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+        }
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (err: any) {
+      console.error("[inspire/marco-thinking] error:", err.message);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
+  });
+
   const inspireCache = new Map<string, { data: any; timestamp: number }>();
 
   app.get("/api/inspire/suggestions", isAuthenticated, async (req: any, res) => {
@@ -1215,14 +1287,27 @@ ${truncated}`,
       };
       const travelTimeNote = travelTimeDesc[maxTravelHours] || travelTimeDesc["any"];
 
-      // Factor in home airport — smaller airports often require connecting through a hub,
-      // adding 1–3 hours to total travel time vs. flying from a major hub city.
-      const homeAirportNote = homeLocation
-        ? `IMPORTANT: The traveler's home is "${homeLocation}". When calculating travel time, factor in:
-  1. Drive time from their home to the nearest airport (check if it's a regional or major hub)
-  2. If it's a regional airport, add ~1–2 hours for likely connections through a hub (e.g. Atlanta, Charlotte, Dallas)
-  3. Total door-to-door travel time must respect the traveler's stated maximum of ${maxTravelHours === "any" ? "unlimited" : maxTravelHours + " hours"}.
-  Do NOT assume they live next to a major international hub unless their city actually has one.`
+      // Strict travel time enforcement with home-airport awareness
+      const travelTimeLimit = maxTravelHours === "any" ? null : parseInt(maxTravelHours);
+      const homeAirportNote = homeLocation && travelTimeLimit
+        ? `STRICT TRAVEL TIME ENFORCEMENT — this is a hard disqualifier:
+The traveler lives in "${homeLocation}". You must calculate realistic door-to-door travel time for EVERY suggestion before including it.
+
+Door-to-door calculation:
+  - DRIVING: actual road distance from ${homeLocation} at realistic speeds (not straight-line). Include any ferry crossings.
+  - FLYING: ground transport to their local airport + check-in (90 min) + flight time + layovers (if no direct route, add 1–2hrs for connection at a hub like ATL/CLT/DFW) + ground transport at destination.
+  - If "${homeLocation}" is served by a regional airport (not a major international hub), assume connecting flights are needed for most destinations — add 1–2 hours.
+
+Hard limit: ${travelTimeLimit} hours total door-to-door. ANY destination where the realistic travel time exceeds ${travelTimeLimit} hours MUST be excluded — do not include it and do not round down.
+
+Examples of what does NOT fit ${travelTimeLimit} hours from ${homeLocation}:
+  - Long-haul international destinations (Europe, Asia, South America) unless direct flights exist
+  - Destinations requiring multiple long connections
+  - Destinations that are close "as the crow flies" but have no direct road/rail (e.g. islands requiring ferries adding hours)
+
+Only suggest destinations you are confident fit within ${travelTimeLimit} hours door-to-door from ${homeLocation}.`
+        : homeLocation
+        ? `The traveler lives in "${homeLocation}". Calculate realistic travel times from this location for every suggestion.`
         : "";
 
       // Build transport description from the selected modes array
@@ -1277,10 +1362,9 @@ ${homeAirportNote}
 RULES:
 - Suggest destinations they have NOT already visited
 - Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
-- Every suggestion must realistically fit the duration, transport, travel time, and budget constraints above
-- If transport is "driving", ALL suggestions must be within driving distance of their home within their stated travel time
+- TRAVEL TIME IS A HARD FILTER — calculate it accurately before including any suggestion. Exclude any destination that does not fit. Do not fudge the numbers.
 - avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
-- Include a diverse mix; if transport is "flying" spread across different continents where travel time allows
+- Include a diverse mix of destinations that genuinely fit the constraints
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
@@ -1528,7 +1612,7 @@ Return ONLY a JSON array (no markdown, no code fences):
 
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 4096,
+        max_tokens: 16000,
         messages: [
           {
             role: "user",

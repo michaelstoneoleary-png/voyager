@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -511,8 +511,18 @@ export default function Inspire() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
+  const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
 
   const isDayTrip = qualifier?.days === 1;
+
+  // Cycle through short loading phrases while suggestions are being fetched
+  useEffect(() => {
+    if (!isLoading && !isDayTripLoading) return;
+    const interval = setInterval(() => {
+      setLoadingPhaseIdx(i => i + 1);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [isLoading, isDayTripLoading]);
 
   const queryParams = qualifier
     ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
@@ -621,20 +631,41 @@ export default function Inspire() {
 
   // ── Step 2: loading ─────────────────────────────────────────────────────────
   if (isLoading || isDayTripLoading) {
+    const inspirePhases = [
+      "Scanning destinations that fit your travel window…",
+      "Weighing hidden gems against the classics…",
+      "Matching your travel style and budget…",
+      "Checking seasonal timing and local conditions…",
+      "Filtering by realistic travel time from home…",
+      "Putting the final list together…",
+    ];
+    const dayTripPhases = [
+      "Searching for top-rated spots near you…",
+      "Checking distance and drive time…",
+      "Finding hidden gems within reach…",
+      "Almost there…",
+    ];
+    const phases = isDayTrip ? dayTripPhases : inspirePhases;
+    const phase = phases[loadingPhaseIdx % phases.length];
+
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-in fade-in duration-500">
-          <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 animate-in fade-in duration-500">
+          {/* Animated ring */}
+          <div className="relative flex items-center justify-center">
+            <div className="h-24 w-24 rounded-full border-4 border-primary/10" />
+            <div className="absolute h-24 w-24 rounded-full border-4 border-transparent border-t-primary animate-spin" />
+            <div className="absolute w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-primary font-bold text-lg font-serif">M</span>
+            </div>
           </div>
-          <div className="text-center">
-            <h2 className="font-serif text-2xl font-bold mb-2">
-              {isDayTrip ? "Finding great day trips near you…" : "Marco is finding your dream voyage"}
-            </h2>
-            <p className="text-muted-foreground max-w-md">
-              {isDayTrip
-                ? "Searching Google for top-rated attractions, parks, and hidden gems within driving distance…"
-                : "Matching destinations to your travel style, trip length, and budget…"}
+          {/* Cycling phrase */}
+          <div className="text-center max-w-xs">
+            <p
+              key={loadingPhaseIdx}
+              className="text-sm text-muted-foreground animate-in fade-in duration-500"
+            >
+              {phase}
             </p>
           </div>
         </div>

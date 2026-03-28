@@ -7,6 +7,7 @@ import {
   packingLists, type PackingList, type InsertPackingList,
   journeyPhotos, type JourneyPhoto, type InsertJourneyPhoto,
   voyages, type Voyage, type InsertVoyage,
+  userActivityFeedback,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -60,6 +61,9 @@ export interface IStorage {
   createJourneyPhoto(photo: InsertJourneyPhoto): Promise<JourneyPhoto>;
   updateJourneyPhoto(id: string, userId: string, data: Pick<InsertJourneyPhoto, "caption" | "dayIndex">): Promise<JourneyPhoto | undefined>;
   deleteJourneyPhoto(id: string, userId: string): Promise<JourneyPhoto | undefined>;
+
+  recordActivityFeedback(data: { userId: string; journeyId?: string; activityTitle: string; activityType?: string; location?: string; signal: "liked" | "hard_reject" }): Promise<void>;
+  getHardRejectedTitles(userId: string): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -271,6 +275,24 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(voyages).set(data)
       .where(eq(voyages.id, id)).returning();
     return updated || undefined;
+  }
+
+  async recordActivityFeedback(data: { userId: string; journeyId?: string; activityTitle: string; activityType?: string; location?: string; signal: "liked" | "hard_reject" }): Promise<void> {
+    await db.insert(userActivityFeedback).values({
+      userId: data.userId,
+      journeyId: data.journeyId,
+      activityTitle: data.activityTitle,
+      activityType: data.activityType,
+      location: data.location,
+      signal: data.signal,
+    });
+  }
+
+  async getHardRejectedTitles(userId: string): Promise<string[]> {
+    const rows = await db.select({ activityTitle: userActivityFeedback.activityTitle })
+      .from(userActivityFeedback)
+      .where(and(eq(userActivityFeedback.userId, userId), eq(userActivityFeedback.signal, "hard_reject")));
+    return rows.map(r => r.activityTitle);
   }
 }
 
