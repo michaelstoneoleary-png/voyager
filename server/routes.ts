@@ -1167,6 +1167,56 @@ ${truncated}`,
     }
   });
 
+  // Marco thinking — streams Marco's curation reasoning while inspire suggestions load
+  app.get("/api/inspire/marco-thinking", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const user = await storage.getUser(userId);
+
+      const days           = parseInt(req.query.days as string) || 7;
+      const transports     = ((req.query.transport as string) || "flying").split(",").filter(Boolean);
+      const budget         = (req.query.budget as string) || "midrange";
+      const maxTravelHours = (req.query.maxTravelHours as string) || "any";
+      const homeLocation   = user?.homeLocation || "";
+      const travelStyles   = (user?.travelStyles as string[] | null) || [];
+
+      const durationText = days === 1 ? "a day trip" : days === 21 ? "an open-ended trip" : `${days} days`;
+      const travelText = maxTravelHours === "any" ? "anywhere in the world" : `within ${maxTravelHours} hours of travel`;
+      const modeText = transports.map(m => m === "train" ? "rail" : m).join(" or ");
+      const stylesText = travelStyles.length ? `, with a passion for ${travelStyles.join(", ").toLowerCase()}` : "";
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 350,
+        messages: [{
+          role: "user",
+          content: `You are Marco, a world-class travel curator. A traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText} has asked for destination inspiration. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+
+Write a brief, warm stream-of-consciousness as you think through curating the perfect destinations for them — like a knowledgeable friend thinking out loud. Be specific about what kinds of places fit these constraints. Reference real regions, seasons, or travel dynamics that make certain destinations shine right now. Sound genuinely excited and thoughtful, not like a brochure.
+
+3–4 short natural paragraphs, no headers, no lists. Start mid-thought as if you're already deep in the curation.`,
+        }],
+      });
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+        }
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (err: any) {
+      console.error("[inspire/marco-thinking] error:", err.message);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
+  });
+
   const inspireCache = new Map<string, { data: any; timestamp: number }>();
 
   app.get("/api/inspire/suggestions", isAuthenticated, async (req: any, res) => {

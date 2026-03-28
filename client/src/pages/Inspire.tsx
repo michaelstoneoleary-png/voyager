@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -511,8 +511,44 @@ export default function Inspire() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
+  const [marcoThoughts, setMarcoThoughts] = useState("");
+  const marcoScrollRef = useRef<HTMLDivElement>(null);
 
   const isDayTrip = qualifier?.days === 1;
+
+  // Stream Marco's curation reasoning as soon as qualifier is submitted (non-day-trip)
+  useEffect(() => {
+    if (!qualifier || qualifier.days === 1) return;
+    setMarcoThoughts("");
+    const params = `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`;
+    let cancelled = false;
+
+    fetch(`/api/inspire/marco-thinking${params}`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.body) return;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split("\n")) {
+            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+              try {
+                const { text } = JSON.parse(line.slice(6));
+                setMarcoThoughts(prev => prev + text);
+                if (marcoScrollRef.current) {
+                  marcoScrollRef.current.scrollTop = marcoScrollRef.current.scrollHeight;
+                }
+              } catch {}
+            }
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [qualifier]);
 
   const queryParams = qualifier
     ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
@@ -623,20 +659,53 @@ export default function Inspire() {
   if (isLoading || isDayTripLoading) {
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-in fade-in duration-500">
-          <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-            <Loader2 className="h-10 w-10 text-primary animate-spin" />
-          </div>
-          <div className="text-center">
-            <h2 className="font-serif text-2xl font-bold mb-2">
-              {isDayTrip ? "Finding great day trips near you…" : "Marco is finding your dream voyage"}
-            </h2>
-            <p className="text-muted-foreground max-w-md">
-              {isDayTrip
-                ? "Searching Google for top-rated attractions, parks, and hidden gems within driving distance…"
-                : "Matching destinations to your travel style, trip length, and budget…"}
-            </p>
-          </div>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 animate-in fade-in duration-500">
+          {isDayTrip || !marcoThoughts ? (
+            // Day trip or thoughts not yet arrived — plain spinner
+            <div className="flex flex-col items-center gap-6">
+              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
+                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+              </div>
+              <div className="text-center">
+                <h2 className="font-serif text-2xl font-bold mb-2">
+                  {isDayTrip ? "Finding great day trips near you…" : "Marco is thinking…"}
+                </h2>
+                <p className="text-muted-foreground max-w-md">
+                  {isDayTrip
+                    ? "Searching Google for top-rated attractions, parks, and hidden gems within driving distance…"
+                    : "Curating destinations to your travel style, trip length, and budget…"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            // Marco's streaming thoughts
+            <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center">
+                      <span className="text-primary font-bold text-sm font-serif">M</span>
+                    </div>
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-background animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-foreground">Marco is curating your voyage</p>
+                    <p className="text-xs text-muted-foreground">Thinking through destinations just for you…</p>
+                  </div>
+                  <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
+                </div>
+                <div
+                  ref={marcoScrollRef}
+                  className="px-5 py-4 max-h-64 overflow-y-auto scroll-smooth"
+                >
+                  <p className="text-sm leading-relaxed text-foreground/85 font-serif italic whitespace-pre-wrap">
+                    {marcoThoughts}
+                    <span className="inline-block w-0.5 h-4 bg-primary/60 ml-0.5 animate-pulse align-text-bottom" />
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Layout>
     );
