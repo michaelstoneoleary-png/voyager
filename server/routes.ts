@@ -84,34 +84,63 @@ function formatDurationMinutes(mins: number): string {
 async function fetchDestinationImage(destinationName: string, fallbackType: string): Promise<string> {
   const fallback = DESTINATION_FALLBACK_IMAGES[fallbackType] || DESTINATION_FALLBACK_IMAGES.city;
   try {
-    const searchTerm = destinationName.split(",")[0].trim();
+    const searchTerm = destinationName.trim();
     if (!searchTerm) return fallback;
 
-    if (imageCache.has(searchTerm.toLowerCase())) {
-      return imageCache.get(searchTerm.toLowerCase())!;
-    }
+    const cacheKey = searchTerm.toLowerCase();
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)!;
 
+    const isPhoto = (url: string) => /\.(jpg|jpeg|png)/i.test(url);
+
+    // Step 1: use the pageimages API which returns the canonical infobox photo
+    // (much more reliable than the summary API which can return unrelated images)
     const encoded = encodeURIComponent(searchTerm);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
-    const resp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`, {
-      headers: { "User-Agent": "Voyager-Travel-App/1.0" },
-      signal: controller.signal,
-    });
+    const resp = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&titles=${encoded}&prop=pageimages&piprop=original|thumbnail&pithumbsize=1200&redirects=1&format=json&origin=*`,
+      { headers: { "User-Agent": "Voyager-Travel-App/1.0" }, signal: controller.signal }
+    );
     clearTimeout(timeout);
 
-    if (!resp.ok) return fallback;
-    const data = await resp.json() as any;
-    const isPhoto = (url: string) => /\.(jpg|jpeg|png)/i.test(url);
-    const origUrl = data.originalimage?.source;
-    const thumbUrl = data.thumbnail?.source;
-    let result = fallback;
-    if (origUrl && isPhoto(origUrl)) result = origUrl;
-    else if (thumbUrl && isPhoto(thumbUrl)) result = thumbUrl;
+    if (resp.ok) {
+      const data = await resp.json() as any;
+      const pages = Object.values(data?.query?.pages ?? {}) as any[];
+      const page = pages[0];
+      const origUrl = page?.original?.source;
+      const thumbUrl = page?.thumbnail?.source;
+      const url = (origUrl && isPhoto(origUrl)) ? origUrl : (thumbUrl && isPhoto(thumbUrl)) ? thumbUrl : null;
+      if (url) {
+        imageCache.set(cacheKey, url);
+        return url;
+      }
+    }
 
-    imageCache.set(searchTerm.toLowerCase(), result);
-    return result;
+    // Step 2: fallback — search Wikipedia for the term and take the top result's image
+    const searchController = new AbortController();
+    const searchTimeout = setTimeout(() => searchController.abort(), 5000);
+    const searchResp = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encoded}&srlimit=1&srprop=&format=json&origin=*`,
+      { headers: { "User-Agent": "Voyager-Travel-App/1.0" }, signal: searchController.signal }
+    );
+    clearTimeout(searchTimeout);
+
+    if (searchResp.ok) {
+      const searchData = await searchResp.json() as any;
+      const topTitle = searchData?.query?.search?.[0]?.title;
+      if (topTitle && topTitle.toLowerCase() !== encoded.toLowerCase()) {
+        // Recurse once with the correct article title
+        const found = await fetchDestinationImage(topTitle, fallbackType);
+        if (found !== fallback) {
+          imageCache.set(cacheKey, found);
+          return found;
+        }
+      }
+    }
+
+    imageCache.set(cacheKey, fallback);
+    return fallback;
   } catch {
     return fallback;
   }
@@ -321,7 +350,7 @@ export async function registerRoutes(
           }\n`
         : "";
 
-      const response = await anthropic.messages.create({
+      const stream = await anthropic.messages.stream({
         model: "claude-sonnet-4-6",
         max_tokens: 32000,
         messages: [{
@@ -385,6 +414,7 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
         }],
       });
 
+      const response = await stream.finalMessage();
       console.log("[generate-itinerary] stop_reason:", response.stop_reason, "| output_tokens:", response.usage?.output_tokens);
 
       const textContent = response.content.find(c => c.type === "text");
@@ -1090,11 +1120,12 @@ ${truncated}`,
       if (!user) return res.status(404).json({ message: "User not found" });
 
       // Qualifier params from the frontend
-      const duration  = (req.query.duration  as string) || "week";
-      const transport = (req.query.transport as string) || "either";
-      const budget    = (req.query.budget    as string) || "midrange";
+      const days           = parseInt(req.query.days as string) || 7;
+      const transport      = (req.query.transport as string) || "either";
+      const budget         = (req.query.budget    as string) || "midrange";
+      const maxTravelHours = (req.query.maxTravelHours as string) || "any";
 
-      const cacheKey = `inspire_${userId}_${duration}_${transport}_${budget}`;
+      const cacheKey = `inspire_${userId}_${days}_${transport}_${budget}_${maxTravelHours}`;
       const cached = inspireCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
         return res.json(cached.data);
@@ -1114,17 +1145,34 @@ ${truncated}`,
       const uniqueVisited = Array.from(new Set(visitedPlaces.filter((p): p is string => !!p)));
 
       // Human-readable qualifier descriptions for the prompt
-      const durationDesc: Record<string, string> = {
-        weekend:  "a quick 2–3 day weekend getaway",
-        week:     "a 5–7 day trip",
-        twoweeks: "a 10–14 day trip",
-        month:    "an extended trip of 3 weeks or more",
-        unlimited:"an open-ended trip with no time constraint",
+      const durationDesc = days === 1
+        ? "a single day trip (must return home the same evening)"
+        : days === 21
+        ? "an open-ended trip of 3 weeks or more"
+        : `exactly ${days} day${days > 1 ? "s" : ""}`;
+
+      const travelTimeDesc: Record<string, string> = {
+        "2":   "a maximum of 2 hours total travel time each way (door-to-door including any drives to the airport)",
+        "4":   "a maximum of 4 hours total travel time each way (including airport transfers, connections, and waits)",
+        "8":   "up to 8 hours total travel time each way — a full day of travel is acceptable",
+        "any": "no travel time limit — they are willing to travel as long as needed to reach the destination",
       };
+      const travelTimeNote = travelTimeDesc[maxTravelHours] || travelTimeDesc["any"];
+
+      // Factor in home airport — smaller airports often require connecting through a hub,
+      // adding 1–3 hours to total travel time vs. flying from a major hub city.
+      const homeAirportNote = homeLocation
+        ? `IMPORTANT: The traveler's home is "${homeLocation}". When calculating travel time, factor in:
+  1. Drive time from their home to the nearest airport (check if it's a regional or major hub)
+  2. If it's a regional airport, add ~1–2 hours for likely connections through a hub (e.g. Atlanta, Charlotte, Dallas)
+  3. Total door-to-door travel time must respect the traveler's stated maximum of ${maxTravelHours === "any" ? "unlimited" : maxTravelHours + " hours"}.
+  Do NOT assume they live next to a major international hub unless their city actually has one.`
+        : "";
+
       const transportDesc: Record<string, string> = {
-        flying:  "flying (international destinations are fine, any distance)",
-        driving: `driving only — destinations must be reachable by car from ${homeLocation || "their home"} within 6–8 hours`,
-        either:  "open to flying or driving",
+        flying:  "flying (choose destinations whose total door-to-door travel time fits within the traveler's stated maximum)",
+        driving: `driving only — destinations must be reachable by car from ${homeLocation || "their home"} within the traveler's stated travel time maximum`,
+        either:  "open to flying or driving — choose whichever makes sense for each destination given the travel time constraint",
       };
       const budgetDesc: Record<string, string> = {
         budget:    "$50–100/day (backpacker / hostel / budget hotel style)",
@@ -1146,18 +1194,21 @@ TRAVELER PROFILE:
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
 - Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}
 
-TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all three):
-- Duration: ${durationDesc[duration] || durationDesc.week}
+TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all of these):
+- Duration: ${durationDesc}
+- Max travel time: ${travelTimeNote}
 - Transport: ${transportDesc[transport] || transportDesc.either}
 - Budget: ${budgetDesc[budget] || budgetDesc.midrange}
+
+${homeAirportNote}
 
 RULES:
 - Suggest destinations they have NOT already visited
 - Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
-- Every suggestion must realistically fit the duration, transport, and budget constraints above
-- If transport is "driving", ALL suggestions must be within driving distance of their home
+- Every suggestion must realistically fit the duration, transport, travel time, and budget constraints above
+- If transport is "driving", ALL suggestions must be within driving distance of their home within their stated travel time
 - avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
-- Include a diverse mix; if transport is "flying" spread across different continents
+- Include a diverse mix; if transport is "flying" spread across different continents where travel time allows
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
@@ -1249,7 +1300,11 @@ Return ONLY a JSON array (no markdown, no code fences):
       // Mobile can pass current GPS coords; falls back to home location geocoding
       const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
       const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
-      const locationLabel = (req.query.locationLabel as string) || user.homeLocation;
+      const rawLocation = (req.query.locationLabel as string) || user.homeLocation;
+      // Append country for unambiguous geocoding (e.g. "Jacksonville" → "Jacksonville, United States")
+      const locationLabel = (user.passportCountry && !rawLocation.includes(","))
+        ? `${rawLocation}, ${user.passportCountry}`
+        : rawLocation;
       // Round coords to 2 decimal places (~1km) for cache key
       const coordKey = lat && lng ? `_${lat.toFixed(2)}_${lng.toFixed(2)}` : "";
       const cacheKey = `daytrips_${userId}${coordKey}`;

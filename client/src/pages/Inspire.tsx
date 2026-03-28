@@ -56,20 +56,19 @@ interface InspireData {
 }
 
 interface Qualifier {
-  duration: string;   // "weekend" | "week" | "twoweeks" | "month" | "unlimited"
-  transport: string;  // "flying" | "driving" | "either"
-  budget: string;     // "budget" | "midrange" | "luxury" | "unlimited"
+  days: number;        // 1 = day trip, 2–20 = specific days, 21 = open-ended
+  transport: string;   // "flying" | "driving" | "either"
+  budget: string;      // "budget" | "midrange" | "luxury" | "unlimited"
+  maxTravelHours: string; // "2" | "4" | "8" | "any"
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DURATION_OPTIONS = [
-  { value: "daytrip",   label: "Day Trip",         sub: "Back by evening", icon: "☀️" },
-  { value: "weekend",   label: "Quick Getaway",    sub: "2–3 days",        icon: "⚡" },
-  { value: "week",      label: "Week Away",         sub: "5–7 days",        icon: "🌅" },
-  { value: "twoweeks",  label: "Two Weeks",         sub: "10–14 days",      icon: "🗓️" },
-  { value: "month",     label: "Month or More",     sub: "3+ weeks",        icon: "🌍" },
-  { value: "unlimited", label: "Sky's The Limit",   sub: "No limit",        icon: "∞" },
+const TRAVEL_TIME_OPTIONS = [
+  { value: "2",   label: "≤ 2 hrs",    sub: "Short drive or quick hop",     icon: "🚗" },
+  { value: "4",   label: "≤ 4 hrs",    sub: "Regional flight or long drive", icon: "✈️" },
+  { value: "8",   label: "≤ 8 hrs",    sub: "Full day of travel OK",         icon: "🌐" },
+  { value: "any", label: "Anywhere",   sub: "No travel time limit",          icon: "∞" },
 ];
 
 const TRANSPORT_OPTIONS = [
@@ -105,58 +104,52 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Wellness":    "bg-pink-100 text-pink-700 border-pink-200",
 };
 
-const QUALIFIER_KEY = "voyager_inspire_qualifier";
-
-function loadSavedQualifier(): Qualifier | null {
-  try {
-    const raw = localStorage.getItem(QUALIFIER_KEY);
-    if (!raw) return null;
-    const { data, ts } = JSON.parse(raw);
-    // Expire after 24h so the user occasionally rediscovers the qualifier
-    if (Date.now() - ts > 24 * 60 * 60 * 1000) return null;
-    return data as Qualifier;
-  } catch {
-    return null;
-  }
-}
-
-function saveQualifier(q: Qualifier) {
-  localStorage.setItem(QUALIFIER_KEY, JSON.stringify({ data: q, ts: Date.now() }));
-}
 
 // ── Qualifier UI ──────────────────────────────────────────────────────────────
 
+function daysLabel(days: number): string {
+  if (days === 1) return "Day Trip — back by evening";
+  if (days === 2) return "2 days";
+  if (days === 3) return "Long weekend (3 days)";
+  if (days <= 6) return `${days} days`;
+  if (days === 7) return "1 week";
+  if (days <= 13) return `${days} days`;
+  if (days === 14) return "2 weeks";
+  if (days <= 20) return `${days} days`;
+  return "3+ weeks — open-ended";
+}
+
 function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
-  const [duration, setDuration] = useState<string | null>(null);
+  const [days, setDays] = useState<number>(7);
   const [transport, setTransport] = useState<string | null>(null);
   const [budget, setBudget] = useState<string | null>(null);
+  const [maxTravelHours, setMaxTravelHours] = useState<string | null>(null);
 
-  const ready = duration && transport && budget;
+  const ready = transport && budget && maxTravelHours;
 
   const handleSubmit = () => {
     if (!ready) return;
-    const q: Qualifier = { duration, transport, budget };
-    saveQualifier(q);
+    const q: Qualifier = { days, transport, budget, maxTravelHours };
     onSubmit(q);
   };
 
-  function Section({
+  function OptionGrid({
     title,
     options,
     value,
     onChange,
-    wide,
+    cols = 3,
   }: {
     title: string;
     options: { value: string; label: string; sub: string; icon: React.ReactNode }[];
     value: string | null;
     onChange: (v: string) => void;
-    wide?: boolean;
+    cols?: number;
   }) {
     return (
       <div>
         <h3 className="font-serif text-lg font-semibold mb-3 text-foreground">{title}</h3>
-        <div className={`grid gap-3 ${wide ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-5"}`}>
+        <div className={`grid gap-3 grid-cols-${cols} sm:grid-cols-${cols}`}>
           {options.map(opt => (
             <button
               key={opt.value}
@@ -191,27 +184,51 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
           <p className="text-muted-foreground">Tell Marco what you're working with and he'll find the perfect voyage.</p>
         </div>
 
-        <Section
-          title="How long do you have?"
-          options={DURATION_OPTIONS}
-          value={duration}
-          onChange={setDuration}
+        {/* Duration slider */}
+        <div>
+          <h3 className="font-serif text-lg font-semibold mb-1 text-foreground">How long do you have?</h3>
+          <div className="text-center mb-4">
+            <span className="text-primary font-semibold text-base">{daysLabel(days)}</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={21}
+            value={days}
+            onChange={e => setDays(Number(e.target.value))}
+            className="w-full accent-primary cursor-pointer"
+          />
+          <div className="flex justify-between text-[11px] text-muted-foreground mt-1 px-0.5">
+            <span>Day Trip</span>
+            <span>3 days</span>
+            <span>1 week</span>
+            <span>2 weeks</span>
+            <span>3+ weeks</span>
+          </div>
+        </div>
+
+        <OptionGrid
+          title="How far are you willing to travel?"
+          options={TRAVEL_TIME_OPTIONS}
+          value={maxTravelHours}
+          onChange={setMaxTravelHours}
+          cols={4}
         />
 
-        <Section
+        <OptionGrid
           title="Flying or driving?"
           options={TRANSPORT_OPTIONS}
           value={transport}
           onChange={setTransport}
-          wide
+          cols={3}
         />
 
-        <Section
+        <OptionGrid
           title="What's the budget?"
           options={BUDGET_OPTIONS}
           value={budget}
           onChange={setBudget}
-          wide
+          cols={4}
         />
 
         <Button
@@ -224,7 +241,7 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
           {ready ? (
             <>Inspire Me <ChevronRight className="h-5 w-5 ml-1" /></>
           ) : (
-            "Answer all three to continue"
+            "Answer all questions to continue"
           )}
         </Button>
       </div>
@@ -449,12 +466,12 @@ export default function Inspire() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
-  const [qualifier, setQualifier] = useState<Qualifier | null>(() => loadSavedQualifier());
+  const [qualifier, setQualifier] = useState<Qualifier | null>(null);
 
-  const isDayTrip = qualifier?.duration === "daytrip";
+  const isDayTrip = qualifier?.days === 1;
 
   const queryParams = qualifier
-    ? `?duration=${qualifier.duration}&transport=${qualifier.transport}&budget=${qualifier.budget}`
+    ? `?days=${qualifier.days}&transport=${qualifier.transport}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
     : null;
 
   const { data, isLoading, error } = useQuery<InspireData>({
@@ -545,7 +562,6 @@ export default function Inspire() {
   });
 
   function handleChangeSearch() {
-    localStorage.removeItem(QUALIFIER_KEY);
     queryClient.removeQueries({ queryKey: ["/api/inspire/suggestions"] });
     setQualifier(null);
   }
@@ -672,10 +688,11 @@ export default function Inspire() {
   const categories = Array.from(new Set(suggestions.map(s => s.category)));
   const hasPreferences = (settings.travelStyles?.length ?? 0) > 0 || !!settings.homeLocation;
 
-  // Friendly labels for the qualifier summary chip
-  const durationLabel = DURATION_OPTIONS.find(d => d.value === qualifier.duration)?.label ?? "";
+  // Friendly labels for the qualifier summary chips
+  const durationLabel = daysLabel(qualifier.days);
   const transportLabel = TRANSPORT_OPTIONS.find(t => t.value === qualifier.transport)?.label ?? "";
   const budgetLabel = BUDGET_OPTIONS.find(b => b.value === qualifier.budget)?.label ?? "";
+  const travelTimeLabel = TRAVEL_TIME_OPTIONS.find(t => t.value === qualifier.maxTravelHours)?.label ?? "";
 
   return (
     <Layout>
@@ -699,6 +716,9 @@ export default function Inspire() {
             <div className="flex flex-wrap items-center gap-2 mt-3">
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <Calendar className="h-3 w-3" /> {durationLabel}
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
+                <Compass className="h-3 w-3" /> {travelTimeLabel} travel
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 {qualifier.transport === "flying" ? <Plane className="h-3 w-3" /> : qualifier.transport === "driving" ? <Car className="h-3 w-3" /> : <Shuffle className="h-3 w-3" />} {transportLabel}
