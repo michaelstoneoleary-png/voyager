@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useUser } from "@/lib/UserContext";
 import { useParams } from "wouter";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +61,30 @@ L.Icon.Default.mergeOptions({
     iconUrl: markerIcon,
     shadowUrl: markerShadow,
 });
+
+// Convert a distance string (from AI, may be km or miles) to the user's preferred unit
+function formatDistance(raw: string, preferMiles: boolean): string {
+  if (!raw) return raw;
+  // Already in miles — leave it
+  if (/\bmi(les?)?\b/i.test(raw)) return raw;
+  // Meters → convert to ft or m
+  const mMatch = raw.match(/^([\d.,]+)\s*m\b(?!i)/i);
+  if (mMatch) {
+    const m = parseFloat(mMatch[1].replace(",", "."));
+    if (preferMiles) return `${Math.round(m * 3.281)} ft`;
+    return raw;
+  }
+  // Kilometres
+  const kmMatch = raw.match(/([\d.,]+)\s*km/i);
+  if (kmMatch) {
+    const km = parseFloat(kmMatch[1].replace(",", "."));
+    if (preferMiles) {
+      const mi = km * 0.6214;
+      return mi < 0.1 ? `${Math.round(mi * 5280)} ft` : `${mi.toFixed(1)} mi`;
+    }
+  }
+  return raw;
+}
 
 interface TravelToNext {
   mode: string;
@@ -236,6 +261,8 @@ const TYPE_COLORS: Record<string, string> = {
 export default function TripPlanner() {
   const params = useParams<{ id: string }>();
   const journeyId = params.id;
+  const { settings } = useUser();
+  const preferMiles = settings.distanceUnit !== "km";
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const { toast } = useToast();
@@ -841,7 +868,7 @@ export default function TripPlanner() {
                           {activity.travel_to_next.distance && (
                             <>
                               <span className="text-[10px]">•</span>
-                              <span className="text-[11px]">{activity.travel_to_next.distance}</span>
+                              <span className="text-[11px]">{formatDistance(activity.travel_to_next.distance, preferMiles)}</span>
                             </>
                           )}
                           {activity.travel_to_next.note && (
