@@ -104,24 +104,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Wellness":    "bg-pink-100 text-pink-700 border-pink-200",
 };
 
-const QUALIFIER_KEY = "voyager_inspire_qualifier";
-
-function loadSavedQualifier(): Qualifier | null {
-  try {
-    const raw = localStorage.getItem(QUALIFIER_KEY);
-    if (!raw) return null;
-    const { data, ts } = JSON.parse(raw);
-    // Expire after 24h so the user occasionally rediscovers the qualifier
-    if (Date.now() - ts > 24 * 60 * 60 * 1000) return null;
-    return data as Qualifier;
-  } catch {
-    return null;
-  }
-}
-
-function saveQualifier(q: Qualifier) {
-  localStorage.setItem(QUALIFIER_KEY, JSON.stringify({ data: q, ts: Date.now() }));
-}
 
 // ── Qualifier UI ──────────────────────────────────────────────────────────────
 
@@ -148,7 +130,6 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
   const handleSubmit = () => {
     if (!ready) return;
     const q: Qualifier = { days, transport, budget, maxTravelHours };
-    saveQualifier(q);
     onSubmit(q);
   };
 
@@ -485,7 +466,7 @@ export default function Inspire() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
-  const [qualifier, setQualifier] = useState<Qualifier | null>(() => loadSavedQualifier());
+  const [qualifier, setQualifier] = useState<Qualifier | null>(null);
 
   const isDayTrip = qualifier?.days === 1;
 
@@ -581,7 +562,6 @@ export default function Inspire() {
   });
 
   function handleChangeSearch() {
-    localStorage.removeItem(QUALIFIER_KEY);
     queryClient.removeQueries({ queryKey: ["/api/inspire/suggestions"] });
     setQualifier(null);
   }
