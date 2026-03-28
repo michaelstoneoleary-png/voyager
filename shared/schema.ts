@@ -106,6 +106,17 @@ export const journeyPhotos = pgTable("journey_photos", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const userActivityFeedback = pgTable("user_activity_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  journeyId: varchar("journey_id").references(() => journeys.id, { onDelete: "cascade" }),
+  activityTitle: text("activity_title").notNull(),
+  activityType: text("activity_type"),
+  location: text("location"),
+  signal: text("signal").notNull(), // "liked" | "hard_reject"
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
   journeyMemberships: many(journeyMembers),
@@ -228,3 +239,5 @@ export const insertVoyageSchema = createInsertSchema(voyages).omit({
 
 export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
 export type Voyage = typeof voyages.$inferSelect;
+
+export type UserActivityFeedback = typeof userActivityFeedback.$inferSelect;

@@ -293,6 +293,7 @@ export default function TripPlanner() {
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
   const [likedActivities, setLikedActivities] = useState<Set<string>>(new Set());
+  const [replaceIsHardReject, setReplaceIsHardReject] = useState(false);
   const [customReplaceText, setCustomReplaceText] = useState("");
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
@@ -752,12 +753,26 @@ export default function TripPlanner() {
                                   className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${likedActivities.has(`${selectedDay}-${idx}`) ? "opacity-100 text-emerald-500" : "hover:bg-muted text-muted-foreground"}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    const key = `${selectedDay}-${idx}`;
+                                    const alreadyLiked = likedActivities.has(key);
                                     setLikedActivities(prev => {
                                       const next = new Set(prev);
-                                      const key = `${selectedDay}-${idx}`;
-                                      next.has(key) ? next.delete(key) : next.add(key);
+                                      alreadyLiked ? next.delete(key) : next.add(key);
                                       return next;
                                     });
+                                    if (!alreadyLiked) {
+                                      fetch(`/api/journeys/${journeyId}/activity-feedback`, {
+                                        method: "POST",
+                                        credentials: "include",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          activityTitle: activity.title,
+                                          activityType: activity.type,
+                                          location: currentDayData?.location,
+                                          signal: "liked",
+                                        }),
+                                      }).catch(() => {});
+                                    }
                                     setReplaceMode(null);
                                     setActivityMenu(null);
                                   }}
@@ -766,12 +781,29 @@ export default function TripPlanner() {
                                 >
                                   <ThumbsUp className="h-3.5 w-3.5" />
                                 </button>
-                                {/* Thumbs down → replace flow */}
+                                {/* Thumbs down → hard reject + replace flow */}
                                 <button
                                   className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted text-muted-foreground"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setReplaceMode(isReplacing ? null : { dayIndex: selectedDay, activityIndex: idx });
+                                    if (isReplacing && replaceIsHardReject) {
+                                      setReplaceMode(null);
+                                      setReplaceIsHardReject(false);
+                                    } else {
+                                      fetch(`/api/journeys/${journeyId}/activity-feedback`, {
+                                        method: "POST",
+                                        credentials: "include",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          activityTitle: activity.title,
+                                          activityType: activity.type,
+                                          location: currentDayData?.location,
+                                          signal: "hard_reject",
+                                        }),
+                                      }).catch(() => {});
+                                      setReplaceMode({ dayIndex: selectedDay, activityIndex: idx });
+                                      setReplaceIsHardReject(true);
+                                    }
                                     setActivityMenu(null);
                                     setCustomReplaceText("");
                                   }}
@@ -835,6 +867,8 @@ export default function TripPlanner() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setReplaceMode({ dayIndex: selectedDay, activityIndex: idx });
+                              setReplaceIsHardReject(false);
+                              setCustomReplaceText("");
                             }}
                             data-testid={`button-replace-${idx}`}
                           >
@@ -876,9 +910,18 @@ export default function TripPlanner() {
                     {isReplacing && (
                       <div className="relative z-20 ml-12 mt-1 mb-1 animate-in fade-in slide-in-from-top-1 duration-200" data-testid={`replace-type-picker-${idx}`}>
                         <div className="bg-background border rounded-xl shadow-lg p-4 space-y-3">
-                          <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                            <ThumbsDown className="h-3 w-3 text-muted-foreground" /> Not feeling it? Here are some options:
-                          </p>
+                          {replaceIsHardReject ? (
+                            <div className="flex items-start gap-2 p-2 bg-red-50 dark:bg-red-950/30 rounded-lg">
+                              <ThumbsDown className="h-3.5 w-3.5 text-red-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-red-700 dark:text-red-400">
+                                Got it — <span className="font-medium">"{activity.title}"</span> won't be suggested to you again.
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                              <Replace className="h-3 w-3 text-muted-foreground" /> Swap for something different:
+                            </p>
+                          )}
                           {/* Quick type chips */}
                           <div>
                             <p className="text-[11px] text-muted-foreground mb-1.5">Swap for a different type of experience:</p>
@@ -940,7 +983,7 @@ export default function TripPlanner() {
                           </div>
                           <button
                             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={(e) => { e.stopPropagation(); setReplaceMode(null); setCustomReplaceText(""); }}
+                            onClick={(e) => { e.stopPropagation(); setReplaceMode(null); setReplaceIsHardReject(false); setCustomReplaceText(""); }}
                             data-testid={`button-cancel-replace-${idx}`}
                           >
                             <X className="h-3 w-3" /> Cancel

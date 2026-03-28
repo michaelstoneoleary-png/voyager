@@ -698,6 +698,28 @@ Rules:
     }
   });
 
+  app.post("/api/journeys/:id/activity-feedback", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { activityTitle, activityType, location, signal } = req.body;
+      if (!activityTitle || !signal || !["liked", "hard_reject"].includes(signal)) {
+        return res.status(400).json({ message: "activityTitle and signal ('liked' or 'hard_reject') are required" });
+      }
+      await storage.recordActivityFeedback({
+        userId,
+        journeyId: req.params.id,
+        activityTitle,
+        activityType,
+        location,
+        signal,
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Error recording activity feedback:", error);
+      res.status(500).json({ message: "Failed to record feedback" });
+    }
+  });
+
   app.post("/api/journeys/:id/generate-highlights", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
@@ -1590,7 +1612,7 @@ Return ONLY a JSON array (no markdown, no code fences):
 
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 4096,
+        max_tokens: 16000,
         messages: [
           {
             role: "user",
