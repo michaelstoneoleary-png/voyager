@@ -28,8 +28,10 @@ import {
   Flower2,
   Plane,
   Car,
+  Train,
   Shuffle,
   ChevronRight,
+  Clock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -56,25 +58,28 @@ interface InspireData {
 }
 
 interface Qualifier {
-  days: number;        // 1 = day trip, 2–20 = specific days, 21 = open-ended
-  transport: string;   // "flying" | "driving" | "either"
-  budget: string;      // "budget" | "midrange" | "luxury" | "unlimited"
+  days: number;           // 1 = day trip, 2–20 = specific days, 21 = open-ended
+  transport: string[];    // one or more of "flying" | "driving" | "train"
+  budget: string;         // "budget" | "midrange" | "luxury" | "unlimited"
   maxTravelHours: string; // "2" | "4" | "8" | "any"
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TRAVEL_TIME_OPTIONS = [
-  { value: "2",   label: "≤ 2 hrs",    sub: "Short drive or quick hop",     icon: "🚗" },
-  { value: "4",   label: "≤ 4 hrs",    sub: "Regional flight or long drive", icon: "✈️" },
-  { value: "8",   label: "≤ 8 hrs",    sub: "Full day of travel OK",         icon: "🌐" },
-  { value: "any", label: "Anywhere",   sub: "No travel time limit",          icon: "∞" },
+  { value: "2",   label: "≤ 2 hrs",   sub: "Close to home",           icon: <Clock className="h-5 w-5" /> },
+  { value: "4",   label: "≤ 4 hrs",   sub: "Half a day of travel OK", icon: <Clock className="h-5 w-5" /> },
+  { value: "8",   label: "≤ 8 hrs",   sub: "Full day of travel OK",   icon: <Clock className="h-5 w-5" /> },
+  { value: "any", label: "Anywhere",  sub: "No time limit",            icon: <Globe className="h-5 w-5" /> },
 ];
 
+// Day trips cap at 4 hours door-to-door
+const DAY_TRIP_TRAVEL_TIME_OPTIONS = TRAVEL_TIME_OPTIONS.filter(o => o.value === "2" || o.value === "4");
+
 const TRANSPORT_OPTIONS = [
-  { value: "flying",  label: "Flying",     sub: "Anywhere in the world", icon: <Plane className="h-5 w-5" /> },
-  { value: "driving", label: "Road Trip",  sub: "Drivable from home",    icon: <Car className="h-5 w-5" /> },
-  { value: "either",  label: "Either",     sub: "No preference",          icon: <Shuffle className="h-5 w-5" /> },
+  { value: "flying",  label: "Flying",    sub: "Anywhere in the world",  icon: <Plane className="h-5 w-5" /> },
+  { value: "driving", label: "Road Trip", sub: "Drivable from home",     icon: <Car className="h-5 w-5" /> },
+  { value: "train",   label: "Rail",      sub: "Train or Amtrak",        icon: <Train className="h-5 w-5" /> },
 ];
 
 const BUDGET_OPTIONS = [
@@ -121,11 +126,27 @@ function daysLabel(days: number): string {
 
 function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
   const [days, setDays] = useState<number>(7);
-  const [transport, setTransport] = useState<string | null>(null);
+  const [transport, setTransport] = useState<string[]>([]);
   const [budget, setBudget] = useState<string | null>(null);
   const [maxTravelHours, setMaxTravelHours] = useState<string | null>(null);
 
-  const ready = transport && budget && maxTravelHours;
+  const isDayTrip = days === 1;
+  const travelTimeOptions = isDayTrip ? DAY_TRIP_TRAVEL_TIME_OPTIONS : TRAVEL_TIME_OPTIONS;
+
+  const handleDaysChange = (newDays: number) => {
+    setDays(newDays);
+    if (newDays === 1 && (maxTravelHours === "8" || maxTravelHours === "any")) {
+      setMaxTravelHours(null);
+    }
+  };
+
+  const toggleTransport = (value: string) => {
+    setTransport(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  };
+
+  const ready = transport.length > 0 && budget && maxTravelHours;
 
   const handleSubmit = () => {
     if (!ready) return;
@@ -133,6 +154,7 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
     onSubmit(q);
   };
 
+  // Single-select grid (travel time, budget)
   function OptionGrid({
     title,
     options,
@@ -195,33 +217,55 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
             min={1}
             max={21}
             value={days}
-            onChange={e => setDays(Number(e.target.value))}
+            onChange={e => handleDaysChange(Number(e.target.value))}
             className="w-full accent-primary cursor-pointer"
           />
-          <div className="flex justify-between text-[11px] text-muted-foreground mt-1 px-0.5">
-            <span>Day Trip</span>
-            <span>3 days</span>
-            <span>1 week</span>
-            <span>2 weeks</span>
-            <span>3+ weeks</span>
+          {/* Labels positioned at their true % along the 1–21 range */}
+          <div className="relative h-5 mt-1">
+            <span className="absolute left-0 text-[11px] text-muted-foreground">Day Trip</span>
+            <span className="absolute text-[11px] text-muted-foreground -translate-x-1/2" style={{ left: "10%" }}>3 days</span>
+            <span className="absolute text-[11px] text-muted-foreground -translate-x-1/2" style={{ left: "30%" }}>1 week</span>
+            <span className="absolute text-[11px] text-muted-foreground -translate-x-1/2" style={{ left: "65%" }}>2 weeks</span>
+            <span className="absolute right-0 text-[11px] text-muted-foreground">3+ weeks</span>
           </div>
         </div>
 
         <OptionGrid
-          title="How far are you willing to travel?"
-          options={TRAVEL_TIME_OPTIONS}
+          title={isDayTrip ? "How far are you willing to go?" : "How much travel time are you comfortable with?"}
+          options={travelTimeOptions}
           value={maxTravelHours}
           onChange={setMaxTravelHours}
-          cols={4}
+          cols={isDayTrip ? 2 : 4}
         />
 
-        <OptionGrid
-          title="Flying or driving?"
-          options={TRANSPORT_OPTIONS}
-          value={transport}
-          onChange={setTransport}
-          cols={3}
-        />
+        {/* Transport — multi-select */}
+        <div>
+          <h3 className="font-serif text-lg font-semibold mb-1 text-foreground">How do you want to travel?</h3>
+          <p className="text-[11px] text-muted-foreground mb-3">Select all that apply</p>
+          <div className="grid gap-3 grid-cols-3 sm:grid-cols-3">
+            {TRANSPORT_OPTIONS.map(opt => {
+              const selected = transport.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => toggleTransport(opt.value)}
+                  className={`
+                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
+                    transition-all duration-150 cursor-pointer
+                    ${selected
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                    }
+                  `}
+                >
+                  <span className="text-2xl leading-none">{opt.icon}</span>
+                  <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{opt.sub}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <OptionGrid
           title="What's the budget?"
@@ -471,7 +515,7 @@ export default function Inspire() {
   const isDayTrip = qualifier?.days === 1;
 
   const queryParams = qualifier
-    ? `?days=${qualifier.days}&transport=${qualifier.transport}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
+    ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
     : null;
 
   const { data, isLoading, error } = useQuery<InspireData>({
@@ -522,7 +566,7 @@ export default function Inspire() {
         origin: settings.homeLocation || "",
         finalDestination: `${gem.title}, ${gem.country}`,
         destinations: [],
-        days: 7,
+        days: qualifier?.days ?? 7,
         cost: gem.avg_daily_budget ? `${gem.avg_daily_budget}/day` : "TBD",
         status: "planning",
       });
@@ -690,7 +734,7 @@ export default function Inspire() {
 
   // Friendly labels for the qualifier summary chips
   const durationLabel = daysLabel(qualifier.days);
-  const transportLabel = TRANSPORT_OPTIONS.find(t => t.value === qualifier.transport)?.label ?? "";
+  const transportLabel = qualifier.transport.map(v => TRANSPORT_OPTIONS.find(o => o.value === v)?.label).filter(Boolean).join(" · ");
   const budgetLabel = BUDGET_OPTIONS.find(b => b.value === qualifier.budget)?.label ?? "";
   const travelTimeLabel = TRAVEL_TIME_OPTIONS.find(t => t.value === qualifier.maxTravelHours)?.label ?? "";
 
@@ -721,7 +765,10 @@ export default function Inspire() {
                 <Compass className="h-3 w-3" /> {travelTimeLabel} travel
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
-                {qualifier.transport === "flying" ? <Plane className="h-3 w-3" /> : qualifier.transport === "driving" ? <Car className="h-3 w-3" /> : <Shuffle className="h-3 w-3" />} {transportLabel}
+                {qualifier.transport.includes("flying") && <Plane className="h-3 w-3" />}
+                {qualifier.transport.includes("driving") && <Car className="h-3 w-3" />}
+                {qualifier.transport.includes("train") && <Train className="h-3 w-3" />}
+                {transportLabel}
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <DollarSign className="h-3 w-3" /> {budgetLabel}
