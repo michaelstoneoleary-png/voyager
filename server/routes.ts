@@ -563,7 +563,7 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
       const itinerary = journey.itinerary as any;
       if (!itinerary?.days) return res.status(400).json({ message: "No itinerary found" });
 
-      const { dayIndex, activityIndex, action, replaceType } = req.body;
+      const { dayIndex, activityIndex, action, replaceType, customRequest } = req.body;
       if (typeof dayIndex !== "number" || typeof activityIndex !== "number") {
         return res.status(400).json({ message: "dayIndex and activityIndex are required" });
       }
@@ -600,8 +600,8 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
       }
 
       if (action === "replace") {
-        if (!replaceType) {
-          return res.status(400).json({ message: "replaceType is required for replace action" });
+        if (!replaceType && !customRequest) {
+          return res.status(400).json({ message: "replaceType or customRequest is required for replace action" });
         }
 
         const timeSlot = removedActivity.time;
@@ -623,7 +623,7 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
             content: `Suggest ONE replacement activity for a travel itinerary in ${location}.
 
 Time slot: ${timeSlot}, Duration: ${durationHint}
-Type requested: ${replaceType}
+${customRequest ? `Traveler's request: "${customRequest}"` : `Type requested: ${replaceType}`}
 ${prevTitle ? `Previous activity: ${prevTitle}` : "First activity of the day"}
 ${nextTitle ? `Next activity: ${nextTitle}` : "Last activity of the day"}
 Other activities already planned this day: ${contextActivities || "none"}
@@ -632,7 +632,7 @@ Return a JSON object (no markdown, no code fences, just raw JSON):
 {
   "time": "${timeSlot}",
   "title": "Activity Name",
-  "type": "${replaceType}",
+  "type": "culture|food|nature|shopping|nightlife|relaxation|logistics",
   "duration": "${durationHint}",
   "description": "Brief description",
   "cost": "Free or estimated cost",
@@ -640,16 +640,16 @@ Return a JSON object (no markdown, no code fences, just raw JSON):
   "lat": 0.0000,
   "lng": 0.0000,
   "image_query": "Wikipedia article title for this specific place",
-  "travel_to_next": ${nextTitle ? `{ "mode": "walk|drive|taxi|transit|bus|train", "duration": "estimated", "distance": "estimated" }` : "null"}
+  "travel_to_next": ${nextTitle ? `{ "mode": "walk|drive|taxi|transit|bus|train", "duration": "estimated", "distance": "Xkm" }` : "null"}
 }
 
 Rules:
 - Must be a REAL place that exists in ${location}
 - Use accurate lat/lng coordinates
-- Must be type "${replaceType}"
+- Should directly address the traveler's request if one was given
 - Should complement the other planned activities (don't duplicate what's already there)
 - For image_query, use the exact Wikipedia article title
-- If type is "shopping": Focus on products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to ${location}. The description MUST name the specific local product(s) and their cultural significance. The tip should recommend authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".`
+- If type is "shopping": Focus on products ENDEMIC to the region with cultural significance.`
           }],
         });
 

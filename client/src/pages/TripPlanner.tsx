@@ -45,6 +45,9 @@ import {
   MoreVertical,
   Replace,
   Camera,
+  ThumbsUp,
+  ThumbsDown,
+  Send,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -289,7 +292,25 @@ export default function TripPlanner() {
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
+  const [likedActivities, setLikedActivities] = useState<Set<string>>(new Set());
+  const [customReplaceText, setCustomReplaceText] = useState("");
+  const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
+  const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
+
+  // Map city → hotel options from first day in that city
+  const hotelsByCity = useMemo(() => {
+    const map: Record<string, Hotel[]> = {};
+    const itinerary = (journey as any)?.itinerary as { days: ItineraryDay[] } | undefined;
+    if (itinerary?.days) {
+      for (const day of itinerary.days) {
+        if (day.hotels?.length && !map[day.location]) {
+          map[day.location] = day.hotels;
+        }
+      }
+    }
+    return map;
+  }, [journey]);
 
   const addWishlistItem = () => {
     const item = wishlist.trim();
@@ -368,7 +389,7 @@ export default function TripPlanner() {
   });
 
   const activityMutation = useMutation({
-    mutationFn: async (params: { dayIndex: number; activityIndex: number; action: string; replaceType?: string }) => {
+    mutationFn: async (params: { dayIndex: number; activityIndex: number; action: string; replaceType?: string; customRequest?: string }) => {
       const res = await apiRequest("POST", `/api/journeys/${journeyId}/remove-activity`, params);
       return res.json();
     },
@@ -382,6 +403,7 @@ export default function TripPlanner() {
       setActivityMenu(null);
       setReplaceMode(null);
       setSelectedActivity(null);
+      setCustomReplaceText("");
       const actionLabel = variables.action === "replace" ? "replaced" : variables.action === "extend_previous" ? "removed (previous extended)" : "removed";
       toast({ title: "Activity updated", description: `Activity has been ${actionLabel}.` });
     },
@@ -725,6 +747,40 @@ export default function TripPlanner() {
                                 <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
                                   {activity.type}
                                 </Badge>
+                                {/* Thumbs up */}
+                                <button
+                                  className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${likedActivities.has(`${selectedDay}-${idx}`) ? "opacity-100 text-emerald-500" : "hover:bg-muted text-muted-foreground"}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLikedActivities(prev => {
+                                      const next = new Set(prev);
+                                      const key = `${selectedDay}-${idx}`;
+                                      next.has(key) ? next.delete(key) : next.add(key);
+                                      return next;
+                                    });
+                                    setReplaceMode(null);
+                                    setActivityMenu(null);
+                                  }}
+                                  title="Love this"
+                                  data-testid={`button-thumbsup-${idx}`}
+                                >
+                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                </button>
+                                {/* Thumbs down → replace flow */}
+                                <button
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted text-muted-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setReplaceMode(isReplacing ? null : { dayIndex: selectedDay, activityIndex: idx });
+                                    setActivityMenu(null);
+                                    setCustomReplaceText("");
+                                  }}
+                                  title="Not for me"
+                                  data-testid={`button-thumbsdown-${idx}`}
+                                >
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                </button>
+                                {/* Overflow menu (remove / extend) */}
                                 <button
                                   className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted"
                                   onClick={(e) => {
@@ -819,36 +875,75 @@ export default function TripPlanner() {
 
                     {isReplacing && (
                       <div className="relative z-20 ml-12 mt-1 mb-1 animate-in fade-in slide-in-from-top-1 duration-200" data-testid={`replace-type-picker-${idx}`}>
-                        <div className="bg-background border rounded-lg shadow-lg p-3">
-                          <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
-                            <Sparkles className="h-3 w-3 text-primary" /> What type of experience would you like instead?
+                        <div className="bg-background border rounded-xl shadow-lg p-4 space-y-3">
+                          <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <ThumbsDown className="h-3 w-3 text-muted-foreground" /> Not feeling it? Here are some options:
                           </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {ACTIVITY_TYPES.map((type) => (
+                          {/* Quick type chips */}
+                          <div>
+                            <p className="text-[11px] text-muted-foreground mb-1.5">Swap for a different type of experience:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ACTIVITY_TYPES.map((type) => (
+                                <button
+                                  key={type.value}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${type.color} ${activityMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "replace", replaceType: type.value });
+                                  }}
+                                  disabled={activityMutation.isPending}
+                                  data-testid={`button-replace-type-${type.value}-${idx}`}
+                                >
+                                  {type.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Divider */}
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-px bg-border" />
+                            <span className="text-[11px] text-muted-foreground">or</span>
+                            <div className="flex-1 h-px bg-border" />
+                          </div>
+                          {/* Free-text request */}
+                          <div>
+                            <p className="text-[11px] text-muted-foreground mb-1.5">Tell Marco what you'd prefer:</p>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={customReplaceText}
+                                onChange={e => setCustomReplaceText(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter" && customReplaceText.trim() && !activityMutation.isPending) {
+                                    activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "replace", customRequest: customReplaceText.trim() });
+                                  }
+                                }}
+                                placeholder="e.g. something outdoors, a local market, less touristy…"
+                                className="flex-1 text-xs px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                disabled={activityMutation.isPending}
+                                onClick={e => e.stopPropagation()}
+                              />
                               <button
-                                key={type.value}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${type.color} ${activityMutation.isPending ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "replace", replaceType: type.value });
+                                  if (customReplaceText.trim()) {
+                                    activityMutation.mutate({ dayIndex: selectedDay, activityIndex: idx, action: "replace", customRequest: customReplaceText.trim() });
+                                  }
                                 }}
-                                disabled={activityMutation.isPending}
-                                data-testid={`button-replace-type-${type.value}-${idx}`}
+                                disabled={!customReplaceText.trim() || activityMutation.isPending}
+                                className="p-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                                data-testid={`button-custom-replace-${idx}`}
                               >
-                                {type.label}
+                                {activityMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                               </button>
-                            ))}
+                            </div>
                           </div>
                           <button
-                            className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setReplaceMode(null);
-                              setActivityMenu(null);
-                            }}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setReplaceMode(null); setCustomReplaceText(""); }}
                             data-testid={`button-cancel-replace-${idx}`}
                           >
-                            <ArrowLeft className="h-3 w-3" /> Back
+                            <X className="h-3 w-3" /> Cancel
                           </button>
                         </div>
                       </div>
@@ -882,46 +977,65 @@ export default function TripPlanner() {
                   </div>
                   );
                 })}
-              {currentDayData?.hotels && currentDayData.hotels.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-border">
-                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-3 flex items-center gap-1.5 px-1">
-                    <BedDouble className="h-3.5 w-3.5" /> Where to Stay
-                  </h3>
-                  <div className="space-y-2">
-                    {currentDayData.hotels.map((hotel, idx) => (
-                      <div
-                        key={idx}
-                        className={`cursor-pointer rounded-lg border p-3 transition-all hover:shadow-md ${selectedHotel === hotel ? "border-amber-400 bg-amber-50/50 shadow-md" : "border-border hover:border-amber-200"}`}
-                        onClick={() => { setSelectedHotel(hotel); setSelectedActivity(null); }}
-                        data-testid={`hotel-card-${idx}`}
-                      >
-                        <div className="flex gap-3">
-                          {hotel.image_url && (
-                            <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
-                              <img src={hotel.image_url} alt={hotel.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-1">
-                              <h4 className="font-serif font-medium text-sm leading-tight">{hotel.name}</h4>
-                              <Badge variant="outline" className={`text-[9px] uppercase tracking-wider border flex-shrink-0 ${HOTEL_CATEGORY_COLORS[hotel.category] || ""}`}>
-                                {hotel.category}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="flex items-center gap-0.5 text-xs font-medium text-amber-600">
-                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {hotel.rating}
-                              </span>
-                              <span className="text-xs font-medium text-emerald-700">{hotel.price_per_night}/night</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{hotel.neighborhood}</p>
+              {/* Hotel section — persists per city */}
+              {currentDayData?.location && hotelsByCity[currentDayData.location]?.length > 0 && (() => {
+                const city = currentDayData.location;
+                const cityHotels = hotelsByCity[city];
+                const picked = selectedHotelsPerCity[city] ?? cityHotels[0];
+                return (
+                  <div className="mt-6 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between px-1 mb-3">
+                      <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-1.5">
+                        <BedDouble className="h-3.5 w-3.5" /> Where to Stay in {city}
+                      </h3>
+                      {cityHotels.length > 1 && (
+                        <button
+                          onClick={() => setHotelModalCity(city)}
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          {cityHotels.length - 1} other{cityHotels.length > 2 ? "s" : ""} →
+                        </button>
+                      )}
+                    </div>
+                    {/* Selected/default hotel */}
+                    <div
+                      className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50/40 p-3 shadow-sm hover:shadow-md transition-all"
+                      onClick={() => { setSelectedHotel(picked); setSelectedActivity(null); }}
+                    >
+                      <div className="flex gap-3">
+                        {picked.image_url && (
+                          <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                            <img src={picked.image_url} alt={picked.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                           </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1">
+                            <h4 className="font-serif font-medium text-sm leading-tight">{picked.name}</h4>
+                            <Badge variant="outline" className={`text-[9px] uppercase tracking-wider border flex-shrink-0 ${HOTEL_CATEGORY_COLORS[picked.category] || ""}`}>
+                              {picked.category}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="flex items-center gap-0.5 text-xs font-medium text-amber-600">
+                              <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {picked.rating}
+                            </span>
+                            <span className="text-xs font-medium text-emerald-700">{picked.price_per_night}/night</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{picked.neighborhood}</p>
                         </div>
                       </div>
-                    ))}
+                      {cityHotels.length > 1 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setHotelModalCity(city); }}
+                          className="mt-2 w-full text-[11px] text-muted-foreground hover:text-primary text-center border-t pt-2 transition-colors"
+                        >
+                          Not this one? See {cityHotels.length - 1} alternative{cityHotels.length > 2 ? "s" : ""}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               </div>
             </ScrollArea>
           </div>
@@ -1215,6 +1329,68 @@ export default function TripPlanner() {
         </div>
         )}
       </div>
+      {/* Hotel alternatives modal */}
+      {hotelModalCity && (() => {
+        const cityHotels = hotelsByCity[hotelModalCity] ?? [];
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onClick={() => setHotelModalCity(null)}
+          >
+            <div
+              className="bg-background rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b flex items-center justify-between">
+                <div>
+                  <h2 className="font-serif font-semibold text-base">Hotels in {hotelModalCity}</h2>
+                  <p className="text-xs text-muted-foreground">Select your preferred stay</p>
+                </div>
+                <button onClick={() => setHotelModalCity(null)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="overflow-y-auto p-4 space-y-3">
+                {cityHotels.map((hotel, idx) => {
+                  const isSelected = (selectedHotelsPerCity[hotelModalCity] ?? cityHotels[0]) === hotel;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSelectedHotelsPerCity(prev => ({ ...prev, [hotelModalCity]: hotel }));
+                        setSelectedHotel(hotel);
+                        setHotelModalCity(null);
+                      }}
+                      className={`w-full text-left rounded-xl border p-3 transition-all hover:shadow-md ${isSelected ? "border-amber-400 bg-amber-50/40" : "border-border hover:border-amber-200"}`}
+                    >
+                      <div className="flex gap-3">
+                        {hotel.image_url && (
+                          <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                            <img src={hotel.image_url} alt={hotel.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h3 className="font-serif font-semibold text-sm leading-tight">{hotel.name}</h3>
+                            {isSelected && <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">✓ Selected</span>}
+                          </div>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Badge variant="outline" className={`text-[9px] uppercase tracking-wider ${HOTEL_CATEGORY_COLORS[hotel.category] || ""}`}>{hotel.category}</Badge>
+                            <span className="flex items-center gap-0.5 text-xs text-amber-600"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{hotel.rating}</span>
+                            <span className="text-xs font-semibold text-emerald-700">{hotel.price_per_night}/night</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground line-clamp-2">{hotel.review_summary || hotel.why_this_hotel}</p>
+                          {hotel.neighborhood && <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-2.5 w-2.5" />{hotel.neighborhood}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </Layout>
   );
 }
