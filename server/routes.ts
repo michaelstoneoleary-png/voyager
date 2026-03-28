@@ -1265,14 +1265,27 @@ Write a brief, warm stream-of-consciousness as you think through curating the pe
       };
       const travelTimeNote = travelTimeDesc[maxTravelHours] || travelTimeDesc["any"];
 
-      // Factor in home airport — smaller airports often require connecting through a hub,
-      // adding 1–3 hours to total travel time vs. flying from a major hub city.
-      const homeAirportNote = homeLocation
-        ? `IMPORTANT: The traveler's home is "${homeLocation}". When calculating travel time, factor in:
-  1. Drive time from their home to the nearest airport (check if it's a regional or major hub)
-  2. If it's a regional airport, add ~1–2 hours for likely connections through a hub (e.g. Atlanta, Charlotte, Dallas)
-  3. Total door-to-door travel time must respect the traveler's stated maximum of ${maxTravelHours === "any" ? "unlimited" : maxTravelHours + " hours"}.
-  Do NOT assume they live next to a major international hub unless their city actually has one.`
+      // Strict travel time enforcement with home-airport awareness
+      const travelTimeLimit = maxTravelHours === "any" ? null : parseInt(maxTravelHours);
+      const homeAirportNote = homeLocation && travelTimeLimit
+        ? `STRICT TRAVEL TIME ENFORCEMENT — this is a hard disqualifier:
+The traveler lives in "${homeLocation}". You must calculate realistic door-to-door travel time for EVERY suggestion before including it.
+
+Door-to-door calculation:
+  - DRIVING: actual road distance from ${homeLocation} at realistic speeds (not straight-line). Include any ferry crossings.
+  - FLYING: ground transport to their local airport + check-in (90 min) + flight time + layovers (if no direct route, add 1–2hrs for connection at a hub like ATL/CLT/DFW) + ground transport at destination.
+  - If "${homeLocation}" is served by a regional airport (not a major international hub), assume connecting flights are needed for most destinations — add 1–2 hours.
+
+Hard limit: ${travelTimeLimit} hours total door-to-door. ANY destination where the realistic travel time exceeds ${travelTimeLimit} hours MUST be excluded — do not include it and do not round down.
+
+Examples of what does NOT fit ${travelTimeLimit} hours from ${homeLocation}:
+  - Long-haul international destinations (Europe, Asia, South America) unless direct flights exist
+  - Destinations requiring multiple long connections
+  - Destinations that are close "as the crow flies" but have no direct road/rail (e.g. islands requiring ferries adding hours)
+
+Only suggest destinations you are confident fit within ${travelTimeLimit} hours door-to-door from ${homeLocation}.`
+        : homeLocation
+        ? `The traveler lives in "${homeLocation}". Calculate realistic travel times from this location for every suggestion.`
         : "";
 
       // Build transport description from the selected modes array
@@ -1327,10 +1340,9 @@ ${homeAirportNote}
 RULES:
 - Suggest destinations they have NOT already visited
 - Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
-- Every suggestion must realistically fit the duration, transport, travel time, and budget constraints above
-- If transport is "driving", ALL suggestions must be within driving distance of their home within their stated travel time
+- TRAVEL TIME IS A HARD FILTER — calculate it accurately before including any suggestion. Exclude any destination that does not fit. Do not fudge the numbers.
 - avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
-- Include a diverse mix; if transport is "flying" spread across different continents where travel time allows
+- Include a diverse mix of destinations that genuinely fit the constraints
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
