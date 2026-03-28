@@ -1228,7 +1228,8 @@ ${truncated}`,
       const transportDesc: Record<string, string> = {
         flying:  "flying (choose destinations whose total door-to-door travel time fits within the traveler's stated maximum)",
         driving: `driving only — destinations must be reachable by car from ${homeLocation || "their home"} within the traveler's stated travel time maximum`,
-        either:  "open to flying or driving — choose whichever makes sense for each destination given the travel time constraint",
+        train:   `rail/train travel — destinations must be reachable by train or Amtrak from ${homeLocation || "their home"} within the traveler's stated travel time maximum. Prioritise destinations with good rail connections.`,
+        either:  "open to flying, driving, or train — choose whichever makes most sense for each destination given the travel time constraint",
       };
       const budgetDesc: Record<string, string> = {
         budget:    "$50–100/day (backpacker / hostel / budget hotel style)",
