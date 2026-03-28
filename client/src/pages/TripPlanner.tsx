@@ -299,6 +299,46 @@ export default function TripPlanner() {
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
 
+  // Parse a cost string like "$20-30", "$50", "Free", "~$100 per person" → [min, max] or null
+  function parseCostRange(raw: string | undefined): [number, number] | null {
+    if (!raw) return null;
+    const s = raw.trim();
+    if (/^free$/i.test(s)) return [0, 0];
+    const rangeMatch = s.match(/\$\s*([\d,]+)\s*[-–]\s*([\d,]+)/);
+    if (rangeMatch) return [parseFloat(rangeMatch[1].replace(/,/g, "")), parseFloat(rangeMatch[2].replace(/,/g, ""))];
+    const singleMatch = s.match(/~?\$\s*([\d,]+)/);
+    if (singleMatch) { const v = parseFloat(singleMatch[1].replace(/,/g, "")); return [v, v]; }
+    return null;
+  }
+
+  // Tally estimated trip costs from the generated itinerary
+  const expenseTally = useMemo(() => {
+    const itin = (journey as any)?.itinerary as { days: ItineraryDay[] } | undefined;
+    if (!itin?.days) return null;
+    let actMin = 0, actMax = 0, hotelMin = 0, hotelMax = 0;
+    for (const day of itin.days) {
+      for (const a of day.activities || []) {
+        const r = parseCostRange(a.cost);
+        if (r) { actMin += r[0]; actMax += r[1]; }
+      }
+      const city = day.location;
+      const hotel = selectedHotelsPerCity[city] ?? day.hotels?.[0];
+      if (hotel?.price_per_night) {
+        const r = parseCostRange(hotel.price_per_night);
+        if (r) { hotelMin += r[0]; hotelMax += r[1]; }
+      }
+    }
+    const totalMin = actMin + hotelMin;
+    const totalMax = actMax + hotelMax;
+    if (totalMin === 0 && totalMax === 0) return null;
+    const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`;
+    return {
+      activities: actMin === actMax ? fmt(actMin) : `${fmt(actMin)}–${fmt(actMax)}`,
+      accommodation: hotelMin === hotelMax ? fmt(hotelMin) : `${fmt(hotelMin)}–${fmt(hotelMax)}`,
+      total: totalMin === totalMax ? fmt(totalMin) : `${fmt(totalMin)}–${fmt(totalMax)}`,
+    };
+  }, [journey, selectedHotelsPerCity]);
+
   // Map city → hotel options from first day in that city
   const hotelsByCity = useMemo(() => {
     const map: Record<string, Hotel[]> = {};
@@ -622,7 +662,15 @@ export default function TripPlanner() {
               </Button>
             </Link>
             <div>
-              <h1 className="font-serif text-3xl font-bold" data-testid="text-planner-title">{journey.title}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-serif text-3xl font-bold" data-testid="text-planner-title">{journey.title}</h1>
+                {journey.origin && journey.finalDestination &&
+                  journey.finalDestination.trim().toLowerCase() !== journey.origin.trim().toLowerCase() && (
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider border-primary/30 text-primary bg-primary/5">
+                    Open-jaw
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground">
                 {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
                 {journey.days ? ` • ${journey.days} days` : ""}
@@ -684,6 +732,24 @@ export default function TripPlanner() {
             <div className="max-w-3xl mx-auto py-2">
               <PhotoGallery journeyId={journeyId!} />
             </div>
+          </div>
+        )}
+
+        {viewMode === "itinerary" && expenseTally && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 pb-3 text-xs" data-testid="expense-tally">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <DollarSign className="h-3 w-3" />
+              Activities <span className="font-semibold text-foreground ml-0.5">{expenseTally.activities}</span>
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <BedDouble className="h-3 w-3" />
+              Stays <span className="font-semibold text-foreground ml-0.5">{expenseTally.accommodation}</span>
+            </span>
+            <span className="flex items-center gap-1 font-semibold">
+              <span className="text-muted-foreground font-normal">Est. total</span>
+              <span className="text-foreground">{expenseTally.total}</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground/60 italic">based on AI estimates</span>
           </div>
         )}
 

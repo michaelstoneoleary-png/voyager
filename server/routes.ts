@@ -343,6 +343,14 @@ Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flow
       if (!journey) return res.status(404).json({ message: "Journey not found" });
 
       const user = await storage.getUser(userId);
+
+      // Fetch user's feedback signals to personalise the itinerary
+      const [hardRejectedTitles, feedbackRows] = await Promise.all([
+        storage.getHardRejectedTitles(userId),
+        storage.getActivityFeedbackSignals(userId),
+      ]);
+      const likedTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
+
       // Origin is the departure point only — exclude it from the destination list
       // so the AI doesn't plan activities there before the trip starts
       const allStops = [
@@ -356,7 +364,14 @@ Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flow
       const originNote = journey.origin
         ? `The traveler departs from ${journey.origin} — this is their home/departure city, NOT a destination to plan activities in. Do not include days or activities in ${journey.origin}. `
         : "";
-      const finalNote = journey.finalDestination ? `Returning to: ${journey.finalDestination}. ` : "";
+
+      const isOpenJaw = !!(journey.finalDestination && journey.origin &&
+        journey.finalDestination.trim().toLowerCase() !== journey.origin.trim().toLowerCase());
+      const finalNote = isOpenJaw
+        ? `OPEN-JAW TRIP: The traveler departs from ${journey.origin} but does NOT return there — the trip ends in ${journey.finalDestination}. Do NOT plan any return leg back to ${journey.origin}. `
+        : journey.finalDestination
+          ? `Round trip — the traveler returns home to ${journey.origin} at the end. ${journey.finalDestination} is the last travel stop. `
+          : "";
 
       const { wishlist } = req.body || {};
       const wishlistNote = wishlist && wishlist.trim()
@@ -406,12 +421,19 @@ Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flow
           }\n`
         : "";
 
+      const hardRejectNote = hardRejectedTitles.length > 0
+        ? `\nAVOID THESE SPECIFIC ACTIVITIES (the traveler has rejected them and does not want to see them again): ${hardRejectedTitles.join(", ")}. Do not suggest these or close equivalents.\n`
+        : "";
+      const likedNote = likedTypes.length > 0
+        ? `\nTRAVELER PREFERENCE: This traveler has shown interest in these activity types: ${likedTypes.join(", ")}. Favour these types when choosing activities.\n`
+        : "";
+
       const stream = await anthropic.messages.stream({
         model: "claude-sonnet-4-6",
         max_tokens: 32000,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${restaurantNote}
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${hardRejectNote}${likedNote}${wishlistNote}${restaurantNote}
 
 TRAVEL MODE: ${travelModeNote}
 
@@ -1259,12 +1281,18 @@ Write a brief, warm stream-of-consciousness as you think through curating the pe
         return res.json(cached.data);
       }
 
-      const journeys = await storage.getJourneys(userId);
-      const pastTrips = await storage.getPastTrips(userId);
+      const [journeys, pastTrips, feedbackRows] = await Promise.all([
+        storage.getJourneys(userId),
+        storage.getPastTrips(userId),
+        storage.getActivityFeedbackSignals(userId),
+      ]);
 
       const travelStyles = (user.travelStyles as string[]) || [];
       const homeLocation = user.homeLocation || "";
       const passportCountry = user.passportCountry || "";
+
+      const likedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
+      const rejectedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "hard_reject").map(r => r.activityType).filter(Boolean))];
 
       const visitedPlaces = [
         ...journeys.map(j => [j.origin, ...(j.destinations as string[] || []), j.finalDestination].filter(Boolean)).flat(),
@@ -1349,7 +1377,7 @@ TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
 - Passport: ${passportCountry || "Not specified"}
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
-- Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}
+- Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}${likedActivityTypes.length > 0 ? `\n- Enjoys: ${likedActivityTypes.join(", ")} activities (from past likes — lean into destinations where these shine)` : ""}${rejectedActivityTypes.length > 0 ? `\n- Avoids: ${rejectedActivityTypes.join(", ")} activities (from past rejections — deprioritise destinations that are mainly about these)` : ""}
 
 TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all of these):
 - Duration: ${durationDesc}
