@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
@@ -297,13 +297,26 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
 
 function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (gem: Suggestion) => void }) {
   const fallbackBg = "bg-gradient-to-br from-primary/20 to-primary/5";
+  const [imageUrl, setImageUrl] = useState<string | null>(gem.image_url || null);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (imageUrl || fetchedRef.current) return;
+    fetchedRef.current = true;
+    const q = gem.image_query || gem.title;
+    const type = gem.category?.toLowerCase() || "city";
+    fetch(`/api/inspire/image?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.url) setImageUrl(d.url); })
+      .catch(() => {});
+  }, []);
 
   return (
     <Card className="group overflow-hidden border-0 shadow-none bg-transparent hover:bg-card hover:shadow-lg transition-all duration-300 rounded-xl" data-testid={`inspire-card-${gem.title.toLowerCase().replace(/\s+/g, "-")}`}>
       <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
-        {gem.image_url ? (
+        {imageUrl ? (
           <img
-            src={gem.image_url}
+            src={imageUrl}
             alt={gem.title}
             loading="lazy"
             decoding="async"
@@ -532,11 +545,15 @@ export default function Inspire() {
     queryKey: ["/api/inspire/suggestions", qualifier],
     queryFn: async () => {
       const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load suggestions");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to load suggestions");
+      }
       return res.json();
     },
     enabled: !!qualifier && !isDayTrip,
     staleTime: 30 * 60 * 1000,
+    retry: 0,
   });
 
   const { data: dayTripData, isLoading: isDayTripLoading, error: dayTripError } = useQuery<{ dayTrips: DayTripResult[]; homeLocation: string }>({

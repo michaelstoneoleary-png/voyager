@@ -1404,17 +1404,7 @@ Return ONLY a JSON array (no markdown, no code fences):
         return res.status(422).json({ message: "No suggestions generated. Please try again." });
       }
 
-      const CONCURRENCY = 5;
-      for (let i = 0; i < suggestions.length; i += CONCURRENCY) {
-        const batch = suggestions.slice(i, i + CONCURRENCY);
-        const images = await Promise.all(
-          batch.map((s: any) => fetchDestinationImage(s.image_query || s.title, s.category?.toLowerCase() || "city"))
-        );
-        for (let j = 0; j < batch.length; j++) {
-          batch[j].image_url = images[j];
-        }
-      }
-
+      // Return immediately without image fetching — images are loaded lazily per-card
       const result = { suggestions, generatedAt: new Date().toISOString() };
       inspireCache.set(cacheKey, { data: result, timestamp: Date.now() });
       res.json(result);
@@ -1435,6 +1425,15 @@ Return ONLY a JSON array (no markdown, no code fences):
     } catch (error) {
       res.status(500).json({ message: "Failed to refresh" });
     }
+  });
+
+  // Lazy image loader — called per-card after suggestions arrive
+  app.get("/api/inspire/image", isAuthenticated, async (req: any, res) => {
+    const q = (req.query.q as string || "").trim();
+    const type = (req.query.type as string || "city").toLowerCase();
+    if (!q) return res.status(400).json({ message: "q is required" });
+    const url = await fetchDestinationImage(q, type);
+    res.json({ url });
   });
 
   // ── Day Trips ─────────────────────────────────────────────────────────────
