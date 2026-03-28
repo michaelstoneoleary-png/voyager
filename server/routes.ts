@@ -1177,11 +1177,11 @@ ${truncated}`,
 
       // Qualifier params from the frontend
       const days           = parseInt(req.query.days as string) || 7;
-      const transport      = (req.query.transport as string) || "either";
+      const transports     = ((req.query.transport as string) || "flying,driving,train").split(",").filter(Boolean);
       const budget         = (req.query.budget    as string) || "midrange";
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
 
-      const cacheKey = `inspire_${userId}_${days}_${transport}_${budget}_${maxTravelHours}`;
+      const cacheKey = `inspire_${userId}_${days}_${transports.sort().join("-")}_${budget}_${maxTravelHours}`;
       const cached = inspireCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
         return res.json(cached.data);
@@ -1225,12 +1225,27 @@ ${truncated}`,
   Do NOT assume they live next to a major international hub unless their city actually has one.`
         : "";
 
-      const transportDesc: Record<string, string> = {
-        flying:  "flying (choose destinations whose total door-to-door travel time fits within the traveler's stated maximum)",
-        driving: `driving only — destinations must be reachable by car from ${homeLocation || "their home"} within the traveler's stated travel time maximum`,
-        train:   `rail/train travel — destinations must be reachable by train or Amtrak from ${homeLocation || "their home"} within the traveler's stated travel time maximum. Prioritise destinations with good rail connections.`,
-        either:  "open to flying, driving, or train — choose whichever makes most sense for each destination given the travel time constraint",
-      };
+      // Build transport description from the selected modes array
+      const allModes = ["flying", "driving", "train"];
+      const hasFlying  = transports.includes("flying");
+      const hasDriving = transports.includes("driving");
+      const hasRail    = transports.includes("train");
+      const hasAll     = hasFlying && hasDriving && hasRail;
+
+      let transportDesc: string;
+      if (hasAll || transports.length === 0) {
+        transportDesc = "open to any mode of transport — choose whichever makes most sense for each destination given the travel time constraint";
+      } else if (transports.length === 1 && hasDriving) {
+        transportDesc = `driving only — all suggestions must be reachable by car from ${homeLocation || "their home"} within the travel time limit`;
+      } else if (transports.length === 1 && hasRail) {
+        transportDesc = `strongly prefers rail/train travel — prioritise destinations with excellent Amtrak or rail connections from ${homeLocation || "their home"}, though occasional short drives or connecting flights are acceptable where no good rail option exists`;
+      } else if (transports.length === 1 && hasFlying) {
+        transportDesc = "flying — choose destinations whose total door-to-door travel time fits within the stated maximum";
+      } else {
+        const modeNames = transports.map(m => m === "train" ? "rail" : m).join(" or ");
+        const railNote = hasRail ? " Where rail is a good option, prefer it." : "";
+        transportDesc = `open to ${modeNames} — choose whichever makes most sense per destination given the travel time constraint.${railNote}`;
+      }
       const budgetDesc: Record<string, string> = {
         budget:    "$50–100/day (backpacker / hostel / budget hotel style)",
         midrange:  "$100–250/day (comfortable hotels, good restaurants)",
@@ -1254,7 +1269,7 @@ TRAVELER PROFILE:
 TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all of these):
 - Duration: ${durationDesc}
 - Max travel time: ${travelTimeNote}
-- Transport: ${transportDesc[transport] || transportDesc.either}
+- Transport: ${transportDesc}
 - Budget: ${budgetDesc[budget] || budgetDesc.midrange}
 
 ${homeAirportNote}

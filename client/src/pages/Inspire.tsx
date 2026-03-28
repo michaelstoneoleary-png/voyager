@@ -58,9 +58,9 @@ interface InspireData {
 }
 
 interface Qualifier {
-  days: number;        // 1 = day trip, 2–20 = specific days, 21 = open-ended
-  transport: string;   // "flying" | "driving" | "either"
-  budget: string;      // "budget" | "midrange" | "luxury" | "unlimited"
+  days: number;           // 1 = day trip, 2–20 = specific days, 21 = open-ended
+  transport: string[];    // one or more of "flying" | "driving" | "train"
+  budget: string;         // "budget" | "midrange" | "luxury" | "unlimited"
   maxTravelHours: string; // "2" | "4" | "8" | "any"
 }
 
@@ -80,7 +80,6 @@ const TRANSPORT_OPTIONS = [
   { value: "flying",  label: "Flying",    sub: "Anywhere in the world",  icon: <Plane className="h-5 w-5" /> },
   { value: "driving", label: "Road Trip", sub: "Drivable from home",     icon: <Car className="h-5 w-5" /> },
   { value: "train",   label: "Rail",      sub: "Train or Amtrak",        icon: <Train className="h-5 w-5" /> },
-  { value: "either",  label: "Open",      sub: "No preference",          icon: <Shuffle className="h-5 w-5" /> },
 ];
 
 const BUDGET_OPTIONS = [
@@ -127,7 +126,7 @@ function daysLabel(days: number): string {
 
 function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
   const [days, setDays] = useState<number>(7);
-  const [transport, setTransport] = useState<string | null>(null);
+  const [transport, setTransport] = useState<string[]>([]);
   const [budget, setBudget] = useState<string | null>(null);
   const [maxTravelHours, setMaxTravelHours] = useState<string | null>(null);
 
@@ -136,13 +135,18 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
 
   const handleDaysChange = (newDays: number) => {
     setDays(newDays);
-    // Reset travel time if the current selection is invalid for a day trip
     if (newDays === 1 && (maxTravelHours === "8" || maxTravelHours === "any")) {
       setMaxTravelHours(null);
     }
   };
 
-  const ready = transport && budget && maxTravelHours;
+  const toggleTransport = (value: string) => {
+    setTransport(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  };
+
+  const ready = transport.length > 0 && budget && maxTravelHours;
 
   const handleSubmit = () => {
     if (!ready) return;
@@ -150,6 +154,7 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
     onSubmit(q);
   };
 
+  // Single-select grid (travel time, budget)
   function OptionGrid({
     title,
     options,
@@ -233,13 +238,34 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
           cols={isDayTrip ? 2 : 4}
         />
 
-        <OptionGrid
-          title="How do you want to travel?"
-          options={TRANSPORT_OPTIONS}
-          value={transport}
-          onChange={setTransport}
-          cols={4}
-        />
+        {/* Transport — multi-select */}
+        <div>
+          <h3 className="font-serif text-lg font-semibold mb-1 text-foreground">How do you want to travel?</h3>
+          <p className="text-[11px] text-muted-foreground mb-3">Select all that apply</p>
+          <div className="grid gap-3 grid-cols-3 sm:grid-cols-3">
+            {TRANSPORT_OPTIONS.map(opt => {
+              const selected = transport.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => toggleTransport(opt.value)}
+                  className={`
+                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
+                    transition-all duration-150 cursor-pointer
+                    ${selected
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                    }
+                  `}
+                >
+                  <span className="text-2xl leading-none">{opt.icon}</span>
+                  <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{opt.sub}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <OptionGrid
           title="What's the budget?"
@@ -489,7 +515,7 @@ export default function Inspire() {
   const isDayTrip = qualifier?.days === 1;
 
   const queryParams = qualifier
-    ? `?days=${qualifier.days}&transport=${qualifier.transport}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
+    ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
     : null;
 
   const { data, isLoading, error } = useQuery<InspireData>({
@@ -708,7 +734,7 @@ export default function Inspire() {
 
   // Friendly labels for the qualifier summary chips
   const durationLabel = daysLabel(qualifier.days);
-  const transportLabel = TRANSPORT_OPTIONS.find(t => t.value === qualifier.transport)?.label ?? "";
+  const transportLabel = qualifier.transport.map(v => TRANSPORT_OPTIONS.find(o => o.value === v)?.label).filter(Boolean).join(" · ");
   const budgetLabel = BUDGET_OPTIONS.find(b => b.value === qualifier.budget)?.label ?? "";
   const travelTimeLabel = TRAVEL_TIME_OPTIONS.find(t => t.value === qualifier.maxTravelHours)?.label ?? "";
 
@@ -739,7 +765,10 @@ export default function Inspire() {
                 <Compass className="h-3 w-3" /> {travelTimeLabel} travel
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
-                {qualifier.transport === "flying" ? <Plane className="h-3 w-3" /> : qualifier.transport === "driving" ? <Car className="h-3 w-3" /> : qualifier.transport === "train" ? <Train className="h-3 w-3" /> : <Shuffle className="h-3 w-3" />} {transportLabel}
+                {qualifier.transport.includes("flying") && <Plane className="h-3 w-3" />}
+                {qualifier.transport.includes("driving") && <Car className="h-3 w-3" />}
+                {qualifier.transport.includes("train") && <Train className="h-3 w-3" />}
+                {transportLabel}
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <DollarSign className="h-3 w-3" /> {budgetLabel}
