@@ -350,7 +350,7 @@ export async function registerRoutes(
           }\n`
         : "";
 
-      const response = await anthropic.messages.create({
+      const stream = await anthropic.messages.stream({
         model: "claude-sonnet-4-6",
         max_tokens: 32000,
         messages: [{
@@ -414,6 +414,7 @@ HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by bes
         }],
       });
 
+      const response = await stream.finalMessage();
       console.log("[generate-itinerary] stop_reason:", response.stop_reason, "| output_tokens:", response.usage?.output_tokens);
 
       const textContent = response.content.find(c => c.type === "text");
