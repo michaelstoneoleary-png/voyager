@@ -8,7 +8,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   MapPin,
   Plus,
@@ -527,6 +527,7 @@ export default function Inspire() {
   const { settings } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
   const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
@@ -638,7 +639,7 @@ export default function Inspire() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       toast({ title: "Journey created!", description: `"${data.title}" is ready for planning.` });
-      window.location.href = `/planner/${data.id}`;
+      setLocation(`/planner/${data.id}`);
     },
     onError: () => {
       toast({ title: "Failed to create journey", description: "Please try again.", variant: "destructive" });
@@ -661,7 +662,7 @@ export default function Inspire() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       toast({ title: "Day trip created!", description: `"${data.title}" is ready for planning.` });
-      window.location.href = `/planner/${data.id}`;
+      setLocation(`/planner/${data.id}`);
     },
     onError: () => {
       toast({ title: "Failed to create day trip", description: "Please try again.", variant: "destructive" });

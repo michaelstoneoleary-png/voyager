@@ -12,7 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useSearch } from "wouter";
+import { useSearch, Link } from "wouter";
 import {
   Shirt,
   Droplets,
@@ -24,6 +24,7 @@ import {
   RotateCcw,
   Trash2,
   Pencil,
+  ArrowLeft,
   Sparkles,
   MapPin,
   Calendar,
@@ -111,6 +112,7 @@ export default function PackingList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const search = useSearch();
+  const journeyIdFromUrl = new URLSearchParams(search).get("journeyId");
 
   const { data: journeys } = useQuery<JourneyOption[]>({
     queryKey: ["/api/journeys"],
@@ -522,6 +524,15 @@ export default function PackingList() {
     return (
       <Layout>
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {journeyIdFromUrl && (
+            <div className="mb-4">
+              <Link href={`/planner/${journeyIdFromUrl}`}>
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Planner
+                </Button>
+              </Link>
+            </div>
+          )}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
             <div>
               <h1 className="font-serif text-3xl font-bold mb-1">Smart Packing</h1>
@@ -779,6 +790,15 @@ export default function PackingList() {
   return (
     <Layout>
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
+        {journeyIdFromUrl && (
+          <div className="mb-4">
+            <Link href={`/planner/${journeyIdFromUrl}`}>
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Planner
+              </Button>
+            </Link>
+          </div>
+        )}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-primary/10 mb-4">
             <Luggage className="h-7 w-7 text-primary" />

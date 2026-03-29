@@ -572,7 +572,7 @@ export default function TripPlanner() {
         <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
           <p className="text-muted-foreground" data-testid="text-journey-error">Journey not found</p>
           <Link href="/journeys">
-            <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
+            <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
           </Link>
         </div>
       </Layout>
@@ -772,8 +772,8 @@ export default function TripPlanner() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Link href="/journeys">
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <ArrowLeft className="h-4 w-4" />
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys
               </Button>
             </Link>
             <div>
@@ -786,10 +786,28 @@ export default function TripPlanner() {
                   </Badge>
                 )}
               </div>
-              <p className="text-muted-foreground">
-                {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
-                {journey.days ? ` • ${journey.days} days` : ""}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-muted-foreground text-sm">
+                  {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
+                  {journey.days ? ` • ${journey.days} days` : ""}
+                </p>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={startDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    title="Set travel start date"
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (e.target.value) dateSaveMutation.mutate(e.target.value);
+                    }}
+                    className="h-6 text-xs rounded border border-dashed border-primary/40 bg-transparent px-2 text-primary cursor-pointer hover:border-primary transition-colors focus:outline-none focus:border-primary"
+                  />
+                  {formattedDateRange && (
+                    <span className="text-xs text-primary/70">{formattedDateRange}</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex gap-2">

@@ -204,37 +204,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {recentJourneys.length > 0 && (
-            <div className="pt-4 mt-4 border-t border-sidebar-border">
-              <p className="px-4 text-xs uppercase tracking-wider text-muted-foreground mb-2">Recent Journeys</p>
-              {recentJourneys.map((journey) => {
-                const isPlanning = journey.status !== "Completed";
-                return (
-                  <Link key={journey.id} href={isPlanning ? `/planner/${journey.id}` : "/history"}>
-                    <div
-                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md transition-all duration-200 cursor-pointer group"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      data-testid={`link-recent-journey-${journey.id}`}
-                    >
-                      <div className="h-6 w-6 rounded-md bg-muted/50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {journey.image ? (
-                          <img src={journey.image} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <Globe className="h-3 w-3 text-muted-foreground" />
-                        )}
-                      </div>
-                      <span className="truncate flex-1">{journey.title}</span>
-                      {isPlanning && (
-                        <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0" data-testid={`tag-planning-${journey.id}`}>
-                          Planning
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">
