@@ -22,6 +22,8 @@ import {
   Watch,
   Luggage,
   RotateCcw,
+  Trash2,
+  Pencil,
   Sparkles,
   MapPin,
   Calendar,
@@ -139,6 +141,7 @@ export default function PackingList() {
   const [journeyCreated, setJourneyCreated] = useState(false);
   const [savedPackingListId, setSavedPackingListId] = useState<string | null>(null);
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
+  const [editingItem, setEditingItem] = useState<{ catIndex: number; itemIndex: number; value: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -342,6 +345,35 @@ export default function PackingList() {
       else next.add(catName);
       return next;
     });
+  };
+
+  const deleteItem = (catIndex: number, itemIndex: number) => {
+    setCategories((prev) => {
+      if (!prev) return prev;
+      const updated = prev.map((cat, ci) =>
+        ci === catIndex
+          ? { ...cat, items: cat.items.filter((_, ii) => ii !== itemIndex) }
+          : cat
+      );
+      persistCategories(updated, savedPackingListId);
+      return updated;
+    });
+  };
+
+  const commitEdit = (catIndex: number, itemIndex: number, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setCategories((prev) => {
+      if (!prev) return prev;
+      const updated = prev.map((cat, ci) =>
+        ci === catIndex
+          ? { ...cat, items: cat.items.map((item, ii) => ii === itemIndex ? { ...item, name: trimmed } : item) }
+          : cat
+      );
+      persistCategories(updated, savedPackingListId);
+      return updated;
+    });
+    setEditingItem(null);
   };
 
   const handleStartOver = () => {
@@ -648,46 +680,86 @@ export default function PackingList() {
 
                   {!isCollapsed && (
                     <CardContent className="pt-0 space-y-1">
-                      {cat.items.map((item, itemIndex) => (
+                      {cat.items.map((item, itemIndex) => {
+                        const isEditing = editingItem?.catIndex === catIndex && editingItem?.itemIndex === itemIndex;
+                        return (
                         <div
                           key={`${cat.name}-${itemIndex}`}
-                          className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
+                          className={`group flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 ${
                             item.packed
                               ? "bg-muted/30 border-transparent opacity-60"
                               : "bg-card border-border hover:border-primary/50 hover:shadow-sm"
-                          }`}
-                          onClick={() => togglePacked(catIndex, itemIndex)}
+                          } ${isEditing ? "border-primary/40" : ""}`}
                           data-testid={`item-${cat.name.toLowerCase().replace(/\s/g, "-")}-${itemIndex}`}
                         >
                           <Checkbox
                             checked={item.packed}
-                            className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary cursor-pointer"
+                            onClick={() => { if (!isEditing) togglePacked(catIndex, itemIndex); }}
                             data-testid={`checkbox-${cat.name.toLowerCase().replace(/\s/g, "-")}-${itemIndex}`}
                           />
                           <div className="flex-1 select-none min-w-0">
-                            <div className="flex justify-between items-start gap-2">
-                              <span className={`font-medium text-sm ${item.packed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                                {item.name}
-                              </span>
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                {item.weight_grams && (
-                                  <span className="text-[10px] text-muted-foreground/70">
-                                    {formatWeight(item.weight_grams * item.quantity)}
-                                  </span>
-                                )}
-                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground">
-                                  Qty: {item.quantity}
-                                </Badge>
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  autoFocus
+                                  className="flex-1 text-sm border-b border-primary bg-transparent outline-none py-0.5"
+                                  value={editingItem.value}
+                                  onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") commitEdit(catIndex, itemIndex, editingItem.value);
+                                    if (e.key === "Escape") setEditingItem(null);
+                                  }}
+                                  onBlur={() => commitEdit(catIndex, itemIndex, editingItem.value)}
+                                />
                               </div>
-                            </div>
-                            {item.reason && (
+                            ) : (
+                              <div
+                                className="flex justify-between items-start gap-2 cursor-pointer"
+                                onClick={() => togglePacked(catIndex, itemIndex)}
+                              >
+                                <span className={`font-medium text-sm ${item.packed ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                  {item.name}
+                                </span>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  {item.weight_grams && (
+                                    <span className="text-[10px] text-muted-foreground/70">
+                                      {formatWeight(item.weight_grams * item.quantity)}
+                                    </span>
+                                  )}
+                                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-muted text-muted-foreground">
+                                    Qty: {item.quantity}
+                                  </Badge>
+                                </div>
+                              </div>
+                            )}
+                            {!isEditing && item.reason && (
                               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                                 <Info className="h-3 w-3 opacity-50 flex-shrink-0" /> {item.reason}
                               </p>
                             )}
                           </div>
+                          {!isEditing && (
+                            <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setEditingItem({ catIndex, itemIndex, value: item.name }); }}
+                                title="Edit item"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); deleteItem(catIndex, itemIndex); }}
+                                title="Delete item"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </CardContent>
                   )}
                 </Card>

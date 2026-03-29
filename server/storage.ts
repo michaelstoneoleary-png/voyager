@@ -64,6 +64,7 @@ export interface IStorage {
 
   recordActivityFeedback(data: { userId: string; journeyId?: string; activityTitle: string; activityType?: string; location?: string; signal: "liked" | "hard_reject" }): Promise<void>;
   getHardRejectedTitles(userId: string): Promise<string[]>;
+  getActivityFeedbackSignals(userId: string): Promise<Array<{ signal: string; activityType: string | null }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -293,6 +294,12 @@ export class DatabaseStorage implements IStorage {
       .from(userActivityFeedback)
       .where(and(eq(userActivityFeedback.userId, userId), eq(userActivityFeedback.signal, "hard_reject")));
     return rows.map(r => r.activityTitle);
+  }
+
+  async getActivityFeedbackSignals(userId: string): Promise<Array<{ signal: string; activityType: string | null }>> {
+    return db.select({ signal: userActivityFeedback.signal, activityType: userActivityFeedback.activityType })
+      .from(userActivityFeedback)
+      .where(eq(userActivityFeedback.userId, userId));
   }
 }
 

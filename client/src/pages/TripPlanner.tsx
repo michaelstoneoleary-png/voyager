@@ -48,6 +48,12 @@ import {
   ThumbsUp,
   ThumbsDown,
   Send,
+  Compass,
+  Heart,
+  Sun,
+  Coffee,
+  Navigation,
+  Luggage,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -287,8 +293,7 @@ export default function TripPlanner() {
   const [showHighlights, setShowHighlights] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
-  const [marcoThoughts, setMarcoThoughts] = useState("");
-  const marcoThoughtsRef = useRef<HTMLDivElement>(null);
+  const [marcoBeats, setMarcoBeats] = useState<Array<{beat: string; icon: string}>>([]);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -298,6 +303,95 @@ export default function TripPlanner() {
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
+
+  // Travel dates — derive startDate from journey.dates if it contains an ISO date
+  const parsedStartDate = useMemo(() => {
+    const raw = (journey as any)?.dates as string | undefined;
+    if (!raw) return "";
+    // Try to find a parseable date: "Mar 15–22, 2026" → try first date
+    const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    return "";
+  }, [(journey as any)?.dates]);
+
+  const [startDate, setStartDate] = useState<string>("");
+  useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
+
+  // Compute end date and formatted range from startDate + journey.days
+  const tripDays = (journey as any)?.days as number | undefined;
+  const endDate = useMemo(() => {
+    if (!startDate || !tripDays) return "";
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + tripDays - 1);
+    return d.toISOString().split("T")[0];
+  }, [startDate, tripDays]);
+
+  const formattedDateRange = useMemo(() => {
+    if (!startDate) return "";
+    const start = new Date(startDate + "T00:00:00");
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (!endDate) return fmt(start);
+    const end = new Date(endDate + "T00:00:00");
+    const sameYear = start.getFullYear() === end.getFullYear();
+    return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
+  }, [startDate, endDate]);
+
+  const dateSaveMutation = useMutation({
+    mutationFn: async (iso: string) => {
+      const d = new Date(iso + "T00:00:00");
+      const endD = tripDays ? new Date(iso + "T00:00:00") : null;
+      if (endD && tripDays) endD.setDate(endD.getDate() + tripDays - 1);
+      const fmt = (dt: Date) => dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const label = endD
+        ? `${fmt(d)} – ${fmt(endD)}, ${endD.getFullYear()}`
+        : fmt(d);
+      const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, { dates: label });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+    },
+  });
+
+  // Parse a cost string like "$20-30", "$50", "Free", "~$100 per person" → [min, max] or null
+  function parseCostRange(raw: string | undefined): [number, number] | null {
+    if (!raw) return null;
+    const s = raw.trim();
+    if (/^free$/i.test(s)) return [0, 0];
+    const rangeMatch = s.match(/\$\s*([\d,]+)\s*[-–]\s*([\d,]+)/);
+    if (rangeMatch) return [parseFloat(rangeMatch[1].replace(/,/g, "")), parseFloat(rangeMatch[2].replace(/,/g, ""))];
+    const singleMatch = s.match(/~?\$\s*([\d,]+)/);
+    if (singleMatch) { const v = parseFloat(singleMatch[1].replace(/,/g, "")); return [v, v]; }
+    return null;
+  }
+
+  // Tally estimated trip costs from the generated itinerary
+  const expenseTally = useMemo(() => {
+    const itin = (journey as any)?.itinerary as { days: ItineraryDay[] } | undefined;
+    if (!itin?.days) return null;
+    let actMin = 0, actMax = 0, hotelMin = 0, hotelMax = 0;
+    for (const day of itin.days) {
+      for (const a of day.activities || []) {
+        const r = parseCostRange(a.cost);
+        if (r) { actMin += r[0]; actMax += r[1]; }
+      }
+      const city = day.location;
+      const hotel = selectedHotelsPerCity[city] ?? day.hotels?.[0];
+      if (hotel?.price_per_night) {
+        const r = parseCostRange(hotel.price_per_night);
+        if (r) { hotelMin += r[0]; hotelMax += r[1]; }
+      }
+    }
+    const totalMin = actMin + hotelMin;
+    const totalMax = actMax + hotelMax;
+    if (totalMin === 0 && totalMax === 0) return null;
+    const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`;
+    return {
+      activities: actMin === actMax ? fmt(actMin) : `${fmt(actMin)}–${fmt(actMax)}`,
+      accommodation: hotelMin === hotelMax ? fmt(hotelMin) : `${fmt(hotelMin)}–${fmt(hotelMax)}`,
+      total: totalMin === totalMax ? fmt(totalMin) : `${fmt(totalMin)}–${fmt(totalMax)}`,
+    };
+  }, [journey, selectedHotelsPerCity]);
 
   // Map city → hotel options from first day in that city
   const hotelsByCity = useMemo(() => {
@@ -328,9 +422,9 @@ export default function TripPlanner() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      setMarcoThoughts("");
+      setMarcoBeats([]);
 
-      // Stream Marco's planning thoughts concurrently
+      // Stream Marco's planning thought beats concurrently
       const thinkingFetch = fetch(`/api/journeys/${journeyId}/marco-thinking`, { credentials: "include" });
       thinkingFetch.then(async (thinkRes) => {
         if (!thinkRes.body) return;
@@ -344,11 +438,8 @@ export default function TripPlanner() {
           for (const line of lines) {
             if (line.startsWith("data: ") && line !== "data: [DONE]") {
               try {
-                const { text } = JSON.parse(line.slice(6));
-                setMarcoThoughts(prev => prev + text);
-                if (marcoThoughtsRef.current) {
-                  marcoThoughtsRef.current.scrollTop = marcoThoughtsRef.current.scrollHeight;
-                }
+                const beat = JSON.parse(line.slice(6));
+                if (beat.beat) setMarcoBeats(prev => [...prev, beat]);
               } catch {}
             }
           }
@@ -364,11 +455,11 @@ export default function TripPlanner() {
     onSuccess: (data) => {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-      setMarcoThoughts("");
+      setMarcoBeats([]);
       toast({ title: "Itinerary generated", description: "Your personalized itinerary from Marco is ready." });
     },
     onError: (err: any) => {
-      setMarcoThoughts("");
+      setMarcoBeats([]);
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
@@ -553,7 +644,56 @@ export default function TripPlanner() {
             </CardContent>
           </Card>
 
-          {generateMutation.isPending && marcoThoughts ? (
+          {/* Travel dates picker */}
+          {!generateMutation.isPending && (
+            <Card className="w-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  When are you traveling?
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1.5 block">Start date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        if (e.target.value) dateSaveMutation.mutate(e.target.value);
+                      }}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
+                  {endDate && (
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1.5 block">End date</label>
+                      <div className="flex h-9 items-center px-3 rounded-md border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
+                        {new Date(endDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {formattedDateRange ? (
+                  <p className="text-xs text-primary font-medium flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {formattedDateRange}{tripDays ? ` · ${tripDays} day${tripDays !== 1 ? "s" : ""}` : ""}
+                    {dateSaveMutation.isPending && <span className="text-muted-foreground font-normal ml-1">Saving…</span>}
+                    {dateSaveMutation.isSuccess && !dateSaveMutation.isPending && <span className="text-emerald-600 font-normal ml-1">Saved</span>}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Setting a start date lets Marco plan around real days, weather, and seasonal events.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {generateMutation.isPending && marcoBeats.length > 0 ? (
             <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
                 <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">
@@ -565,18 +705,28 @@ export default function TripPlanner() {
                   </div>
                   <div>
                     <p className="font-semibold text-sm text-foreground">Marco is planning your trip</p>
-                    <p className="text-xs text-muted-foreground">Thinking through every detail...</p>
+                    <p className="text-xs text-muted-foreground">Working through every detail…</p>
                   </div>
                   <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
                 </div>
-                <div
-                  ref={marcoThoughtsRef}
-                  className="px-5 py-4 max-h-56 overflow-y-auto scroll-smooth"
-                >
-                  <p className="text-sm leading-relaxed text-foreground/85 font-serif italic whitespace-pre-wrap">
-                    {marcoThoughts}
-                    <span className="inline-block w-0.5 h-4 bg-primary/60 ml-0.5 animate-pulse align-text-bottom" />
-                  </p>
+                <div className="px-5 py-4 flex flex-col gap-2">
+                  {marcoBeats.map((b, i) => {
+                    const Icon = {
+                      map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
+                      heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
+                      calendar: Calendar, route: Navigation,
+                    }[b.icon] ?? Sparkles;
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center gap-3 rounded-xl bg-background/60 border border-primary/10 px-4 py-3 animate-in fade-in slide-in-from-bottom-1 duration-400"
+                        style={{ animationDelay: `${i * 80}ms` }}
+                      >
+                        <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                        <span className="text-sm text-foreground/85">{b.beat}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -603,9 +753,14 @@ export default function TripPlanner() {
             </div>
           )}
 
-          <Link href="/journeys">
-            <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/journeys">
+              <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
+            </Link>
+            <Link href={`/packing?journeyId=${journeyId}`}>
+              <Button variant="outline" size="sm"><Luggage className="mr-2 h-4 w-4" /> Pack for this trip</Button>
+            </Link>
+          </div>
         </div>
       </Layout>
     );
@@ -622,7 +777,15 @@ export default function TripPlanner() {
               </Button>
             </Link>
             <div>
-              <h1 className="font-serif text-3xl font-bold" data-testid="text-planner-title">{journey.title}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-serif text-3xl font-bold" data-testid="text-planner-title">{journey.title}</h1>
+                {journey.origin && journey.finalDestination &&
+                  journey.finalDestination.trim().toLowerCase() !== journey.origin.trim().toLowerCase() && (
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider border-primary/30 text-primary bg-primary/5">
+                    Open-jaw
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground">
                 {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
                 {journey.days ? ` • ${journey.days} days` : ""}
@@ -630,6 +793,12 @@ export default function TripPlanner() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Link href={`/packing?journeyId=${journeyId}`}>
+              <Button variant="outline" size="sm">
+                <Luggage className="mr-2 h-4 w-4" />
+                Pack
+              </Button>
+            </Link>
             <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
@@ -687,6 +856,24 @@ export default function TripPlanner() {
           </div>
         )}
 
+        {viewMode === "itinerary" && expenseTally && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 pb-3 text-xs" data-testid="expense-tally">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <DollarSign className="h-3 w-3" />
+              Activities <span className="font-semibold text-foreground ml-0.5">{expenseTally.activities}</span>
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <BedDouble className="h-3 w-3" />
+              Stays <span className="font-semibold text-foreground ml-0.5">{expenseTally.accommodation}</span>
+            </span>
+            <span className="flex items-center gap-1 font-semibold">
+              <span className="text-muted-foreground font-normal">Est. total</span>
+              <span className="text-foreground">{expenseTally.total}</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground/60 italic">based on AI estimates</span>
+          </div>
+        )}
+
         {viewMode === "itinerary" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           <div className="lg:col-span-1 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
@@ -695,7 +882,7 @@ export default function TripPlanner() {
                 <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
                   {itinerary.days.map((d, idx) => (
                     <TabsTrigger key={idx} value={`day${idx}`} className="text-xs">
-                      Day {d.day}
+                      {d.date_label && d.date_label !== `Day ${d.day}` ? d.date_label : `Day ${d.day}`}
                     </TabsTrigger>
                   ))}
                 </TabsList>

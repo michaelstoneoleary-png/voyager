@@ -305,26 +305,37 @@ export async function registerRoutes(
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const stream = anthropic.messages.stream({
+      const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 400,
+        max_tokens: 300,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator and dream-voyage architect. A traveler${homeLocation ? ` from ${homeLocation}` : ""} is about to receive their custom ${days}-day itinerary for ${destination}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a world-class travel curator. Output ONLY a JSON array of exactly 4 thought beats as you mentally plan a ${days}-day trip to ${destination}${homeLocation ? ` for a traveler from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
 
-Write a brief, enthusiastic stream-of-consciousness as Marco thinks through planning this specific trip — almost like you're narrating your thought process out loud. Be specific to THIS destination. Reference real places, cultural nuances, seasonal considerations, or insider angles. Sound like a well-traveled friend who has been there, not a brochure.
+Each beat: {"beat": "short punchy thought, 6–12 words", "icon": "<one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route>"}
 
-Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flowing thought. Start mid-thought, as if you're already deep in planning mode.`,
+Be very specific to THIS destination — reference real places, seasons, or cultural nuances. Sound like an excited insider, not a brochure.
+Output ONLY a raw JSON array, no markdown, no explanation.
+Example: [{"beat":"Plotting the perfect coastal route through Algarve","icon":"map"},{"beat":"April: warm sun, zero peak-season crowds","icon":"sun"},{"beat":"Mixing Michelin gems with tiny family tascas","icon":"coffee"},{"beat":"Building your day-by-day now…","icon":"sparkles"}]`,
         }],
       });
 
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
-        }
+      const raw = ((response.content[0] as any).text || "").trim();
+      let beats: Array<{beat: string; icon: string}> = [];
+      try {
+        beats = JSON.parse(raw);
+      } catch {
+        beats = [
+          { beat: `Mapping out ${days} days across ${destination}`, icon: "map" },
+          { beat: "Weighing hidden gems against the classics", icon: "compass" },
+          { beat: "Matching your travel style and budget", icon: "sparkles" },
+          { beat: "Building your itinerary now…", icon: "calendar" },
+        ];
+      }
+
+      for (let i = 0; i < beats.length; i++) {
+        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
+        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
       }
       res.write("data: [DONE]\n\n");
       res.end();
@@ -343,6 +354,14 @@ Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flow
       if (!journey) return res.status(404).json({ message: "Journey not found" });
 
       const user = await storage.getUser(userId);
+
+      // Fetch user's feedback signals to personalise the itinerary
+      const [hardRejectedTitles, feedbackRows] = await Promise.all([
+        storage.getHardRejectedTitles(userId),
+        storage.getActivityFeedbackSignals(userId),
+      ]);
+      const likedTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
+
       // Origin is the departure point only — exclude it from the destination list
       // so the AI doesn't plan activities there before the trip starts
       const allStops = [
@@ -356,7 +375,14 @@ Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flow
       const originNote = journey.origin
         ? `The traveler departs from ${journey.origin} — this is their home/departure city, NOT a destination to plan activities in. Do not include days or activities in ${journey.origin}. `
         : "";
-      const finalNote = journey.finalDestination ? `Returning to: ${journey.finalDestination}. ` : "";
+
+      const isOpenJaw = !!(journey.finalDestination && journey.origin &&
+        journey.finalDestination.trim().toLowerCase() !== journey.origin.trim().toLowerCase());
+      const finalNote = isOpenJaw
+        ? `OPEN-JAW TRIP: The traveler departs from ${journey.origin} but does NOT return there — the trip ends in ${journey.finalDestination}. Do NOT plan any return leg back to ${journey.origin}. `
+        : journey.finalDestination
+          ? `Round trip — the traveler returns home to ${journey.origin} at the end. ${journey.finalDestination} is the last travel stop. `
+          : "";
 
       const { wishlist } = req.body || {};
       const wishlistNote = wishlist && wishlist.trim()
@@ -406,12 +432,24 @@ Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flow
           }\n`
         : "";
 
+      const hardRejectNote = hardRejectedTitles.length > 0
+        ? `\nAVOID THESE SPECIFIC ACTIVITIES (the traveler has rejected them and does not want to see them again): ${hardRejectedTitles.join(", ")}. Do not suggest these or close equivalents.\n`
+        : "";
+      const likedNote = likedTypes.length > 0
+        ? `\nTRAVELER PREFERENCE: This traveler has shown interest in these activity types: ${likedTypes.join(", ")}. Favour these types when choosing activities.\n`
+        : "";
+
+      // Build date context from journey.dates (e.g. "Mar 15 – Mar 22, 2026")
+      const datesNote = journey.dates
+        ? `\nTRAVEL DATES: ${journey.dates}. For each day, set date_label to the actual day name and date (e.g. "Saturday, Mar 15"). Factor in typical weather and seasonal conditions at each destination during this period. Note any relevant local events, holidays, or seasonal highlights that fall within these dates.\n`
+        : "";
+
       const stream = await anthropic.messages.stream({
         model: "claude-sonnet-4-6",
         max_tokens: 32000,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${wishlistNote}${restaurantNote}
+          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${datesNote}${hardRejectNote}${likedNote}${wishlistNote}${restaurantNote}
 
 TRAVEL MODE: ${travelModeNote}
 
@@ -420,7 +458,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
   "days": [
     {
       "day": 1,
-      "date_label": "Day 1",
+      "date_label": "${journey.dates ? "Saturday, Mar 15" : "Day 1"}",
       "location": "City Name",
       "hotels": [
         {
@@ -1212,23 +1250,37 @@ ${truncated}`,
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const stream = anthropic.messages.stream({
+      const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 350,
+        max_tokens: 300,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator. A traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText} has asked for destination inspiration. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+          content: `You are Marco, a world-class travel curator. Output ONLY a JSON array of exactly 4 thought beats as you mentally curate destinations for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
 
-Write a brief, warm stream-of-consciousness as you think through curating the perfect destinations for them — like a knowledgeable friend thinking out loud. Be specific about what kinds of places fit these constraints. Reference real regions, seasons, or travel dynamics that make certain destinations shine right now. Sound genuinely excited and thoughtful, not like a brochure.
+Each beat: {"beat": "short punchy thought, 6–12 words", "icon": "<one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route>"}
 
-3–4 short natural paragraphs, no headers, no lists. Start mid-thought as if you're already deep in the curation.`,
+Be specific — reference real regions, seasons, or travel dynamics. Sound like an excited insider, not a brochure.
+Output ONLY a raw JSON array, no markdown, no explanation.
+Example: [{"beat":"Scanning the globe for your perfect match","icon":"compass"},{"beat":"Budget fits Southern Europe and Southeast Asia nicely","icon":"map"},{"beat":"Spring window opens up some seriously special spots","icon":"sun"},{"beat":"Curating your shortlist now…","icon":"sparkles"}]`,
         }],
       });
 
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
-        }
+      const raw = ((response.content[0] as any).text || "").trim();
+      let beats: Array<{beat: string; icon: string}> = [];
+      try {
+        beats = JSON.parse(raw);
+      } catch {
+        beats = [
+          { beat: "Scanning the globe for your perfect match", icon: "compass" },
+          { beat: "Weighing hidden gems against the classics", icon: "star" },
+          { beat: "Matching budget, transport, and timing", icon: "map" },
+          { beat: "Curating your shortlist now…", icon: "sparkles" },
+        ];
+      }
+
+      for (let i = 0; i < beats.length; i++) {
+        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
+        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
       }
       res.write("data: [DONE]\n\n");
       res.end();
@@ -1259,12 +1311,18 @@ Write a brief, warm stream-of-consciousness as you think through curating the pe
         return res.json(cached.data);
       }
 
-      const journeys = await storage.getJourneys(userId);
-      const pastTrips = await storage.getPastTrips(userId);
+      const [journeys, pastTrips, feedbackRows] = await Promise.all([
+        storage.getJourneys(userId),
+        storage.getPastTrips(userId),
+        storage.getActivityFeedbackSignals(userId),
+      ]);
 
       const travelStyles = (user.travelStyles as string[]) || [];
       const homeLocation = user.homeLocation || "";
       const passportCountry = user.passportCountry || "";
+
+      const likedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
+      const rejectedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "hard_reject").map(r => r.activityType).filter(Boolean))];
 
       const visitedPlaces = [
         ...journeys.map(j => [j.origin, ...(j.destinations as string[] || []), j.finalDestination].filter(Boolean)).flat(),
@@ -1349,7 +1407,7 @@ TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
 - Passport: ${passportCountry || "Not specified"}
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
-- Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}
+- Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}${likedActivityTypes.length > 0 ? `\n- Enjoys: ${likedActivityTypes.join(", ")} activities (from past likes — lean into destinations where these shine)` : ""}${rejectedActivityTypes.length > 0 ? `\n- Avoids: ${rejectedActivityTypes.join(", ")} activities (from past rejections — deprioritise destinations that are mainly about these)` : ""}
 
 TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all of these):
 - Duration: ${durationDesc}
@@ -1609,6 +1667,9 @@ Return ONLY a JSON array (no markdown, no code fences):
       if (gender && gender !== "prefer-not-to-say") contextParts.push(`Traveler gender: ${gender}`);
       if (user?.temperatureUnit) contextParts.push(`Preferred temperature unit: ${user.temperatureUnit === "C" ? "Celsius" : "Fahrenheit"}`);
 
+      const genderCtx = contextParts.find(p => p.startsWith("Traveler gender:"))?.replace("Traveler gender:", "").trim() || "";
+      const isFemale = ["female", "woman", "f"].some(g => genderCtx.toLowerCase().includes(g));
+
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 16000,
@@ -1619,13 +1680,20 @@ Return ONLY a JSON array (no markdown, no code fences):
 
 ${contextParts.join("\n")}${itineraryContext}
 
+WEATHER & SEASON RULE: Based on the destination and travel dates above, reason about typical weather conditions during that period (temperature range, precipitation, humidity). Pack weather-appropriate clothing and gear. State the expected conditions briefly in item reasons where relevant (e.g., "Average high 28°C in July — light breathable fabrics essential").
+
+UNDERGARMENT RULE — this is mandatory:
+- Pack underwear/underpants for EVERY single day (quantity = trip days, minimum). Underwear is a daily change item — never under-pack it.
+${isFemale ? `- Female traveler: pack underwear at 2× per day rate for longer trips or hot/active travel — women often change mid-day in heat or after exercise. Add bras separately (1 everyday bra per 2 days + 1 sports bra if any active days). Pack panty liners as a standard toiletry item.` : ""}
+- List underwear explicitly as its own item in Clothing with the correct quantity.
+
 Return a JSON object with a "categories" array. Each category has:
 - name: category name (Clothing, Toiletries, Electronics, Documents, Health, Accessories)
 - icon: icon identifier (shirt, droplets, zap, file-text, heart, watch)
 - items: array of items, each with:
   - name: item name
   - quantity: number to pack
-  - reason: brief reason why this item is needed for THIS specific trip
+  - reason: brief reason why this item is needed for THIS specific trip (reference weather/season where relevant)
   - weight_grams: estimated weight PER UNIT in grams (be realistic — e.g., t-shirt ~180g, laptop ~1500g, toothbrush ~30g, passport ~50g, jeans ~850g, phone charger ~80g, sunscreen bottle ~200g)
 
 Tailor items to the destination's climate, culture, and planned activities. Be specific (e.g., "Light rain jacket" not just "Jacket"). Include destination-specific items (power adapters, modest clothing for temples, etc.).${itineraryContext ? "\nIMPORTANT: You have the full day-by-day itinerary above. Use it to recommend items specific to the planned activities (e.g., comfortable walking shoes for walking tours, swimwear if there's a beach day, formal attire if there's a fine dining reservation, hiking gear for nature activities). Reference specific activities in your 'reason' field." : ""}
