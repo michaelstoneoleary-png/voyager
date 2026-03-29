@@ -305,26 +305,37 @@ export async function registerRoutes(
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const stream = anthropic.messages.stream({
+      const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 400,
+        max_tokens: 300,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator and dream-voyage architect. A traveler${homeLocation ? ` from ${homeLocation}` : ""} is about to receive their custom ${days}-day itinerary for ${destination}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a world-class travel curator. Output ONLY a JSON array of exactly 4 thought beats as you mentally plan a ${days}-day trip to ${destination}${homeLocation ? ` for a traveler from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
 
-Write a brief, enthusiastic stream-of-consciousness as Marco thinks through planning this specific trip — almost like you're narrating your thought process out loud. Be specific to THIS destination. Reference real places, cultural nuances, seasonal considerations, or insider angles. Sound like a well-traveled friend who has been there, not a brochure.
+Each beat: {"beat": "short punchy thought, 6–12 words", "icon": "<one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route>"}
 
-Keep it to 3-4 short natural paragraphs. No headers, no bullet points. Pure flowing thought. Start mid-thought, as if you're already deep in planning mode.`,
+Be very specific to THIS destination — reference real places, seasons, or cultural nuances. Sound like an excited insider, not a brochure.
+Output ONLY a raw JSON array, no markdown, no explanation.
+Example: [{"beat":"Plotting the perfect coastal route through Algarve","icon":"map"},{"beat":"April: warm sun, zero peak-season crowds","icon":"sun"},{"beat":"Mixing Michelin gems with tiny family tascas","icon":"coffee"},{"beat":"Building your day-by-day now…","icon":"sparkles"}]`,
         }],
       });
 
-      for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
-        }
+      const raw = ((response.content[0] as any).text || "").trim();
+      let beats: Array<{beat: string; icon: string}> = [];
+      try {
+        beats = JSON.parse(raw);
+      } catch {
+        beats = [
+          { beat: `Mapping out ${days} days across ${destination}`, icon: "map" },
+          { beat: "Weighing hidden gems against the classics", icon: "compass" },
+          { beat: "Matching your travel style and budget", icon: "sparkles" },
+          { beat: "Building your itinerary now…", icon: "calendar" },
+        ];
+      }
+
+      for (let i = 0; i < beats.length; i++) {
+        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
+        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
       }
       res.write("data: [DONE]\n\n");
       res.end();
@@ -1234,23 +1245,37 @@ ${truncated}`,
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const stream = anthropic.messages.stream({
+      const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 350,
+        max_tokens: 300,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator. A traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText} has asked for destination inspiration. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+          content: `You are Marco, a world-class travel curator. Output ONLY a JSON array of exactly 4 thought beats as you mentally curate destinations for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
 
-Write a brief, warm stream-of-consciousness as you think through curating the perfect destinations for them — like a knowledgeable friend thinking out loud. Be specific about what kinds of places fit these constraints. Reference real regions, seasons, or travel dynamics that make certain destinations shine right now. Sound genuinely excited and thoughtful, not like a brochure.
+Each beat: {"beat": "short punchy thought, 6–12 words", "icon": "<one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route>"}
 
-3–4 short natural paragraphs, no headers, no lists. Start mid-thought as if you're already deep in the curation.`,
+Be specific — reference real regions, seasons, or travel dynamics. Sound like an excited insider, not a brochure.
+Output ONLY a raw JSON array, no markdown, no explanation.
+Example: [{"beat":"Scanning the globe for your perfect match","icon":"compass"},{"beat":"Budget fits Southern Europe and Southeast Asia nicely","icon":"map"},{"beat":"Spring window opens up some seriously special spots","icon":"sun"},{"beat":"Curating your shortlist now…","icon":"sparkles"}]`,
         }],
       });
 
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
-        }
+      const raw = ((response.content[0] as any).text || "").trim();
+      let beats: Array<{beat: string; icon: string}> = [];
+      try {
+        beats = JSON.parse(raw);
+      } catch {
+        beats = [
+          { beat: "Scanning the globe for your perfect match", icon: "compass" },
+          { beat: "Weighing hidden gems against the classics", icon: "star" },
+          { beat: "Matching budget, transport, and timing", icon: "map" },
+          { beat: "Curating your shortlist now…", icon: "sparkles" },
+        ];
+      }
+
+      for (let i = 0; i < beats.length; i++) {
+        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
+        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
       }
       res.write("data: [DONE]\n\n");
       res.end();

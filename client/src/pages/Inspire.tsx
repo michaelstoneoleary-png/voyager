@@ -32,6 +32,11 @@ import {
   Shuffle,
   ChevronRight,
   Clock,
+  Star,
+  Heart,
+  Sun,
+  Coffee,
+  Navigation,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -525,17 +530,9 @@ export default function Inspire() {
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
   const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
+  const [marcoBeats, setMarcoBeats] = useState<Array<{beat: string; icon: string}>>([]);
 
   const isDayTrip = qualifier?.days === 1;
-
-  // Cycle through short loading phrases while suggestions are being fetched
-  useEffect(() => {
-    if (!isLoading && !isDayTripLoading) return;
-    const interval = setInterval(() => {
-      setLoadingPhaseIdx(i => i + 1);
-    }, 2800);
-    return () => clearInterval(interval);
-  }, [isLoading, isDayTripLoading]);
 
   const queryParams = qualifier
     ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
@@ -569,6 +566,45 @@ export default function Inspire() {
     enabled: !!qualifier && isDayTrip,
     staleTime: 60 * 60 * 1000,
   });
+
+  // Cycle through short loading phrases while suggestions are being fetched
+  useEffect(() => {
+    if (!isLoading && !isDayTripLoading) return;
+    const interval = setInterval(() => {
+      setLoadingPhaseIdx(i => i + 1);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [isLoading, isDayTripLoading]);
+
+  // Stream Marco's planning thought beats when inspire loading starts
+  useEffect(() => {
+    if (!isLoading || isDayTrip || !qualifier) return;
+    setMarcoBeats([]);
+    const params = `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/inspire/marco-thinking${params}`, { credentials: "include" });
+        if (!res.body || cancelled) return;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || cancelled) break;
+          const lines = decoder.decode(value, { stream: true }).split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+              try {
+                const beat = JSON.parse(line.slice(6));
+                if (beat.beat) setMarcoBeats(prev => [...prev, beat]);
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [isLoading, isDayTrip]);
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
@@ -667,8 +703,8 @@ export default function Inspire() {
 
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 animate-in fade-in duration-500">
-          {/* Animated ring */}
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-in fade-in duration-500">
+          {/* Marco avatar + spinner */}
           <div className="relative flex items-center justify-center">
             <div className="h-24 w-24 rounded-full border-4 border-primary/10" />
             <div className="absolute h-24 w-24 rounded-full border-4 border-transparent border-t-primary animate-spin" />
@@ -676,15 +712,38 @@ export default function Inspire() {
               <span className="text-primary font-bold text-lg font-serif">M</span>
             </div>
           </div>
-          {/* Cycling phrase */}
-          <div className="text-center max-w-xs">
-            <p
-              key={loadingPhaseIdx}
-              className="text-sm text-muted-foreground animate-in fade-in duration-500"
-            >
-              {phase}
-            </p>
-          </div>
+
+          {/* Beat cards (non-day-trip only) or cycling phrase */}
+          {!isDayTrip && marcoBeats.length > 0 ? (
+            <div className="flex flex-col gap-2 w-full max-w-sm">
+              {marcoBeats.map((b, i) => {
+                const Icon = {
+                  map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
+                  heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
+                  calendar: Calendar, route: Navigation,
+                }[b.icon] ?? Sparkles;
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 rounded-xl bg-background border border-primary/10 px-4 py-3 animate-in fade-in slide-in-from-bottom-1 duration-400 shadow-sm"
+                    style={{ animationDelay: `${i * 80}ms` }}
+                  >
+                    <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                    <span className="text-sm text-foreground/85">{b.beat}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center max-w-xs">
+              <p
+                key={loadingPhaseIdx}
+                className="text-sm text-muted-foreground animate-in fade-in duration-500"
+              >
+                {phase}
+              </p>
+            </div>
+          )}
         </div>
       </Layout>
     );
