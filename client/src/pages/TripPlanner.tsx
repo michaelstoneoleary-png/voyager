@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -54,6 +55,8 @@ import {
   Coffee,
   Navigation,
   Luggage,
+  BookOpen,
+  Download,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -291,6 +294,7 @@ export default function TripPlanner() {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeHighlightDest, setActiveHighlightDest] = useState(0);
   const [showHighlights, setShowHighlights] = useState(false);
+  const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
   const [marcoBeats, setMarcoBeats] = useState<Array<{beat: string; icon: string}>>([]);
@@ -406,6 +410,63 @@ export default function TripPlanner() {
     }
     return map;
   }, [journey]);
+
+  const downloadItinerary = () => {
+    if (!journey) return;
+    const itin = (journey as any)?.itinerary as Itinerary | undefined;
+    if (!itin) return;
+    const lines: string[] = [];
+    lines.push(journey.title);
+    if (journey.dates) lines.push(journey.dates);
+    const route = [journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ");
+    if (route) lines.push(route);
+    if (journey.days) lines.push(`${journey.days} days`);
+    lines.push("");
+    if (itin.summary) {
+      lines.push("─── Marco's Write-Up ────────────────────────────────────────────────");
+      lines.push("");
+      lines.push(itin.summary);
+      lines.push("");
+      lines.push("─────────────────────────────────────────────────────────────────────");
+      lines.push("");
+    }
+    for (const day of itin.days) {
+      const dayLabel = day.date_label && day.date_label !== `Day ${day.day}` ? day.date_label : `Day ${day.day}`;
+      lines.push(`${dayLabel.toUpperCase()} — ${day.location}`);
+      lines.push("═".repeat(60));
+      lines.push("");
+      for (const act of day.activities) {
+        lines.push(`${act.time || ""}  ${act.title}${act.duration ? ` (${act.duration})` : ""}${act.type ? ` [${act.type}]` : ""}`);
+        if (act.description) lines.push(`       ${act.description}`);
+        if (act.cost && act.cost.toLowerCase() !== "free") lines.push(`       Cost: ${act.cost}`);
+        if (act.tip) lines.push(`       Tip: ${act.tip}`);
+        if (act.travel_to_next) {
+          lines.push(`       → Next: ${act.travel_to_next.mode} · ${act.travel_to_next.duration} · ${act.travel_to_next.distance}`);
+          if (act.travel_to_next.note) lines.push(`         ${act.travel_to_next.note}`);
+        }
+        lines.push("");
+      }
+      if (day.hotels && day.hotels.length > 0) {
+        lines.push("  WHERE TO STAY:");
+        for (const hotel of day.hotels) {
+          lines.push(`  · ${hotel.name} (${hotel.category}) — ${hotel.price_per_night}/night  ★ ${hotel.rating}`);
+          if (hotel.neighborhood) lines.push(`    ${hotel.neighborhood}`);
+          if (hotel.why_this_hotel) lines.push(`    ${hotel.why_this_hotel}`);
+        }
+        lines.push("");
+      }
+      lines.push("");
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${journey.title.replace(/[^a-z0-9]/gi, "_")}_itinerary.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const addWishlistItem = () => {
     const item = wishlist.trim();
@@ -817,6 +878,16 @@ export default function TripPlanner() {
                 Pack
               </Button>
             </Link>
+            {(journey as any)?.itinerary?.summary && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNarrative(true)}
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Story
+              </Button>
+            )}
             <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
@@ -1639,6 +1710,76 @@ export default function TripPlanner() {
           </div>
         );
       })()}
+
+      {/* Narrative write-up sheet */}
+      <Sheet open={showNarrative} onOpenChange={setShowNarrative}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <div className="flex items-start justify-between pr-8">
+              <div>
+                <SheetTitle className="font-serif text-2xl">{journey.title}</SheetTitle>
+                {journey.dates && (
+                  <p className="text-sm text-muted-foreground mt-1">{journey.dates}</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadItinerary}
+                className="flex-shrink-0 mt-1"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </div>
+          </SheetHeader>
+
+          {(journey as any)?.itinerary?.summary && (
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Compass className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-primary">Marco's Write-Up</span>
+              </div>
+              <div className="prose prose-sm max-w-none text-foreground/90 leading-relaxed font-serif">
+                {((journey as any).itinerary.summary as string).split(/\n\n+/).map((para: string, i: number) => (
+                  <p key={i} className="mb-4 last:mb-0">{para}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Day by Day</span>
+            </div>
+            {((journey as any)?.itinerary as Itinerary | undefined)?.days?.map((day) => (
+              <div key={day.day} className="mb-8">
+                <h3 className="font-serif font-bold text-lg mb-1">
+                  {day.date_label && day.date_label !== `Day ${day.day}` ? day.date_label : `Day ${day.day}`}
+                </h3>
+                <p className="text-sm text-primary font-medium mb-3 flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {day.location}
+                </p>
+                <div className="space-y-3">
+                  {day.activities.map((act, ai) => (
+                    <div key={ai} className="pl-3 border-l-2 border-muted">
+                      <div className="flex items-baseline gap-2">
+                        {act.time && <span className="text-xs text-muted-foreground font-mono w-10 flex-shrink-0">{act.time}</span>}
+                        <span className="text-sm font-semibold">{act.title}</span>
+                        {act.duration && <span className="text-xs text-muted-foreground">· {act.duration}</span>}
+                      </div>
+                      {act.description && <p className="text-xs text-muted-foreground mt-0.5 ml-12 leading-relaxed">{act.description}</p>}
+                      {act.tip && <p className="text-xs text-amber-700 mt-0.5 ml-12 italic">Tip: {act.tip}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </Layout>
   );
 }

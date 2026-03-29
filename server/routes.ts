@@ -496,7 +496,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
       ]
     }
   ],
-  "summary": "Brief trip summary"
+  "summary": "A rich 3-5 paragraph narrative written in Marco's voice — curious, warm, insider-knowledgeable, with a traveler's eye for texture and detail. Open with what makes this particular journey electric: the collision of cultures, the geography, the mood of the place. Move through the arc of the experience — what the mornings feel like, what unexpected gems the route holds, what the transition between destinations does to a traveler's sense of time and place. Close with what the traveler will carry home: not souvenirs, but impressions — a flavor, a light, a way of being. Reference specific places, neighborhoods, sensory details, and cultural context from the actual itinerary. Write as if you are telling a close friend about a journey you've taken yourself. 250-400 words."
 }
 
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, shopping, and local experiences. Use the actual correct coordinates for each place.
