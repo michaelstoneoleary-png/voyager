@@ -53,6 +53,7 @@ import {
   Sun,
   Coffee,
   Navigation,
+  Luggage,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -302,6 +303,55 @@ export default function TripPlanner() {
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
+
+  // Travel dates — derive startDate from journey.dates if it contains an ISO date
+  const parsedStartDate = useMemo(() => {
+    const raw = (journey as any)?.dates as string | undefined;
+    if (!raw) return "";
+    // Try to find a parseable date: "Mar 15–22, 2026" → try first date
+    const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+    return "";
+  }, [(journey as any)?.dates]);
+
+  const [startDate, setStartDate] = useState<string>("");
+  useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
+
+  // Compute end date and formatted range from startDate + journey.days
+  const tripDays = (journey as any)?.days as number | undefined;
+  const endDate = useMemo(() => {
+    if (!startDate || !tripDays) return "";
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + tripDays - 1);
+    return d.toISOString().split("T")[0];
+  }, [startDate, tripDays]);
+
+  const formattedDateRange = useMemo(() => {
+    if (!startDate) return "";
+    const start = new Date(startDate + "T00:00:00");
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (!endDate) return fmt(start);
+    const end = new Date(endDate + "T00:00:00");
+    const sameYear = start.getFullYear() === end.getFullYear();
+    return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
+  }, [startDate, endDate]);
+
+  const dateSaveMutation = useMutation({
+    mutationFn: async (iso: string) => {
+      const d = new Date(iso + "T00:00:00");
+      const endD = tripDays ? new Date(iso + "T00:00:00") : null;
+      if (endD && tripDays) endD.setDate(endD.getDate() + tripDays - 1);
+      const fmt = (dt: Date) => dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const label = endD
+        ? `${fmt(d)} – ${fmt(endD)}, ${endD.getFullYear()}`
+        : fmt(d);
+      const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, { dates: label });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+    },
+  });
 
   // Parse a cost string like "$20-30", "$50", "Free", "~$100 per person" → [min, max] or null
   function parseCostRange(raw: string | undefined): [number, number] | null {
@@ -594,6 +644,55 @@ export default function TripPlanner() {
             </CardContent>
           </Card>
 
+          {/* Travel dates picker */}
+          {!generateMutation.isPending && (
+            <Card className="w-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  When are you traveling?
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1.5 block">Start date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        if (e.target.value) dateSaveMutation.mutate(e.target.value);
+                      }}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
+                  {endDate && (
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground mb-1.5 block">End date</label>
+                      <div className="flex h-9 items-center px-3 rounded-md border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
+                        {new Date(endDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {formattedDateRange ? (
+                  <p className="text-xs text-primary font-medium flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {formattedDateRange}{tripDays ? ` · ${tripDays} day${tripDays !== 1 ? "s" : ""}` : ""}
+                    {dateSaveMutation.isPending && <span className="text-muted-foreground font-normal ml-1">Saving…</span>}
+                    {dateSaveMutation.isSuccess && !dateSaveMutation.isPending && <span className="text-emerald-600 font-normal ml-1">Saved</span>}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Setting a start date lets Marco plan around real days, weather, and seasonal events.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {generateMutation.isPending && marcoBeats.length > 0 ? (
             <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
@@ -654,9 +753,14 @@ export default function TripPlanner() {
             </div>
           )}
 
-          <Link href="/journeys">
-            <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/journeys">
+              <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
+            </Link>
+            <Link href={`/packing?journeyId=${journeyId}`}>
+              <Button variant="outline" size="sm"><Luggage className="mr-2 h-4 w-4" /> Pack for this trip</Button>
+            </Link>
+          </div>
         </div>
       </Layout>
     );
@@ -689,6 +793,12 @@ export default function TripPlanner() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Link href={`/packing?journeyId=${journeyId}`}>
+              <Button variant="outline" size="sm">
+                <Luggage className="mr-2 h-4 w-4" />
+                Pack
+              </Button>
+            </Link>
             <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
@@ -772,7 +882,7 @@ export default function TripPlanner() {
                 <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
                   {itinerary.days.map((d, idx) => (
                     <TabsTrigger key={idx} value={`day${idx}`} className="text-xs">
-                      Day {d.day}
+                      {d.date_label && d.date_label !== `Day ${d.day}` ? d.date_label : `Day ${d.day}`}
                     </TabsTrigger>
                   ))}
                 </TabsList>
