@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -54,6 +55,8 @@ import {
   Coffee,
   Navigation,
   Luggage,
+  BookOpen,
+  Download,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -291,9 +294,12 @@ export default function TripPlanner() {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [activeHighlightDest, setActiveHighlightDest] = useState(0);
   const [showHighlights, setShowHighlights] = useState(false);
+  const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
-  const [marcoBeats, setMarcoBeats] = useState<Array<{beat: string; icon: string}>>([]);
+  const [inspireContext, setInspireContext] = useState<{ destination: string } | null>(null);
+  const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
+  const [activeBeatIdx, setActiveBeatIdx] = useState(0);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -316,6 +322,19 @@ export default function TripPlanner() {
 
   const [startDate, setStartDate] = useState<string>("");
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
+
+  // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
+  useEffect(() => {
+    if (!journeyId) return;
+    const raw = localStorage.getItem(`inspire_context_${journeyId}`);
+    if (!raw) return;
+    try {
+      const ctx = JSON.parse(raw) as { tags: string[]; destination: string };
+      if (ctx.tags?.length) setWishlistItems(ctx.tags);
+      setInspireContext({ destination: ctx.destination });
+    } catch {}
+    localStorage.removeItem(`inspire_context_${journeyId}`);
+  }, [journeyId]);
 
   // Compute end date and formatted range from startDate + journey.days
   const tripDays = (journey as any)?.days as number | undefined;
@@ -407,6 +426,63 @@ export default function TripPlanner() {
     return map;
   }, [journey]);
 
+  const downloadItinerary = () => {
+    if (!journey) return;
+    const itin = (journey as any)?.itinerary as Itinerary | undefined;
+    if (!itin) return;
+    const lines: string[] = [];
+    lines.push(journey.title);
+    if (journey.dates) lines.push(journey.dates);
+    const route = [journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ");
+    if (route) lines.push(route);
+    if (journey.days) lines.push(`${journey.days} days`);
+    lines.push("");
+    if (itin.summary) {
+      lines.push("─── Marco's Write-Up ────────────────────────────────────────────────");
+      lines.push("");
+      lines.push(itin.summary);
+      lines.push("");
+      lines.push("─────────────────────────────────────────────────────────────────────");
+      lines.push("");
+    }
+    for (const day of itin.days) {
+      const dayLabel = day.date_label && day.date_label !== `Day ${day.day}` ? day.date_label : `Day ${day.day}`;
+      lines.push(`${dayLabel.toUpperCase()} — ${day.location}`);
+      lines.push("═".repeat(60));
+      lines.push("");
+      for (const act of day.activities) {
+        lines.push(`${act.time || ""}  ${act.title}${act.duration ? ` (${act.duration})` : ""}${act.type ? ` [${act.type}]` : ""}`);
+        if (act.description) lines.push(`       ${act.description}`);
+        if (act.cost && act.cost.toLowerCase() !== "free") lines.push(`       Cost: ${act.cost}`);
+        if (act.tip) lines.push(`       Tip: ${act.tip}`);
+        if (act.travel_to_next) {
+          lines.push(`       → Next: ${act.travel_to_next.mode} · ${act.travel_to_next.duration} · ${act.travel_to_next.distance}`);
+          if (act.travel_to_next.note) lines.push(`         ${act.travel_to_next.note}`);
+        }
+        lines.push("");
+      }
+      if (day.hotels && day.hotels.length > 0) {
+        lines.push("  WHERE TO STAY:");
+        for (const hotel of day.hotels) {
+          lines.push(`  · ${hotel.name} (${hotel.category}) — ${hotel.price_per_night}/night  ★ ${hotel.rating}`);
+          if (hotel.neighborhood) lines.push(`    ${hotel.neighborhood}`);
+          if (hotel.why_this_hotel) lines.push(`    ${hotel.why_this_hotel}`);
+        }
+        lines.push("");
+      }
+      lines.push("");
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${journey.title.replace(/[^a-z0-9]/gi, "_")}_itinerary.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const addWishlistItem = () => {
     const item = wishlist.trim();
     if (item && !wishlistItems.includes(item)) {
@@ -439,7 +515,7 @@ export default function TripPlanner() {
             if (line.startsWith("data: ") && line !== "data: [DONE]") {
               try {
                 const beat = JSON.parse(line.slice(6));
-                if (beat.beat) setMarcoBeats(prev => [...prev, beat]);
+                if (beat.title) setMarcoBeats(prev => [...prev, beat]);
               } catch {}
             }
           }
@@ -463,6 +539,15 @@ export default function TripPlanner() {
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
+
+  // Auto-advance Marco beat cards every 5 seconds while generating
+  useEffect(() => {
+    if (!generateMutation.isPending || marcoBeats.length === 0) return;
+    const interval = setInterval(() => {
+      setActiveBeatIdx(i => (i + 1) % marcoBeats.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [generateMutation.isPending, marcoBeats.length]);
 
   const highlightsMutation = useMutation({
     mutationFn: async () => {
@@ -572,7 +657,7 @@ export default function TripPlanner() {
         <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
           <p className="text-muted-foreground" data-testid="text-journey-error">Journey not found</p>
           <Link href="/journeys">
-            <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
+            <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys</Button>
           </Link>
         </div>
       </Layout>
@@ -603,7 +688,9 @@ export default function TripPlanner() {
                 Your Travel Wishlist
               </CardTitle>
               <CardDescription>
-                Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. Marco will weave these into your plan.
+                {inspireContext
+                  ? `Marco pre-loaded highlights from your Inspire pick — edit freely or add your own. Everything here shapes the itinerary.`
+                  : `Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. Marco will weave these into your plan.`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -709,24 +796,33 @@ export default function TripPlanner() {
                   </div>
                   <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
                 </div>
-                <div className="px-5 py-4 flex flex-col gap-2">
-                  {marcoBeats.map((b, i) => {
+                <div className="px-5 py-5">
+                  {(() => {
+                    const b = marcoBeats[activeBeatIdx];
+                    if (!b) return null;
                     const Icon = {
                       map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
                       heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
                       calendar: Calendar, route: Navigation,
                     }[b.icon] ?? Sparkles;
                     return (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 rounded-xl bg-background/60 border border-primary/10 px-4 py-3 animate-in fade-in slide-in-from-bottom-1 duration-400"
-                        style={{ animationDelay: `${i * 80}ms` }}
-                      >
-                        <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
-                        <span className="text-sm text-foreground/85">{b.beat}</span>
+                      <div key={activeBeatIdx} className="animate-in fade-in duration-500">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                          <span className="text-sm font-semibold text-foreground">{b.title}</span>
+                        </div>
+                        <p className="text-sm text-foreground/70 leading-relaxed pl-6">{b.body}</p>
                       </div>
                     );
-                  })}
+                  })()}
+                  <div className="flex gap-1.5 justify-center mt-4">
+                    {marcoBeats.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${i === activeBeatIdx ? "w-4 bg-primary" : "w-1.5 bg-primary/20"}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -772,8 +868,8 @@ export default function TripPlanner() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Link href="/journeys">
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <ArrowLeft className="h-4 w-4" />
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys
               </Button>
             </Link>
             <div>
@@ -786,10 +882,28 @@ export default function TripPlanner() {
                   </Badge>
                 )}
               </div>
-              <p className="text-muted-foreground">
-                {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
-                {journey.days ? ` • ${journey.days} days` : ""}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-muted-foreground text-sm">
+                  {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
+                  {journey.days ? ` • ${journey.days} days` : ""}
+                </p>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={startDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    title="Set travel start date"
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (e.target.value) dateSaveMutation.mutate(e.target.value);
+                    }}
+                    className="h-6 text-xs rounded border border-dashed border-primary/40 bg-transparent px-2 text-primary cursor-pointer hover:border-primary transition-colors focus:outline-none focus:border-primary"
+                  />
+                  {formattedDateRange && (
+                    <span className="text-xs text-primary/70">{formattedDateRange}</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex gap-2">
@@ -799,6 +913,16 @@ export default function TripPlanner() {
                 Pack
               </Button>
             </Link>
+            {(journey as any)?.itinerary?.summary && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNarrative(true)}
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Story
+              </Button>
+            )}
             <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
@@ -1621,6 +1745,76 @@ export default function TripPlanner() {
           </div>
         );
       })()}
+
+      {/* Narrative write-up sheet */}
+      <Sheet open={showNarrative} onOpenChange={setShowNarrative}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <div className="flex items-start justify-between pr-8">
+              <div>
+                <SheetTitle className="font-serif text-2xl">{journey.title}</SheetTitle>
+                {journey.dates && (
+                  <p className="text-sm text-muted-foreground mt-1">{journey.dates}</p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadItinerary}
+                className="flex-shrink-0 mt-1"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </div>
+          </SheetHeader>
+
+          {(journey as any)?.itinerary?.summary && (
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <Compass className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-primary">Marco's Write-Up</span>
+              </div>
+              <div className="prose prose-sm max-w-none text-foreground/90 leading-relaxed font-serif">
+                {((journey as any).itinerary.summary as string).split(/\n\n+/).map((para: string, i: number) => (
+                  <p key={i} className="mb-4 last:mb-0">{para}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Day by Day</span>
+            </div>
+            {((journey as any)?.itinerary as Itinerary | undefined)?.days?.map((day) => (
+              <div key={day.day} className="mb-8">
+                <h3 className="font-serif font-bold text-lg mb-1">
+                  {day.date_label && day.date_label !== `Day ${day.day}` ? day.date_label : `Day ${day.day}`}
+                </h3>
+                <p className="text-sm text-primary font-medium mb-3 flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {day.location}
+                </p>
+                <div className="space-y-3">
+                  {day.activities.map((act, ai) => (
+                    <div key={ai} className="pl-3 border-l-2 border-muted">
+                      <div className="flex items-baseline gap-2">
+                        {act.time && <span className="text-xs text-muted-foreground font-mono w-10 flex-shrink-0">{act.time}</span>}
+                        <span className="text-sm font-semibold">{act.title}</span>
+                        {act.duration && <span className="text-xs text-muted-foreground">· {act.duration}</span>}
+                      </div>
+                      {act.description && <p className="text-xs text-muted-foreground mt-0.5 ml-12 leading-relaxed">{act.description}</p>}
+                      {act.tip && <p className="text-xs text-amber-700 mt-0.5 ml-12 italic">Tip: {act.tip}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </Layout>
   );
 }

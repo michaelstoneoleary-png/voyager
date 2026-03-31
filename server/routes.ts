@@ -307,29 +307,31 @@ export async function registerRoutes(
 
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 300,
+        max_tokens: 2000,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator. Output ONLY a JSON array of exactly 4 thought beats as you mentally plan a ${days}-day trip to ${destination}${homeLocation ? ` for a traveler from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a world-class travel curator with genuine insider knowledge. Output ONLY a JSON array of exactly 12 thought beats as you mentally plan a ${days}-day trip to ${destination}${homeLocation ? ` for a traveler from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
 
-Each beat: {"beat": "short punchy thought, 6–12 words", "icon": "<one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route>"}
+Each beat has three fields:
+- "title": 3–6 word punchy section header (e.g. "Maastricht First — Obviously", "The Mosel Wine Thread", "Where to Actually Eat")
+- "body": 2–3 sentences in Marco's full voice — conversational, excited, specific. Name real places, streets, dishes, cultural details. Sound like a well-traveled friend who's been there, not a brochure.
+- "icon": one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route
 
-Be very specific to THIS destination — reference real places, seasons, or cultural nuances. Sound like an excited insider, not a brochure.
-Output ONLY a raw JSON array, no markdown, no explanation.
-Example: [{"beat":"Plotting the perfect coastal route through Algarve","icon":"map"},{"beat":"April: warm sun, zero peak-season crowds","icon":"sun"},{"beat":"Mixing Michelin gems with tiny family tascas","icon":"coffee"},{"beat":"Building your day-by-day now…","icon":"sparkles"}]`,
+Cover the full arc of planning: entry point logic, neighborhoods, food scenes, cultural gems, logistics, seasonal notes, hidden spots, pacing, accommodation areas, and what makes this specific trip special. Vary the tone — some beats enthusiastic, some practical-insider, some quietly revelatory.
+Output ONLY a raw JSON array, no markdown, no explanation.`,
         }],
       });
 
       const raw = ((response.content[0] as any).text || "").trim();
-      let beats: Array<{beat: string; icon: string}> = [];
+      let beats: Array<{title: string; body: string; icon: string}> = [];
       try {
         beats = JSON.parse(raw);
       } catch {
         beats = [
-          { beat: `Mapping out ${days} days across ${destination}`, icon: "map" },
-          { beat: "Weighing hidden gems against the classics", icon: "compass" },
-          { beat: "Matching your travel style and budget", icon: "sparkles" },
-          { beat: "Building your itinerary now…", icon: "calendar" },
+          { title: `${days} Days in ${destination}`, body: "Mapping the route now — weighing the classics against the hidden gems that actually make a trip memorable.", icon: "map" },
+          { title: "Timing and Season", body: "Checking what's in season, what events are on, and where the light hits best for your dates.", icon: "sun" },
+          { title: "Food and Culture Thread", body: "Matching your style and budget to the right neighborhoods, restaurants, and experiences.", icon: "coffee" },
+          { title: "Building Your Days Now…", body: "Putting it all together — real places, accurate times, insider tips.", icon: "sparkles" },
         ];
       }
 
@@ -496,7 +498,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
       ]
     }
   ],
-  "summary": "Brief trip summary"
+  "summary": "A rich 3-5 paragraph narrative written in Marco's voice — curious, warm, insider-knowledgeable, with a traveler's eye for texture and detail. Open with what makes this particular journey electric: the collision of cultures, the geography, the mood of the place. Move through the arc of the experience — what the mornings feel like, what unexpected gems the route holds, what the transition between destinations does to a traveler's sense of time and place. Close with what the traveler will carry home: not souvenirs, but impressions — a flavor, a light, a way of being. Reference specific places, neighborhoods, sensory details, and cultural context from the actual itinerary. Write as if you are telling a close friend about a journey you've taken yourself. 250-400 words."
 }
 
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, shopping, and local experiences. Use the actual correct coordinates for each place.
@@ -1252,29 +1254,31 @@ ${truncated}`,
 
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 300,
+        max_tokens: 2000,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator. Output ONLY a JSON array of exactly 4 thought beats as you mentally curate destinations for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+          content: `You are Marco, a world-class travel curator with genuine insider knowledge. Output ONLY a JSON array of exactly 12 thought beats as you mentally curate destinations for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
 
-Each beat: {"beat": "short punchy thought, 6–12 words", "icon": "<one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route>"}
+Each beat has three fields:
+- "title": 3–6 word punchy section header that feels like Marco thinking out loud (e.g. "The Sweet Spot Right Now", "Budget Actually Opens Doors Here", "Why Southeast Asia Keeps Winning")
+- "body": 2–3 sentences in Marco's full voice — conversational, excited, specific. Reference real regions, seasonal dynamics, cultural texture. Sound like a well-traveled friend sharing what they genuinely know, not a brochure.
+- "icon": one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route
 
-Be specific — reference real regions, seasons, or travel dynamics. Sound like an excited insider, not a brochure.
-Output ONLY a raw JSON array, no markdown, no explanation.
-Example: [{"beat":"Scanning the globe for your perfect match","icon":"compass"},{"beat":"Budget fits Southern Europe and Southeast Asia nicely","icon":"map"},{"beat":"Spring window opens up some seriously special spots","icon":"sun"},{"beat":"Curating your shortlist now…","icon":"sparkles"}]`,
+Cover the full thought process: seasonal timing, budget dynamics, transport logistics, underrated regions, why certain destinations deliver for this traveler profile, what's peaking right now, and what would genuinely surprise them. Vary tone — some beats enthusiastic, some quietly revelatory, some practically sharp.
+Output ONLY a raw JSON array, no markdown, no explanation.`,
         }],
       });
 
       const raw = ((response.content[0] as any).text || "").trim();
-      let beats: Array<{beat: string; icon: string}> = [];
+      let beats: Array<{title: string; body: string; icon: string}> = [];
       try {
         beats = JSON.parse(raw);
       } catch {
         beats = [
-          { beat: "Scanning the globe for your perfect match", icon: "compass" },
-          { beat: "Weighing hidden gems against the classics", icon: "star" },
-          { beat: "Matching budget, transport, and timing", icon: "map" },
-          { beat: "Curating your shortlist now…", icon: "sparkles" },
+          { title: "Scanning the Globe", body: "Looking at where your budget, timing, and travel style all line up — there are more options than you'd think.", icon: "compass" },
+          { title: "Weighing the Timing", body: "Season matters more than destination sometimes. Checking what's in peak form for your window.", icon: "sun" },
+          { title: "Hidden Gems vs. Classics", body: "There are places that keep delivering for people with your travel profile. Pulling those to the top.", icon: "star" },
+          { title: "Curating Your Shortlist…", body: "Putting together the destinations that will actually surprise and move you.", icon: "sparkles" },
         ];
       }
 
@@ -1547,15 +1551,17 @@ Return ONLY a JSON array (no markdown, no code fences):
       }
 
       const travelStyles = (user.travelStyles as string[]) || [];
+      const maxTravelHours = req.query.maxTravelHours ? parseFloat(req.query.maxTravelHours as string) : undefined;
       const results = await searchDayTrips({
         homeLocation: locationLabel,
         homeCoords: resolvedCoords,
         travelStyles,
+        maxTravelHours,
       });
 
       if (!results.length) {
         return res.status(404).json({
-          message: "No highly-rated attractions found within 2.5 hours of your home. Try updating your home location in Settings.",
+          message: "No attractions found near your home. Try expanding your travel time or updating your home location in Settings.",
         });
       }
 
