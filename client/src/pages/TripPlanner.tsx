@@ -297,6 +297,7 @@ export default function TripPlanner() {
   const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
+  const [inspireContext, setInspireContext] = useState<{ destination: string } | null>(null);
   const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
   const [activeBeatIdx, setActiveBeatIdx] = useState(0);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
@@ -321,6 +322,19 @@ export default function TripPlanner() {
 
   const [startDate, setStartDate] = useState<string>("");
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
+
+  // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
+  useEffect(() => {
+    if (!journeyId) return;
+    const raw = localStorage.getItem(`inspire_context_${journeyId}`);
+    if (!raw) return;
+    try {
+      const ctx = JSON.parse(raw) as { tags: string[]; destination: string };
+      if (ctx.tags?.length) setWishlistItems(ctx.tags);
+      setInspireContext({ destination: ctx.destination });
+    } catch {}
+    localStorage.removeItem(`inspire_context_${journeyId}`);
+  }, [journeyId]);
 
   // Compute end date and formatted range from startDate + journey.days
   const tripDays = (journey as any)?.days as number | undefined;
@@ -674,7 +688,9 @@ export default function TripPlanner() {
                 Your Travel Wishlist
               </CardTitle>
               <CardDescription>
-                Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. Marco will weave these into your plan.
+                {inspireContext
+                  ? `Marco pre-loaded highlights from your Inspire pick — edit freely or add your own. Everything here shapes the itinerary.`
+                  : `Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. Marco will weave these into your plan.`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

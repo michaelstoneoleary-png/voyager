@@ -9,6 +9,7 @@ export interface DayTripResult {
   address: string;
   photo_url?: string;         // First photo from Places API
   coordinates: { latitude: number; longitude: number };
+  is_wildcard?: boolean;      // true for hidden gem / road less traveled picks
 }
 
 export interface PlaceResult {
@@ -274,6 +275,7 @@ export async function searchDayTrips(params: {
   homeLocation: string;
   homeCoords?: { lat: number; lng: number };
   travelStyles?: string[];
+  maxTravelHours?: number;
 }): Promise<DayTripResult[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
@@ -291,17 +293,19 @@ export async function searchDayTrips(params: {
     return [];
   }
 
-  // ~240 km ≈ 2.5 hour drive radius
-  const RADIUS_METERS = 240_000;
+  // Radius based on maxTravelHours (average ~100 km/h highway speed)
+  const maxHours = params.maxTravelHours ?? 2.5;
+  const RADIUS_METERS = Math.min(Math.round(maxHours * 100_000), 320_000);
 
   const styles = (params.travelStyles || []).map(s => s.toLowerCase());
   const wantsNature   = styles.some(s => ["nature", "adventure", "outdoors", "hiking"].includes(s));
   const wantsCulture  = styles.some(s => ["culture", "history", "museums", "art"].includes(s));
   const wantsTheme    = styles.some(s => ["family", "thrill", "amusement"].includes(s));
 
-  // Build two targeted queries based on travel style
+  // Build two mainstream queries and one wildcard "road less traveled" query
   let queryA = `popular tourist attractions and landmarks near ${params.homeLocation}`;
   let queryB = `scenic parks, trails, and nature reserves near ${params.homeLocation}`;
+  const queryC = `unique hidden gem quirky unusual small town attractions near ${params.homeLocation}`;
 
   if (wantsCulture) {
     queryA = `museums, historic sites, and cultural landmarks near ${params.homeLocation}`;
@@ -313,9 +317,10 @@ export async function searchDayTrips(params: {
   }
 
   try {
-    const [resultsA, resultsB] = await Promise.all([
+    const [resultsA, resultsB, resultsC] = await Promise.all([
       runPlacesTextSearch(queryA, center, RADIUS_METERS, apiKey, 20),
       runPlacesTextSearch(queryB, center, RADIUS_METERS, apiKey, 20),
+      runPlacesTextSearch(queryC, center, RADIUS_METERS, apiKey, 15),
     ]);
 
     // Deduplicate by place ID, favour the entry with a photo
@@ -329,22 +334,31 @@ export async function searchDayTrips(params: {
     }
 
     const all = Array.from(seen.values());
-    console.log(`[day-trips] raw results: ${all.length} (A:${resultsA.length} B:${resultsB.length})`);
+    console.log(`[day-trips] raw results: ${all.length} (A:${resultsA.length} B:${resultsB.length} C:${resultsC.length}) radius:${RADIUS_METERS}m`);
     if (all.length > 0) {
       console.log(`[day-trips] sample ratings:`, all.slice(0, 5).map(p => `${p.name} r=${p.rating} n=${p.review_count}`));
     }
 
-    // Sort by a simple quality score: rating × log(review_count + 1)
-    const ranked = all
-      .filter(p => p.rating >= 3.0 && p.review_count >= 5)
+    // Mainstream results: rating ≥ 3.5, review_count ≥ 2 (lowered threshold)
+    const mainstream = all
+      .filter(p => p.rating >= 3.5 && p.review_count >= 2)
       .sort((a, b) => {
         const scoreA = a.rating * Math.log(a.review_count + 1);
         const scoreB = b.rating * Math.log(b.review_count + 1);
         return scoreB - scoreA;
-      });
+      })
+      .slice(0, 12);
 
-    console.log(`[day-trips] after quality filter: ${ranked.length}`);
-    return ranked.slice(0, 15);
+    // Wildcards from queryC: highly rated but not yet discovered (low review count)
+    const wildcardIds = new Set(mainstream.map(p => p.id));
+    const wildcards = resultsC
+      .filter(p => p.rating >= 4.2 && p.review_count >= 2 && p.review_count <= 200 && !wildcardIds.has(p.id))
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 3)
+      .map(p => ({ ...p, is_wildcard: true }));
+
+    console.log(`[day-trips] mainstream: ${mainstream.length}, wildcards: ${wildcards.length}`);
+    return [...mainstream, ...wildcards];
   } catch (err) {
     console.error("Day trips search failed:", err);
     return [];

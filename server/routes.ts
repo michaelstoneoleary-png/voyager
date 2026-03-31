@@ -1551,15 +1551,17 @@ Return ONLY a JSON array (no markdown, no code fences):
       }
 
       const travelStyles = (user.travelStyles as string[]) || [];
+      const maxTravelHours = req.query.maxTravelHours ? parseFloat(req.query.maxTravelHours as string) : undefined;
       const results = await searchDayTrips({
         homeLocation: locationLabel,
         homeCoords: resolvedCoords,
         travelStyles,
+        maxTravelHours,
       });
 
       if (!results.length) {
         return res.status(404).json({
-          message: "No highly-rated attractions found within 2.5 hours of your home. Try updating your home location in Settings.",
+          message: "No attractions found near your home. Try expanding your travel time or updating your home location in Settings.",
         });
       }
 

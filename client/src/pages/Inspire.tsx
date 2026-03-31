@@ -37,6 +37,8 @@ import {
   Sun,
   Coffee,
   Navigation,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -411,6 +413,7 @@ interface DayTripResult {
   address: string;
   photo_url?: string;
   coordinates: { latitude: number; longitude: number };
+  is_wildcard?: boolean;
 }
 
 function StarRating({ rating }: { rating: number }) {
@@ -461,10 +464,15 @@ function DayTripCard({ place, onStartJourney }: { place: DayTripResult; onStartJ
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-70" />
 
         {/* Category chip */}
-        <div className="absolute bottom-3 left-3">
+        <div className="absolute bottom-3 left-3 flex gap-1.5">
           <Badge variant="secondary" className="backdrop-blur-md border text-[11px] bg-white/90 text-slate-700 border-0">
             <MapPin className="h-3 w-3 mr-1" />{place.category}
           </Badge>
+          {place.is_wildcard && (
+            <Badge className="backdrop-blur-md text-[11px] bg-emerald-600/90 text-white border-0">
+              🌿 Hidden Gem
+            </Badge>
+          )}
         </div>
 
         {/* Google attribution */}
@@ -533,6 +541,8 @@ export default function Inspire() {
   const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
   const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
   const [activeBeatIdx, setActiveBeatIdx] = useState(0);
+  const [originOverride, setOriginOverride] = useState<string>("");
+  const [showOriginEdit, setShowOriginEdit] = useState(false);
 
   const isDayTrip = qualifier?.days === 1;
 
@@ -556,9 +566,12 @@ export default function Inspire() {
   });
 
   const { data: dayTripData, isLoading: isDayTripLoading, error: dayTripError } = useQuery<{ dayTrips: DayTripResult[]; homeLocation: string }>({
-    queryKey: ["/api/inspire/day-trips"],
+    queryKey: ["/api/inspire/day-trips", qualifier?.maxTravelHours],
     queryFn: async () => {
-      const res = await fetch("/api/inspire/day-trips", { credentials: "include" });
+      const params = qualifier?.maxTravelHours && qualifier.maxTravelHours !== "any"
+        ? `?maxTravelHours=${qualifier.maxTravelHours}`
+        : "";
+      const res = await fetch(`/api/inspire/day-trips${params}`, { credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || "Failed to load day trips");
@@ -637,19 +650,23 @@ export default function Inspire() {
     mutationFn: async (gem: Suggestion) => {
       const res = await apiRequest("POST", "/api/journeys", {
         title: `${gem.title} Adventure`,
-        origin: settings.homeLocation || "",
+        origin: originOverride || settings.homeLocation || "",
         finalDestination: `${gem.title}, ${gem.country}`,
         destinations: [],
         days: qualifier?.days ?? 7,
         cost: gem.avg_daily_budget ? `${gem.avg_daily_budget}/day` : "TBD",
         status: "planning",
       });
-      return res.json();
+      return { journey: await res.json(), gem };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ journey, gem }) => {
+      // Store gem context so TripPlanner can pre-populate the wishlist
+      if (gem.tags?.length) {
+        localStorage.setItem(`inspire_context_${journey.id}`, JSON.stringify({ tags: gem.tags, destination: gem.title }));
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-      toast({ title: "Journey created!", description: `"${data.title}" is ready for planning.` });
-      setLocation(`/planner/${data.id}`);
+      toast({ title: "Journey created!", description: `"${journey.title}" is ready for planning.` });
+      setLocation(`/planner/${journey.id}`);
     },
     onError: () => {
       toast({ title: "Failed to create journey", description: "Please try again.", variant: "destructive" });
@@ -660,7 +677,7 @@ export default function Inspire() {
     mutationFn: async (place: DayTripResult) => {
       const res = await apiRequest("POST", "/api/journeys", {
         title: `Day Trip: ${place.name}`,
-        origin: settings.homeLocation || "",
+        origin: originOverride || settings.homeLocation || "",
         finalDestination: place.name,
         destinations: [],
         days: 1,
@@ -900,6 +917,44 @@ export default function Inspire() {
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <DollarSign className="h-3 w-3" /> {budgetLabel}
               </span>
+              {/* Departing from chip — shows current origin with inline override */}
+              {(settings.homeLocation || originOverride) && (
+                <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full pl-3 pr-1 py-1 text-muted-foreground">
+                  <MapPin className="h-3 w-3 flex-shrink-0" />
+                  {showOriginEdit ? (
+                    <>
+                      <input
+                        autoFocus
+                        className="bg-transparent outline-none w-28 text-xs text-foreground"
+                        defaultValue={originOverride || settings.homeLocation || ""}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setOriginOverride((e.target as HTMLInputElement).value.trim());
+                            setShowOriginEdit(false);
+                          }
+                          if (e.key === "Escape") setShowOriginEdit(false);
+                        }}
+                        onBlur={(e) => {
+                          setOriginOverride(e.target.value.trim());
+                          setShowOriginEdit(false);
+                        }}
+                      />
+                      <Check className="h-3 w-3 text-primary cursor-pointer" onClick={() => setShowOriginEdit(false)} />
+                    </>
+                  ) : (
+                    <>
+                      <span>{originOverride || settings.homeLocation}</span>
+                      <button
+                        onClick={() => setShowOriginEdit(true)}
+                        className="ml-0.5 p-1 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                        title="Not home? Override your departure city"
+                      >
+                        <Pencil className="h-2.5 w-2.5" />
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
               <Button
                 size="sm"
                 variant="outline"
