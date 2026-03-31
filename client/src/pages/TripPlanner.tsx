@@ -298,8 +298,10 @@ export default function TripPlanner() {
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
   const [inspireContext, setInspireContext] = useState<{ destination: string } | null>(null);
-  const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
-  const [activeBeatIdx, setActiveBeatIdx] = useState(0);
+  const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
+  const marcoLiveRef = useRef<HTMLParagraphElement | null>(null);
+  const marcoBufferRef = useRef<string>("");
+  const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -498,24 +500,41 @@ export default function TripPlanner() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      setMarcoBeats([]);
+      setMarcoParagraphs([]);
+      marcoBufferRef.current = "";
+      if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
 
-      // Stream Marco's planning thought beats concurrently
+      // Stream Marco's prose thinking concurrently with itinerary generation
       const thinkingFetch = fetch(`/api/journeys/${journeyId}/marco-thinking`, { credentials: "include" });
       thinkingFetch.then(async (thinkRes) => {
         if (!thinkRes.body) return;
         const reader = thinkRes.body.getReader();
         const decoder = new TextDecoder();
+        let sseBuffer = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
           for (const line of lines) {
-            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            if (line === "data: [DONE]") {
+              const remaining = marcoBufferRef.current.trim();
+              if (remaining) setMarcoParagraphs(prev => [...prev, remaining]);
+              marcoBufferRef.current = "";
+            } else if (line.startsWith("data: ")) {
               try {
-                const beat = JSON.parse(line.slice(6));
-                if (beat.title) setMarcoBeats(prev => [...prev, beat]);
+                const { chunk } = JSON.parse(line.slice(6));
+                if (chunk) {
+                  marcoBufferRef.current += chunk;
+                  const parts = marcoBufferRef.current.split(/\n\n+/);
+                  if (parts.length > 1) {
+                    const complete = parts.slice(0, -1).map((p: string) => p.trim()).filter(Boolean);
+                    if (complete.length) setMarcoParagraphs(prev => [...prev, ...complete]);
+                    marcoBufferRef.current = parts[parts.length - 1];
+                  }
+                  if (marcoLiveRef.current) marcoLiveRef.current.textContent = marcoBufferRef.current;
+                }
               } catch {}
             }
           }
@@ -531,23 +550,22 @@ export default function TripPlanner() {
     onSuccess: (data) => {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-      setMarcoBeats([]);
+      setMarcoParagraphs([]);
       toast({ title: "Itinerary generated", description: "Your personalized itinerary from Marco is ready." });
     },
     onError: (err: any) => {
-      setMarcoBeats([]);
+      setMarcoParagraphs([]);
+      marcoBufferRef.current = "";
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
 
-  // Auto-advance Marco beat cards every 5 seconds while generating
+  // Scroll to bottom of Marco prose panel when a new paragraph commits
   useEffect(() => {
-    if (!generateMutation.isPending || marcoBeats.length === 0) return;
-    const interval = setInterval(() => {
-      setActiveBeatIdx(i => (i + 1) % marcoBeats.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [generateMutation.isPending, marcoBeats.length]);
+    if (marcoParagraphs.length > 0 && marcoScrollRef.current) {
+      marcoScrollRef.current.scrollTo({ top: marcoScrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [marcoParagraphs.length]);
 
   const highlightsMutation = useMutation({
     mutationFn: async () => {
@@ -780,7 +798,7 @@ export default function TripPlanner() {
             </Card>
           )}
 
-          {generateMutation.isPending && marcoBeats.length > 0 ? (
+          {generateMutation.isPending && (marcoParagraphs.length > 0 || marcoBufferRef.current) ? (
             <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
                 <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">
@@ -796,33 +814,11 @@ export default function TripPlanner() {
                   </div>
                   <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
                 </div>
-                <div className="px-5 py-5">
-                  {(() => {
-                    const b = marcoBeats[activeBeatIdx];
-                    if (!b) return null;
-                    const Icon = {
-                      map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
-                      heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
-                      calendar: Calendar, route: Navigation,
-                    }[b.icon] ?? Sparkles;
-                    return (
-                      <div key={activeBeatIdx} className="animate-in fade-in duration-500">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
-                          <span className="text-sm font-semibold text-foreground">{b.title}</span>
-                        </div>
-                        <p className="text-sm text-foreground/70 leading-relaxed pl-6">{b.body}</p>
-                      </div>
-                    );
-                  })()}
-                  <div className="flex gap-1.5 justify-center mt-4">
-                    {marcoBeats.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-1.5 rounded-full transition-all duration-300 ${i === activeBeatIdx ? "w-4 bg-primary" : "w-1.5 bg-primary/20"}`}
-                      />
-                    ))}
-                  </div>
+                <div ref={marcoScrollRef} className="px-5 py-5 max-h-64 overflow-y-auto space-y-3 scroll-smooth">
+                  {marcoParagraphs.map((p, i) => (
+                    <p key={i} className="text-sm text-foreground/80 leading-relaxed font-serif">{p}</p>
+                  ))}
+                  <p ref={marcoLiveRef} className="text-sm text-foreground/80 leading-relaxed font-serif min-h-[1.25rem]" />
                 </div>
               </div>
             </div>

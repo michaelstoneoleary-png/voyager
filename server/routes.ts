@@ -305,42 +305,29 @@ export async function registerRoutes(
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const response = await anthropic.messages.create({
+      const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
-        max_tokens: 2000,
+        max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator with genuine insider knowledge. Output ONLY a JSON array of exactly 12 thought beats as you mentally plan a ${days}-day trip to ${destination}${homeLocation ? ` for a traveler from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you plan this ${days}-day trip to ${destination}${homeLocation ? ` for someone from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
 
-Each beat has three fields:
-- "title": 3–6 word punchy section header (e.g. "Maastricht First — Obviously", "The Mosel Wine Thread", "Where to Actually Eat")
-- "body": 2–3 sentences in Marco's full voice — conversational, excited, specific. Name real places, streets, dishes, cultural details. Sound like a well-traveled friend who's been there, not a brochure.
-- "icon": one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route
-
-Cover the full arc of planning: entry point logic, neighborhoods, food scenes, cultural gems, logistics, seasonal notes, hidden spots, pacing, accommodation areas, and what makes this specific trip special. Vary the tone — some beats enthusiastic, some practical-insider, some quietly revelatory.
-Output ONLY a raw JSON array, no markdown, no explanation.`,
+Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Name real neighborhoods, dishes, streets, cultural details. Build the case for why this itinerary makes sense in the order it unfolds. Target 350–500 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately with your first thought — no intro phrase.`,
         }],
       });
 
-      const raw = ((response.content[0] as any).text || "").trim();
-      let beats: Array<{title: string; body: string; icon: string}> = [];
-      try {
-        beats = JSON.parse(raw);
-      } catch {
-        beats = [
-          { title: `${days} Days in ${destination}`, body: "Mapping the route now — weighing the classics against the hidden gems that actually make a trip memorable.", icon: "map" },
-          { title: "Timing and Season", body: "Checking what's in season, what events are on, and where the light hits best for your dates.", icon: "sun" },
-          { title: "Food and Culture Thread", body: "Matching your style and budget to the right neighborhoods, restaurants, and experiences.", icon: "coffee" },
-          { title: "Building Your Days Now…", body: "Putting it all together — real places, accurate times, insider tips.", icon: "sparkles" },
-        ];
-      }
-
-      for (let i = 0; i < beats.length; i++) {
-        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
-        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
+      stream.on("text", (text: string) => {
+        res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
+      });
+      stream.on("finalMessage", () => {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+      stream.on("error", (err: any) => {
+        console.error("[marco-thinking] stream error:", err.message);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
     } catch (err: any) {
       console.error("[marco-thinking] error:", err.message);
       res.write("data: [DONE]\n\n");
@@ -1252,42 +1239,29 @@ ${truncated}`,
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const response = await anthropic.messages.create({
+      const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
-        max_tokens: 2000,
+        max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator with genuine insider knowledge. Output ONLY a JSON array of exactly 12 thought beats as you mentally curate destinations for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you scan the world for the right destination for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
 
-Each beat has three fields:
-- "title": 3–6 word punchy section header that feels like Marco thinking out loud (e.g. "The Sweet Spot Right Now", "Budget Actually Opens Doors Here", "Why Southeast Asia Keeps Winning")
-- "body": 2–3 sentences in Marco's full voice — conversational, excited, specific. Reference real regions, seasonal dynamics, cultural texture. Sound like a well-traveled friend sharing what they genuinely know, not a brochure.
-- "icon": one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route
-
-Cover the full thought process: seasonal timing, budget dynamics, transport logistics, underrated regions, why certain destinations deliver for this traveler profile, what's peaking right now, and what would genuinely surprise them. Vary tone — some beats enthusiastic, some quietly revelatory, some practically sharp.
-Output ONLY a raw JSON array, no markdown, no explanation.`,
+Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Reference real regions, seasonal dynamics, why certain places deliver for this exact profile right now. Build toward the destinations you're about to surface. Target 300–450 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately — no intro phrase.`,
         }],
       });
 
-      const raw = ((response.content[0] as any).text || "").trim();
-      let beats: Array<{title: string; body: string; icon: string}> = [];
-      try {
-        beats = JSON.parse(raw);
-      } catch {
-        beats = [
-          { title: "Scanning the Globe", body: "Looking at where your budget, timing, and travel style all line up — there are more options than you'd think.", icon: "compass" },
-          { title: "Weighing the Timing", body: "Season matters more than destination sometimes. Checking what's in peak form for your window.", icon: "sun" },
-          { title: "Hidden Gems vs. Classics", body: "There are places that keep delivering for people with your travel profile. Pulling those to the top.", icon: "star" },
-          { title: "Curating Your Shortlist…", body: "Putting together the destinations that will actually surprise and move you.", icon: "sparkles" },
-        ];
-      }
-
-      for (let i = 0; i < beats.length; i++) {
-        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
-        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
+      stream.on("text", (text: string) => {
+        res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
+      });
+      stream.on("finalMessage", () => {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+      stream.on("error", (err: any) => {
+        console.error("[inspire/marco-thinking] stream error:", err.message);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
     } catch (err: any) {
       console.error("[inspire/marco-thinking] error:", err.message);
       res.write("data: [DONE]\n\n");

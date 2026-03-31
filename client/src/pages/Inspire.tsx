@@ -539,8 +539,10 @@ export default function Inspire() {
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
   const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
-  const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
-  const [activeBeatIdx, setActiveBeatIdx] = useState(0);
+  const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
+  const marcoLiveRef = useRef<HTMLParagraphElement | null>(null);
+  const marcoBufferRef = useRef<string>("");
+  const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const [originOverride, setOriginOverride] = useState<string>("");
   const [showOriginEdit, setShowOriginEdit] = useState(false);
 
@@ -591,10 +593,12 @@ export default function Inspire() {
     return () => clearInterval(interval);
   }, [isLoading, isDayTripLoading]);
 
-  // Stream Marco's planning thought beats when inspire loading starts
+  // Stream Marco's prose thinking when inspire loading starts
   useEffect(() => {
     if (!isLoading || isDayTrip || !qualifier) return;
-    setMarcoBeats([]);
+    setMarcoParagraphs([]);
+    marcoBufferRef.current = "";
+    if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
     const params = `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`;
     let cancelled = false;
     (async () => {
@@ -603,15 +607,31 @@ export default function Inspire() {
         if (!res.body || cancelled) return;
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let sseBuffer = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done || cancelled) break;
-          const lines = decoder.decode(value, { stream: true }).split("\n");
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
           for (const line of lines) {
-            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            if (line === "data: [DONE]") {
+              const remaining = marcoBufferRef.current.trim();
+              if (remaining) setMarcoParagraphs(prev => [...prev, remaining]);
+              marcoBufferRef.current = "";
+            } else if (line.startsWith("data: ")) {
               try {
-                const beat = JSON.parse(line.slice(6));
-                if (beat.title) setMarcoBeats(prev => [...prev, beat]);
+                const { chunk } = JSON.parse(line.slice(6));
+                if (chunk) {
+                  marcoBufferRef.current += chunk;
+                  const parts = marcoBufferRef.current.split(/\n\n+/);
+                  if (parts.length > 1) {
+                    const complete = parts.slice(0, -1).map((p: string) => p.trim()).filter(Boolean);
+                    if (complete.length) setMarcoParagraphs(prev => [...prev, ...complete]);
+                    marcoBufferRef.current = parts[parts.length - 1];
+                  }
+                  if (marcoLiveRef.current) marcoLiveRef.current.textContent = marcoBufferRef.current;
+                }
               } catch {}
             }
           }
@@ -621,14 +641,12 @@ export default function Inspire() {
     return () => { cancelled = true; };
   }, [isLoading, isDayTrip]);
 
-  // Auto-advance Marco beat cards every 5 seconds while loading
+  // Scroll to bottom when a new paragraph commits
   useEffect(() => {
-    if (!isLoading || marcoBeats.length === 0) return;
-    const interval = setInterval(() => {
-      setActiveBeatIdx(i => (i + 1) % marcoBeats.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isLoading, marcoBeats.length]);
+    if (marcoParagraphs.length > 0 && marcoScrollRef.current) {
+      marcoScrollRef.current.scrollTo({ top: marcoScrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [marcoParagraphs.length]);
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
@@ -741,35 +759,16 @@ export default function Inspire() {
             </div>
           </div>
 
-          {/* Beat cards (non-day-trip only) or cycling phrase */}
-          {!isDayTrip && marcoBeats.length > 0 ? (
-            <div className="w-full max-w-sm">
-              {(() => {
-                const b = marcoBeats[activeBeatIdx];
-                if (!b) return null;
-                const Icon = {
-                  map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
-                  heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
-                  calendar: Calendar, route: Navigation,
-                }[b.icon] ?? Sparkles;
-                return (
-                  <div key={activeBeatIdx} className="rounded-xl bg-background border border-primary/10 px-5 py-4 shadow-sm animate-in fade-in duration-500">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-foreground">{b.title}</span>
-                    </div>
-                    <p className="text-sm text-foreground/70 leading-relaxed pl-6">{b.body}</p>
-                  </div>
-                );
-              })()}
-              <div className="flex gap-1.5 justify-center mt-3">
-                {marcoBeats.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${i === activeBeatIdx ? "w-4 bg-primary" : "w-1.5 bg-primary/20"}`}
-                  />
-                ))}
-              </div>
+          {/* Streaming prose (non-day-trip only) or cycling phrase */}
+          {!isDayTrip && marcoParagraphs.length > 0 ? (
+            <div
+              ref={marcoScrollRef}
+              className="w-full max-w-sm rounded-xl bg-background border border-primary/10 px-5 py-4 shadow-sm max-h-52 overflow-y-auto scroll-smooth space-y-3"
+            >
+              {marcoParagraphs.map((p, i) => (
+                <p key={i} className="text-sm text-foreground/80 leading-relaxed font-serif">{p}</p>
+              ))}
+              <p ref={marcoLiveRef} className="text-sm text-foreground/80 leading-relaxed font-serif min-h-[1.25rem]" />
             </div>
           ) : (
             <div className="text-center max-w-xs">
