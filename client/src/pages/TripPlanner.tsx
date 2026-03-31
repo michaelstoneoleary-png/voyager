@@ -297,7 +297,8 @@ export default function TripPlanner() {
   const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
-  const [marcoBeats, setMarcoBeats] = useState<Array<{beat: string; icon: string}>>([]);
+  const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
+  const [activeBeatIdx, setActiveBeatIdx] = useState(0);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -500,7 +501,7 @@ export default function TripPlanner() {
             if (line.startsWith("data: ") && line !== "data: [DONE]") {
               try {
                 const beat = JSON.parse(line.slice(6));
-                if (beat.beat) setMarcoBeats(prev => [...prev, beat]);
+                if (beat.title) setMarcoBeats(prev => [...prev, beat]);
               } catch {}
             }
           }
@@ -524,6 +525,15 @@ export default function TripPlanner() {
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
+
+  // Auto-advance Marco beat cards every 5 seconds while generating
+  useEffect(() => {
+    if (!generateMutation.isPending || marcoBeats.length === 0) return;
+    const interval = setInterval(() => {
+      setActiveBeatIdx(i => (i + 1) % marcoBeats.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [generateMutation.isPending, marcoBeats.length]);
 
   const highlightsMutation = useMutation({
     mutationFn: async () => {
@@ -770,24 +780,33 @@ export default function TripPlanner() {
                   </div>
                   <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
                 </div>
-                <div className="px-5 py-4 flex flex-col gap-2">
-                  {marcoBeats.map((b, i) => {
+                <div className="px-5 py-5">
+                  {(() => {
+                    const b = marcoBeats[activeBeatIdx];
+                    if (!b) return null;
                     const Icon = {
                       map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
                       heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
                       calendar: Calendar, route: Navigation,
                     }[b.icon] ?? Sparkles;
                     return (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 rounded-xl bg-background/60 border border-primary/10 px-4 py-3 animate-in fade-in slide-in-from-bottom-1 duration-400"
-                        style={{ animationDelay: `${i * 80}ms` }}
-                      >
-                        <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
-                        <span className="text-sm text-foreground/85">{b.beat}</span>
+                      <div key={activeBeatIdx} className="animate-in fade-in duration-500">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                          <span className="text-sm font-semibold text-foreground">{b.title}</span>
+                        </div>
+                        <p className="text-sm text-foreground/70 leading-relaxed pl-6">{b.body}</p>
                       </div>
                     );
-                  })}
+                  })()}
+                  <div className="flex gap-1.5 justify-center mt-4">
+                    {marcoBeats.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${i === activeBeatIdx ? "w-4 bg-primary" : "w-1.5 bg-primary/20"}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
