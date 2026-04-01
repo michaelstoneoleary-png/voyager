@@ -339,12 +339,12 @@ export async function searchDayTrips(params: {
       console.log(`[day-trips] sample ratings:`, all.slice(0, 5).map(p => `${p.name} r=${p.rating} n=${p.review_count}`));
     }
 
-    // Mainstream results: rating ≥ 3.5, review_count ≥ 2 (lowered threshold)
+    // Mainstream results: include anything with at least 1 review, sorted by quality score
     const mainstream = all
-      .filter(p => p.rating >= 3.5 && p.review_count >= 2)
+      .filter(p => p.review_count >= 1)
       .sort((a, b) => {
-        const scoreA = a.rating * Math.log(a.review_count + 1);
-        const scoreB = b.rating * Math.log(b.review_count + 1);
+        const scoreA = (a.rating || 3.0) * Math.log(a.review_count + 2);
+        const scoreB = (b.rating || 3.0) * Math.log(b.review_count + 2);
         return scoreB - scoreA;
       })
       .slice(0, 12);
@@ -357,8 +357,13 @@ export async function searchDayTrips(params: {
       .slice(0, 3)
       .map(p => ({ ...p, is_wildcard: true }));
 
-    console.log(`[day-trips] mainstream: ${mainstream.length}, wildcards: ${wildcards.length}`);
-    return [...mainstream, ...wildcards];
+    // Last-resort fallback: if everything got filtered out, return raw results sorted by rating
+    const mainstreamFinal = mainstream.length === 0 && all.length > 0
+      ? all.sort((a, b) => b.rating - a.rating).slice(0, 12)
+      : mainstream;
+
+    console.log(`[day-trips] mainstream: ${mainstreamFinal.length}, wildcards: ${wildcards.length}`);
+    return [...mainstreamFinal, ...wildcards];
   } catch (err) {
     console.error("Day trips search failed:", err);
     return [];
