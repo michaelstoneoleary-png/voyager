@@ -1370,7 +1370,7 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         unlimited: "unlimited — money is no object, recommend only the finest",
       };
 
-      const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Generate 6 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
+      const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Deliberate out loud as you choose 6 destinations for this traveler — then commit to each one.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1395,10 +1395,15 @@ RULES:
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
-OUTPUT FORMAT: Output each destination as a single-line JSON object, one per line. No array brackets. No blank lines between entries. No markdown. All string values must be on one line (no newlines inside strings). Begin immediately with the first JSON object.
+OUTPUT FORMAT: For each destination, write exactly two lines:
+1. A single prose sentence in Marco's voice — name the destination and give one vivid, specific reason it fits this traveler (no markdown, no label, just the thought)
+2. The destination as a single-line JSON object (all on one line, no line breaks inside)
 
-Example line format (do not include this in output):
-{"title":"Destination Name","country":"Country","category":"Category","description":"2-3 sentence vivid description.","best_months":"Month–Month","avg_daily_budget":"$X–Y","tags":["tag1","tag2","tag3"],"lat":0.0,"lng":0.0,"image_query":"Wikipedia_Article_Title","why_for_you":"One sentence why Marco picked this for them."}`;
+Separate each destination block with one blank line. Do NOT include array brackets or any other text. Begin immediately with the first prose sentence.
+
+Example block (do not include this in output):
+Lisbon is calling — the combination of historic trams, world-class seafood, and genuinely affordable luxury makes it a perfect match for a midrange week abroad.
+{"title":"Lisbon","country":"Portugal","category":"Urban","description":"2-3 sentence vivid description.","best_months":"Apr–Jun","avg_daily_budget":"$120–180","tags":["food","history","walkable"],"lat":38.72,"lng":-9.14,"image_query":"Lisbon_Portugal","why_for_you":"One sentence why Marco picked this for them."}`;
 
       // Set SSE headers for progressive streaming
       res.setHeader("Content-Type", "text/event-stream");
@@ -1406,7 +1411,7 @@ Example line format (do not include this in output):
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      // Cache hit: emit all cached suggestions as rapid-fire lines
+      // Cache hit: emit all cached suggestions as rapid-fire destination events (no prose replay)
       const cached = inspireCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
         for (const suggestion of cached.data.suggestions) {
@@ -1417,7 +1422,7 @@ Example line format (do not include this in output):
         return;
       }
 
-      // Cache miss: stream from Claude, emit each complete line as it arrives
+      // Cache miss: stream from Claude — detect prose vs JSON lines, emit each appropriately
       const collected: any[] = [];
       let lineBuffer = "";
 
@@ -1434,12 +1439,18 @@ Example line format (do not include this in output):
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) continue;
-          try {
-            const parsed = JSON.parse(trimmed);
-            collected.push(parsed);
-            res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
-          } catch {
-            // Incomplete or non-JSON fragment — skip
+          if (trimmed.startsWith("{")) {
+            // JSON destination line — parse and buffer for reveal
+            try {
+              const parsed = JSON.parse(trimmed);
+              collected.push(parsed);
+              res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
+            } catch {
+              // Incomplete JSON — skip
+            }
+          } else {
+            // Prose hint line — stream immediately for live display
+            res.write(`data: ${JSON.stringify({ chunk: trimmed })}\n\n`);
           }
         }
       });
@@ -1447,11 +1458,16 @@ Example line format (do not include this in output):
       stream.on("finalMessage", () => {
         // Flush any remaining buffer content
         if (lineBuffer.trim()) {
-          try {
-            const parsed = JSON.parse(lineBuffer.trim());
-            collected.push(parsed);
-            res.write(`data: ${JSON.stringify({ destination: lineBuffer.trim() })}\n\n`);
-          } catch {}
+          const trimmed = lineBuffer.trim();
+          if (trimmed.startsWith("{")) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              collected.push(parsed);
+              res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
+            } catch {}
+          } else {
+            res.write(`data: ${JSON.stringify({ chunk: trimmed })}\n\n`);
+          }
         }
         // Cache the full result for subsequent requests
         if (collected.length > 0) {
