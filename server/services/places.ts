@@ -295,7 +295,8 @@ export async function searchDayTrips(params: {
 
   // Radius based on maxTravelHours (average ~100 km/h highway speed)
   const maxHours = params.maxTravelHours ?? 2.5;
-  const RADIUS_METERS = Math.min(Math.round(maxHours * 100_000), 320_000);
+  // Google Places locationBias.circle.radius max is 50,000m — cap there
+  const RADIUS_METERS = Math.min(Math.round(maxHours * 100_000), 50_000);
 
   const styles = (params.travelStyles || []).map(s => s.toLowerCase());
   const wantsNature   = styles.some(s => ["nature", "adventure", "outdoors", "hiking"].includes(s));
