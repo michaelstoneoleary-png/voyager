@@ -484,6 +484,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
           "description": "Brief description",
           "cost": "Free or estimated cost",
           "tip": "Optional insider tip",
+          "hidden_gem": false,
           "lat": 42.6977,
           "lng": 23.3219,
           "image_query": "Wikipedia article title for this specific place or landmark (e.g. 'Rila_Monastery', 'Alexander_Nevsky_Cathedral,_Sofia')",
@@ -501,6 +502,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
 }
 
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, shopping, and local experiences. Use the actual correct coordinates for each place.
+HIDDEN GEMS: For each day, mark exactly 1 activity as a hidden gem — a well-regarded but lesser-known spot that most tourists skip, with a solid rating but far fewer reviews than the famous sights. Set "hidden_gem": true on that activity. All other activities should have "hidden_gem": false.
 SHOPPING ACTIVITIES: Include at least one shopping activity per destination that highlights products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to the area. Examples: silverwork and turquoise jewelry in Santa Fe, saffron in Spain, hand-painted azulejo tiles in Portugal, Murano blown glass in Venice, silk in Thailand, leather goods in Florence, ceramics in Oaxaca. For each shopping activity, the description MUST name the specific local product(s) and explain their cultural significance. The tip should include where to find authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".
 TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance (always in km — the app handles unit conversion for the user), and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
@@ -1405,6 +1407,7 @@ RULES:
 - If you determine a destination does NOT fit the travel time constraint, SKIP IT ENTIRELY — do not write its prose line or its JSON line at all. Move on to the next candidate silently. Never put reconsideration or removal notes in why_for_you.
 - avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
 - Include a diverse mix of destinations that genuinely fit the constraints
+- 2-3 of your 10 suggestions should be off the beaten path — well-regarded but lesser-known destinations that serious travelers love but most tourists miss (solid rating, far fewer reviews than the famous choices). Mark these with "hidden_gem": true. The rest should have "hidden_gem": false.
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 - travel_time_estimate: total door-to-door time using the same calculation as the hard filter (drive to nearest airport + check-in/security (90 min) + flight time + layovers if any + ground transport at destination; or road distance at realistic speeds for driving). Express as a short phrase, e.g. "~6 hrs door-to-door (incl. airport)", "~3 hr drive", "~9 hrs with 1 connection". Never use just flight time — always include the full journey.
@@ -1417,7 +1420,7 @@ Separate each destination block with one blank line. Do NOT include array bracke
 
 Example block (do not include this in output):
 Lisbon is calling — the combination of historic trams, world-class seafood, and genuinely affordable luxury makes it a perfect match for a midrange week abroad.
-{"title":"Lisbon","country":"Portugal","category":"Urban","description":"2-3 sentence vivid description.","best_months":"Apr–Jun","avg_daily_budget":"$120–180","tags":["food","history","walkable"],"lat":38.72,"lng":-9.14,"image_query":"Lisbon_Portugal","why_for_you":"One sentence why Marco picked this for them.","travel_time_estimate":"~8 hrs door-to-door (incl. airport)"}`;
+{"title":"Lisbon","country":"Portugal","category":"Urban","description":"2-3 sentence vivid description.","best_months":"Apr–Jun","avg_daily_budget":"$120–180","tags":["food","history","walkable"],"lat":38.72,"lng":-9.14,"image_query":"Lisbon_Portugal","why_for_you":"One sentence why Marco picked this for them.","travel_time_estimate":"~8 hrs door-to-door (incl. airport)","hidden_gem":false}`;
 
       // Set SSE headers for progressive streaming
       res.setHeader("Content-Type", "text/event-stream");
