@@ -923,6 +923,26 @@ export default function TripPlanner() {
               </Button>
             )}
             <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                const url = `${window.location.origin}/share/${journey.id}`;
+                const dest = journey.finalDestination || (journey as any).destinations?.[0] || "an amazing destination";
+                const subject = encodeURIComponent(`Check out my trip to ${dest}!`);
+                const rawSummary = (journey as any).itinerary?.summary as string | undefined;
+                const teaser = rawSummary
+                  ? rawSummary.match(/[^.!?]+[.!?]+/g)?.slice(0, 4).join(" ").trim() ?? ""
+                  : "";
+                const body = encodeURIComponent(
+                  `Hey!\n\nI'm planning a trip to ${dest} and wanted to share my itinerary with you.\n\n${teaser ? `${teaser}\n\n` : ""}Check out the full day-by-day plan here:\n${url}\n\nHope you can join me!`
+                );
+                window.location.href = `mailto:?subject=${subject}&body=${body}`;
+              }}
+            >
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
+            </Button>
+            <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
               onClick={() => setViewMode((m) => m === "photos" ? "itinerary" : "photos")}
@@ -1759,26 +1779,6 @@ export default function TripPlanner() {
                 )}
               </div>
               <div className="flex gap-2 flex-shrink-0 mt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const url = `${window.location.origin}/share/${journey.id}`;
-                    const dest = journey.finalDestination || journey.destinations?.[0] || "an amazing destination";
-                    const subject = encodeURIComponent(`Check out my trip to ${dest}!`);
-                    const rawSummary = (journey as any).itinerary?.summary as string | undefined;
-                    const teaser = rawSummary
-                      ? rawSummary.match(/[^.!?]+[.!?]+/g)?.slice(0, 4).join(" ").trim() ?? ""
-                      : "";
-                    const body = encodeURIComponent(
-                      `Hey!\n\nI'm planning a trip to ${dest} and wanted to share my itinerary with you.\n\n${teaser ? `${teaser}\n\n` : ""}Check out the full day-by-day plan here:\n${url}\n\nHope you can join me!`
-                    );
-                    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-                  }}
-                >
-                  <Share2 className="mr-2 h-4 w-4" />
-                  Share
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"
