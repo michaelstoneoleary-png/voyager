@@ -1407,6 +1407,7 @@ RULES:
 - Include a diverse mix of destinations that genuinely fit the constraints
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
+- travel_time_estimate: total door-to-door time using the same calculation as the hard filter (drive to nearest airport + check-in/security (90 min) + flight time + layovers if any + ground transport at destination; or road distance at realistic speeds for driving). Express as a short phrase, e.g. "~6 hrs door-to-door (incl. airport)", "~3 hr drive", "~9 hrs with 1 connection". Never use just flight time — always include the full journey.
 
 OUTPUT FORMAT: For each destination, write exactly two lines:
 1. A single prose sentence in Marco's voice — name the destination and give one vivid, specific reason it fits this traveler (no markdown, no label, just the thought)
@@ -1416,7 +1417,7 @@ Separate each destination block with one blank line. Do NOT include array bracke
 
 Example block (do not include this in output):
 Lisbon is calling — the combination of historic trams, world-class seafood, and genuinely affordable luxury makes it a perfect match for a midrange week abroad.
-{"title":"Lisbon","country":"Portugal","category":"Urban","description":"2-3 sentence vivid description.","best_months":"Apr–Jun","avg_daily_budget":"$120–180","tags":["food","history","walkable"],"lat":38.72,"lng":-9.14,"image_query":"Lisbon_Portugal","why_for_you":"One sentence why Marco picked this for them."}`;
+{"title":"Lisbon","country":"Portugal","category":"Urban","description":"2-3 sentence vivid description.","best_months":"Apr–Jun","avg_daily_budget":"$120–180","tags":["food","history","walkable"],"lat":38.72,"lng":-9.14,"image_query":"Lisbon_Portugal","why_for_you":"One sentence why Marco picked this for them.","travel_time_estimate":"~8 hrs door-to-door (incl. airport)"}`;
 
       // Set SSE headers for progressive streaming
       res.setHeader("Content-Type", "text/event-stream");
