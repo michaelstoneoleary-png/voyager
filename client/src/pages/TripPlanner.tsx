@@ -799,7 +799,7 @@ export default function TripPlanner() {
           )}
 
           {generateMutation.isPending && (marcoParagraphs.length > 0 || marcoBufferRef.current) ? (
-            <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
                 <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">
                   <div className="relative flex-shrink-0">
@@ -814,11 +814,11 @@ export default function TripPlanner() {
                   </div>
                   <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
                 </div>
-                <div ref={marcoScrollRef} className="px-5 py-5 max-h-64 overflow-y-auto space-y-3 scroll-smooth">
+                <div ref={marcoScrollRef} className="px-6 py-6 max-h-80 overflow-y-auto space-y-3 scroll-smooth">
                   {marcoParagraphs.map((p, i) => (
-                    <p key={i} className="text-sm text-foreground/80 leading-relaxed font-serif">{p}</p>
+                    <p key={i} className="text-base text-foreground/80 leading-relaxed font-serif">{p}</p>
                   ))}
-                  <p ref={marcoLiveRef} className="text-sm text-foreground/80 leading-relaxed font-serif min-h-[1.25rem]" />
+                  <p ref={marcoLiveRef} className="text-base text-foreground/80 leading-relaxed font-serif min-h-[1.5rem]" />
                 </div>
               </div>
             </div>
