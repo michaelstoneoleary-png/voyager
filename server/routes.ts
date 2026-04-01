@@ -1382,7 +1382,7 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         unlimited: "unlimited — money is no object, recommend only the finest",
       };
 
-      const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Deliberate out loud as you choose 6 destinations for this traveler — then commit to each one.
+      const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Deliberate out loud as you choose 10 destinations for this traveler — then commit to each one.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1442,7 +1442,7 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
 
       const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 4096,
         messages: [{ role: "user", content: suggestionPrompt }],
       });
 
