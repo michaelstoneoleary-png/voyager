@@ -1525,7 +1525,8 @@ Example line format (do not include this in output):
         : rawLocation;
       // Round coords to 2 decimal places (~1km) for cache key
       const coordKey = lat && lng ? `_${lat.toFixed(2)}_${lng.toFixed(2)}` : "";
-      const cacheKey = `daytrips_${userId}${coordKey}`;
+      const maxTravelHoursKey = req.query.maxTravelHours ? `_${req.query.maxTravelHours}` : "_2.5";
+      const cacheKey = `daytrips_${userId}${maxTravelHoursKey}${coordKey}`;
       const cached = dayTripCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
         return res.json(cached.data);
