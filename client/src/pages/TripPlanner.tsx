@@ -58,8 +58,6 @@ import {
   BookOpen,
   Download,
   Share2,
-  Copy,
-  Check,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -313,7 +311,6 @@ export default function TripPlanner() {
   const [customReplaceText, setCustomReplaceText] = useState("");
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
-  const [shareCopied, setShareCopied] = useState(false);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
 
   // Travel dates — derive startDate from journey.dates if it contains an ISO date
@@ -1767,14 +1764,16 @@ export default function TripPlanner() {
                   size="sm"
                   onClick={() => {
                     const url = `${window.location.origin}/share/${journey.id}`;
-                    navigator.clipboard.writeText(url).then(() => {
-                      setShareCopied(true);
-                      setTimeout(() => setShareCopied(false), 2000);
-                    });
+                    const dest = journey.finalDestination || journey.destinations?.[0] || "an amazing destination";
+                    const subject = encodeURIComponent(`Check out my trip to ${dest}!`);
+                    const body = encodeURIComponent(
+                      `Hey!\n\nI'm planning a trip to ${dest} and wanted to share my itinerary with you.\n\nMarco put together a full day-by-day plan — check it out here:\n${url}\n\nHope you can join me!`
+                    );
+                    window.location.href = `mailto:?subject=${subject}&body=${body}`;
                   }}
                 >
-                  {shareCopied ? <Check className="mr-2 h-4 w-4 text-green-600" /> : <Share2 className="mr-2 h-4 w-4" />}
-                  {shareCopied ? "Copied!" : "Share"}
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
                 </Button>
                 <Button
                   variant="outline"
