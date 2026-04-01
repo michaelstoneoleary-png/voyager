@@ -546,26 +546,63 @@ export default function Inspire() {
   const [originOverride, setOriginOverride] = useState<string>("");
   const [showOriginEdit, setShowOriginEdit] = useState(false);
 
+  // Streaming suggestions state (replaces useQuery)
+  const [streamedSuggestions, setStreamedSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [fetchRevision, setFetchRevision] = useState(0);
+
   const isDayTrip = qualifier?.days === 1;
 
   const queryParams = qualifier
     ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
     : null;
 
-  const { data, isLoading, error } = useQuery<InspireData>({
-    queryKey: ["/api/inspire/suggestions", qualifier],
-    queryFn: async () => {
-      const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to load suggestions");
+  // Stream suggestions from SSE endpoint whenever qualifier changes or refresh is triggered
+  useEffect(() => {
+    if (!qualifier || isDayTrip) return;
+    setStreamedSuggestions([]);
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
+        if (!res.body || cancelled) { setSuggestionsLoading(false); return; }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || cancelled) break;
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (line === "data: [DONE]") {
+              if (!cancelled) setSuggestionsLoading(false);
+            } else if (line.startsWith("data: ")) {
+              try {
+                const { destination } = JSON.parse(line.slice(6));
+                if (destination) {
+                  const parsed = JSON.parse(destination);
+                  if (!cancelled) setStreamedSuggestions(prev => [...prev, parsed]);
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setSuggestionsError("Marco had trouble finding destinations. Try again?");
+          setSuggestionsLoading(false);
+        }
       }
-      return res.json();
-    },
-    enabled: !!qualifier && !isDayTrip,
-    staleTime: 30 * 60 * 1000,
-    retry: 0,
-  });
+    })();
+
+    return () => { cancelled = true; };
+  }, [qualifier, fetchRevision]);
 
   const { data: dayTripData, isLoading: isDayTripLoading, error: dayTripError } = useQuery<{ dayTrips: DayTripResult[]; homeLocation: string }>({
     queryKey: ["/api/inspire/day-trips", qualifier?.maxTravelHours],
@@ -586,16 +623,16 @@ export default function Inspire() {
 
   // Cycle through short loading phrases while suggestions are being fetched
   useEffect(() => {
-    if (!isLoading && !isDayTripLoading) return;
+    if (!suggestionsLoading && !isDayTripLoading) return;
     const interval = setInterval(() => {
       setLoadingPhaseIdx(i => i + 1);
     }, 2800);
     return () => clearInterval(interval);
-  }, [isLoading, isDayTripLoading]);
+  }, [suggestionsLoading, isDayTripLoading]);
 
   // Stream Marco's prose thinking when inspire loading starts
   useEffect(() => {
-    if (!isLoading || isDayTrip || !qualifier) return;
+    if (!suggestionsLoading || isDayTrip || !qualifier) return;
     setMarcoParagraphs([]);
     marcoBufferRef.current = "";
     if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
@@ -639,7 +676,7 @@ export default function Inspire() {
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [isLoading, isDayTrip]);
+  }, [suggestionsLoading, isDayTrip]);
 
   // Scroll to bottom when a new paragraph commits
   useEffect(() => {
@@ -651,12 +688,9 @@ export default function Inspire() {
   const refreshMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/inspire/refresh");
-      const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to refresh");
-      return res.json();
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["/api/inspire/suggestions", qualifier], data);
+    onSuccess: () => {
+      setFetchRevision(r => r + 1);
       toast({ title: "Fresh inspiration", description: "Marco has curated new dream destinations just for you." });
     },
     onError: () => {
@@ -715,7 +749,9 @@ export default function Inspire() {
   });
 
   function handleChangeSearch() {
-    queryClient.removeQueries({ queryKey: ["/api/inspire/suggestions"] });
+    setStreamedSuggestions([]);
+    setSuggestionsLoading(false);
+    setSuggestionsError(null);
     setQualifier(null);
   }
 
@@ -728,8 +764,8 @@ export default function Inspire() {
     );
   }
 
-  // ── Step 2: loading ─────────────────────────────────────────────────────────
-  if (isLoading || isDayTripLoading) {
+  // ── Step 2: loading (show until first suggestion arrives or day trips load) ──
+  if ((suggestionsLoading && streamedSuggestions.length === 0) || isDayTripLoading) {
     const inspirePhases = [
       "Scanning destinations that fit your travel window…",
       "Weighing hidden gems against the classics…",
@@ -786,12 +822,12 @@ export default function Inspire() {
   }
 
   // ── Step 3: error ───────────────────────────────────────────────────────────
-  const suggestions = data?.suggestions || [];
+  const suggestions = streamedSuggestions;
   const dayTrips = dayTripData?.dayTrips || [];
-  const activeError = isDayTrip ? dayTripError : error;
+  const activeError = isDayTrip ? dayTripError : (suggestionsError ? new Error(suggestionsError) : null);
   const hasResults = isDayTrip ? dayTrips.length > 0 : suggestions.length > 0;
 
-  if (activeError || !hasResults) {
+  if (activeError || (!isDayTrip && !suggestionsLoading && !hasResults)) {
     const errMsg = activeError instanceof Error ? activeError.message : undefined;
     return (
       <Layout>
@@ -1009,7 +1045,13 @@ export default function Inspire() {
                 <GemCard key={`${gem.title}-${idx}`} gem={gem} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
               ))}
             </div>
-            {filterByCategory("all").length === 0 && (
+            {suggestionsLoading && streamedSuggestions.length > 0 && (
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Finding more destinations…
+              </div>
+            )}
+            {filterByCategory("all").length === 0 && !suggestionsLoading && (
               <div className="py-12 text-center text-muted-foreground">
                 <p>No destinations match your search.</p>
               </div>

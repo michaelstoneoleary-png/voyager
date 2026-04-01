@@ -1284,10 +1284,6 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
 
       const cacheKey = `inspire_${userId}_${days}_${transports.sort().join("-")}_${budget}_${maxTravelHours}`;
-      const cached = inspireCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
-        return res.json(cached.data);
-      }
 
       const [journeys, pastTrips, feedbackRows] = await Promise.all([
         storage.getJourneys(userId),
@@ -1374,12 +1370,7 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         unlimited: "unlimited — money is no object, recommend only the finest",
       };
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 4096,
-        messages: [{
-          role: "user",
-          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
+      const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Generate 6 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1404,49 +1395,85 @@ RULES:
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
-Return ONLY a JSON array (no markdown, no code fences):
-[
-  {
-    "title": "Destination Name",
-    "country": "Country",
-    "category": "One of the categories above",
-    "description": "2-3 sentence vivid description of what makes this place special",
-    "best_months": "e.g. April–October",
-    "avg_daily_budget": "e.g. $80-120",
-    "tags": ["3-4 relevant tags"],
-    "lat": 0.0000,
-    "lng": 0.0000,
-    "image_query": "Wikipedia article title for this specific place (e.g. 'Hallstatt', 'Chefchaouen', 'Luang_Prabang')",
-    "why_for_you": "One sentence explaining why Marco picked this given their duration, transport, budget, and travel style"
-  }
-]`
-        }],
+OUTPUT FORMAT: Output each destination as a single-line JSON object, one per line. No array brackets. No blank lines between entries. No markdown. All string values must be on one line (no newlines inside strings). Begin immediately with the first JSON object.
+
+Example line format (do not include this in output):
+{"title":"Destination Name","country":"Country","category":"Category","description":"2-3 sentence vivid description.","best_months":"Month–Month","avg_daily_budget":"$X–Y","tags":["tag1","tag2","tag3"],"lat":0.0,"lng":0.0,"image_query":"Wikipedia_Article_Title","why_for_you":"One sentence why Marco picked this for them."}`;
+
+      // Set SSE headers for progressive streaming
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      // Cache hit: emit all cached suggestions as rapid-fire lines
+      const cached = inspireCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
+        for (const suggestion of cached.data.suggestions) {
+          res.write(`data: ${JSON.stringify({ destination: JSON.stringify(suggestion) })}\n\n`);
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
+
+      // Cache miss: stream from Claude, emit each complete line as it arrives
+      const collected: any[] = [];
+      let lineBuffer = "";
+
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        messages: [{ role: "user", content: suggestionPrompt }],
       });
 
-      const textContent = response.content.find(c => c.type === "text");
-      if (!textContent || textContent.type !== "text") {
-        return res.status(500).json({ message: "No response from AI" });
-      }
+      stream.on("text", (text: string) => {
+        lineBuffer += text;
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop()!;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed);
+            collected.push(parsed);
+            res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
+          } catch {
+            // Incomplete or non-JSON fragment — skip
+          }
+        }
+      });
 
-      let suggestions;
-      try {
-        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        suggestions = JSON.parse(cleaned);
-      } catch {
-        return res.status(422).json({ message: "AI returned invalid format. Please try again." });
-      }
+      stream.on("finalMessage", () => {
+        // Flush any remaining buffer content
+        if (lineBuffer.trim()) {
+          try {
+            const parsed = JSON.parse(lineBuffer.trim());
+            collected.push(parsed);
+            res.write(`data: ${JSON.stringify({ destination: lineBuffer.trim() })}\n\n`);
+          } catch {}
+        }
+        // Cache the full result for subsequent requests
+        if (collected.length > 0) {
+          inspireCache.set(cacheKey, { data: { suggestions: collected, generatedAt: new Date().toISOString() }, timestamp: Date.now() });
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
 
-      if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        return res.status(422).json({ message: "No suggestions generated. Please try again." });
-      }
-
-      // Return immediately without image fetching — images are loaded lazily per-card
-      const result = { suggestions, generatedAt: new Date().toISOString() };
-      inspireCache.set(cacheKey, { data: result, timestamp: Date.now() });
-      res.json(result);
+      stream.on("error", (err: any) => {
+        console.error("[inspire/suggestions] stream error:", err.message);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
     } catch (error) {
       console.error("Error generating inspire suggestions:", error);
-      res.status(500).json({ message: "Failed to generate suggestions" });
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to generate suggestions" });
+      } else {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      }
     }
   });
 
