@@ -57,6 +57,9 @@ import {
   Luggage,
   BookOpen,
   Download,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -310,6 +313,7 @@ export default function TripPlanner() {
   const [customReplaceText, setCustomReplaceText] = useState("");
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
   const wishlistInputRef = useRef<HTMLInputElement>(null);
 
   // Travel dates — derive startDate from journey.dates if it contains an ISO date
@@ -396,11 +400,13 @@ export default function TripPlanner() {
         const r = parseCostRange(a.cost);
         if (r) { actMin += r[0]; actMax += r[1]; }
       }
-      const city = day.location;
-      const hotel = selectedHotelsPerCity[city] ?? day.hotels?.[0];
-      if (hotel?.price_per_night) {
-        const r = parseCostRange(hotel.price_per_night);
-        if (r) { hotelMin += r[0]; hotelMax += r[1]; }
+      if (journey?.days !== 1) {
+        const city = day.location;
+        const hotel = selectedHotelsPerCity[city] ?? day.hotels?.[0];
+        if (hotel?.price_per_night) {
+          const r = parseCostRange(hotel.price_per_night);
+          if (r) { hotelMin += r[0]; hotelMax += r[1]; }
+        }
       }
     }
     const totalMin = actMin + hotelMin;
@@ -463,7 +469,7 @@ export default function TripPlanner() {
         }
         lines.push("");
       }
-      if (day.hotels && day.hotels.length > 0) {
+      if (journey.days !== 1 && day.hotels && day.hotels.length > 0) {
         lines.push("  WHERE TO STAY:");
         for (const hotel of day.hotels) {
           lines.push(`  · ${hotel.name} (${hotel.category}) — ${hotel.price_per_night}/night  ★ ${hotel.rating}`);
@@ -982,10 +988,12 @@ export default function TripPlanner() {
               <DollarSign className="h-3 w-3" />
               Activities <span className="font-semibold text-foreground ml-0.5">{expenseTally.activities}</span>
             </span>
+            {journey?.days !== 1 && (
             <span className="flex items-center gap-1 text-muted-foreground">
               <BedDouble className="h-3 w-3" />
               Stays <span className="font-semibold text-foreground ml-0.5">{expenseTally.accommodation}</span>
             </span>
+            )}
             <span className="flex items-center gap-1 font-semibold">
               <span className="text-muted-foreground font-normal">Est. total</span>
               <span className="text-foreground">{expenseTally.total}</span>
@@ -1327,8 +1335,8 @@ export default function TripPlanner() {
                   </div>
                   );
                 })}
-              {/* Hotel section — persists per city */}
-              {currentDayData?.location && hotelsByCity[currentDayData.location]?.length > 0 && (() => {
+              {/* Hotel section — persists per city (hidden for day trips) */}
+              {journey?.days !== 1 && currentDayData?.location && hotelsByCity[currentDayData.location]?.length > 0 && (() => {
                 const city = currentDayData.location;
                 const cityHotels = hotelsByCity[city];
                 const picked = selectedHotelsPerCity[city] ?? cityHotels[0];
@@ -1753,15 +1761,30 @@ export default function TripPlanner() {
                   <p className="text-sm text-muted-foreground mt-1">{journey.dates}</p>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={downloadItinerary}
-                className="flex-shrink-0 mt-1"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
+              <div className="flex gap-2 flex-shrink-0 mt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const url = `${window.location.origin}/share/${journey.id}`;
+                    navigator.clipboard.writeText(url).then(() => {
+                      setShareCopied(true);
+                      setTimeout(() => setShareCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {shareCopied ? <Check className="mr-2 h-4 w-4 text-green-600" /> : <Share2 className="mr-2 h-4 w-4" />}
+                  {shareCopied ? "Copied!" : "Share"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadItinerary}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </div>
             </div>
           </SheetHeader>
 

@@ -212,6 +212,18 @@ export async function registerRoutes(
   });
 
   // Journeys CRUD
+  // Public share endpoint — no auth required; journey ID (UUID) acts as the share token
+  app.get("/api/public/journey/:id", async (req, res) => {
+    try {
+      const journey = await storage.getJourneyPublic(req.params.id);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+      res.json(journey);
+    } catch (error) {
+      console.error("Error fetching public journey:", error);
+      res.status(500).json({ message: "Failed to fetch journey" });
+    }
+  });
+
   app.get("/api/journeys", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!
@@ -438,7 +450,7 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
         max_tokens: 32000,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days}-day trip covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${datesNote}${hardRejectNote}${likedNote}${wishlistNote}${restaurantNote}
+          content: `Create a detailed day-by-day travel itinerary for a ${days === 1 ? "day trip" : `${days}-day trip`} covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${days === 1 ? " This is a DAY TRIP — the traveler departs and returns home the same day. Do NOT include any hotel or accommodation recommendations." : ""}${datesNote}${hardRejectNote}${likedNote}${wishlistNote}${restaurantNote}
 
 TRAVEL MODE: ${travelModeNote}
 
@@ -448,7 +460,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
     {
       "day": 1,
       "date_label": "${journey.dates ? "Saturday, Mar 15" : "Day 1"}",
-      "location": "City Name",
+      "location": "City Name",${days > 1 ? `
       "hotels": [
         {
           "name": "Hotel Name",
@@ -462,7 +474,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
           "lng": 23.3225,
           "image_query": "Wikipedia article title for this hotel or its neighborhood"
         }
-      ],
+      ],` : ""}
       "activities": [
         {
           "time": "09:00",
@@ -493,7 +505,7 @@ SHOPPING ACTIVITIES: Include at least one shopping activity per destination that
 TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance (always in km — the app handles unit conversion for the user), and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
-HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.`
+${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.` : "NO HOTELS: This is a day trip. Do not include any hotels array in the JSON. The traveler is not staying overnight."}`
         }],
       });
 
