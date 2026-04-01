@@ -58,6 +58,7 @@ interface Suggestion {
   image_query?: string;
   why_for_you: string;
   travel_time_estimate?: string;
+  hidden_gem?: boolean;
 }
 
 interface InspireData {
@@ -364,9 +365,16 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
 
         <div className="absolute bottom-3 left-3 right-3 text-white">
           <div className="flex items-center justify-between mb-1">
-            <Badge variant="secondary" className={`backdrop-blur-md border text-[11px] ${CATEGORY_COLORS[gem.category] || "bg-white/20 text-white border-0"}`}>
-              {CATEGORY_ICONS[gem.category]} {gem.category}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="secondary" className={`backdrop-blur-md border text-[11px] ${CATEGORY_COLORS[gem.category] || "bg-white/20 text-white border-0"}`}>
+                {CATEGORY_ICONS[gem.category]} {gem.category}
+              </Badge>
+              {gem.hidden_gem && (
+                <Badge className="backdrop-blur-md text-[11px] bg-emerald-600/90 text-white border-0">
+                  🌿 Off the Beaten Path
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-1 text-xs font-medium bg-black/40 backdrop-blur-md px-2 py-1 rounded-full">
               <DollarSign className="h-3 w-3" /> {gem.avg_daily_budget}
             </div>

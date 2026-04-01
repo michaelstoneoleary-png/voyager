@@ -123,6 +123,7 @@ interface Activity {
   place_rating?: number;
   place_review_count?: number;
   place_price?: string;
+  hidden_gem?: boolean;
 }
 
 interface Hotel {
@@ -1042,6 +1043,11 @@ export default function TripPlanner() {
                                 <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
                                   {activity.type}
                                 </Badge>
+                                {activity.hidden_gem && (
+                                  <Badge className="text-[10px] bg-emerald-600/90 text-white border-0 gap-1">
+                                    🌿 Off the Beaten Path
+                                  </Badge>
+                                )}
                                 {/* Thumbs up */}
                                 <button
                                   className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${likedActivities.has(`${selectedDay}-${idx}`) ? "opacity-100 text-emerald-500" : "hover:bg-muted text-muted-foreground"}`}
