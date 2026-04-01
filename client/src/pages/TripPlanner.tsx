@@ -950,44 +950,6 @@ export default function TripPlanner() {
               <Camera className="mr-2 h-4 w-4" />
               Photos
             </Button>
-            {viewMode === "itinerary" && (
-              <>
-                <Button
-                  variant={showHighlights ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    if (highlights && highlights.destinations?.length > 0) {
-                      setShowHighlights(!showHighlights);
-                    } else {
-                      highlightsMutation.mutate();
-                    }
-                  }}
-                  disabled={highlightsMutation.isPending}
-                  data-testid="button-highlights"
-                >
-                  {highlightsMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Star className="mr-2 h-4 w-4" />
-                  )}
-                  {highlightsMutation.isPending ? "Generating..." : highlights ? (showHighlights ? "Show Map" : "Highlights") : "Get Highlights"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => generateMutation.mutate()}
-                  disabled={generateMutation.isPending}
-                  data-testid="button-regenerate"
-                >
-                  {generateMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  Regenerate
-                </Button>
-              </>
-            )}
           </div>
         </div>
 
