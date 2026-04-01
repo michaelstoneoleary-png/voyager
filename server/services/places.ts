@@ -213,18 +213,23 @@ async function runPlacesTextSearch(
   apiKey: string,
   limit = 20
 ): Promise<DayTripResult[]> {
-  const body = {
+  const body: Record<string, any> = {
     textQuery,
     languageCode: "en",
     maxResultCount: limit,
     rankPreference: "RELEVANCE",
-    locationBias: {
+  };
+
+  // Google Places circle.radius max is 50,000m — for larger radii, omit locationBias
+  // and let the text query's location context ("near Jacksonville, FL") handle filtering
+  if (radiusMeters <= 50_000) {
+    body.locationBias = {
       circle: {
         center: { latitude: center.lat, longitude: center.lng },
         radius: radiusMeters,
       },
-    },
-  };
+    };
+  }
 
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -295,8 +300,9 @@ export async function searchDayTrips(params: {
 
   // Radius based on maxTravelHours (average ~100 km/h highway speed)
   const maxHours = params.maxTravelHours ?? 2.5;
-  // Google Places locationBias.circle.radius max is 50,000m — cap there
-  const RADIUS_METERS = Math.min(Math.round(maxHours * 100_000), 50_000);
+  // When > 50,000m, locationBias is omitted in runPlacesTextSearch and the
+  // text query's location context handles geographic filtering
+  const RADIUS_METERS = Math.round(maxHours * 100_000);
 
   const styles = (params.travelStyles || []).map(s => s.toLowerCase());
   const wantsNature   = styles.some(s => ["nature", "adventure", "outdoors", "hiking"].includes(s));

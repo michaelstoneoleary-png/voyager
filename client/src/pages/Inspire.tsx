@@ -538,11 +538,11 @@ export default function Inspire() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
-  const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
   const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
   const marcoLiveRef = useRef<HTMLParagraphElement | null>(null);
   const marcoBufferRef = useRef<string>("");
   const marcoScrollRef = useRef<HTMLDivElement | null>(null);
+  const bufferedRef = useRef<Suggestion[]>([]);
   const [originOverride, setOriginOverride] = useState<string>("");
   const [showOriginEdit, setShowOriginEdit] = useState(false);
 
@@ -562,6 +562,10 @@ export default function Inspire() {
   useEffect(() => {
     if (!qualifier || isDayTrip) return;
     setStreamedSuggestions([]);
+    setMarcoParagraphs([]);
+    marcoBufferRef.current = "";
+    bufferedRef.current = [];
+    if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
     setSuggestionsLoading(true);
     setSuggestionsError(null);
     let cancelled = false;
@@ -581,13 +585,35 @@ export default function Inspire() {
           sseBuffer = lines.pop() ?? "";
           for (const line of lines) {
             if (line === "data: [DONE]") {
-              if (!cancelled) setSuggestionsLoading(false);
+              if (!cancelled) {
+                // Flush any remaining prose buffer
+                const remaining = marcoBufferRef.current.trim();
+                if (remaining) setMarcoParagraphs(prev => [...prev, remaining]);
+                marcoBufferRef.current = "";
+                // Big reveal: move all buffered destinations to state at once
+                setStreamedSuggestions(bufferedRef.current);
+                bufferedRef.current = [];
+                setSuggestionsLoading(false);
+              }
             } else if (line.startsWith("data: ")) {
               try {
-                const { destination } = JSON.parse(line.slice(6));
-                if (destination) {
-                  const parsed = JSON.parse(destination);
-                  if (!cancelled) setStreamedSuggestions(prev => [...prev, parsed]);
+                const payload = JSON.parse(line.slice(6));
+                if (payload.destination) {
+                  // Buffer destination — held back until [DONE]
+                  const parsed = JSON.parse(payload.destination);
+                  if (!cancelled) bufferedRef.current = [...bufferedRef.current, parsed];
+                } else if (payload.chunk) {
+                  // Prose hint — stream live to Marco card
+                  if (!cancelled) {
+                    marcoBufferRef.current += payload.chunk + " ";
+                    const parts = marcoBufferRef.current.split(/\n\n+/);
+                    if (parts.length > 1) {
+                      const complete = parts.slice(0, -1).map((p: string) => p.trim()).filter(Boolean);
+                      if (complete.length) setMarcoParagraphs(prev => [...prev, ...complete]);
+                      marcoBufferRef.current = parts[parts.length - 1];
+                    }
+                    if (marcoLiveRef.current) marcoLiveRef.current.textContent = marcoBufferRef.current;
+                  }
                 }
               } catch {}
             }
@@ -621,62 +647,6 @@ export default function Inspire() {
     staleTime: 60 * 60 * 1000,
   });
 
-  // Cycle through short loading phrases while suggestions are being fetched
-  useEffect(() => {
-    if (!suggestionsLoading && !isDayTripLoading) return;
-    const interval = setInterval(() => {
-      setLoadingPhaseIdx(i => i + 1);
-    }, 2800);
-    return () => clearInterval(interval);
-  }, [suggestionsLoading, isDayTripLoading]);
-
-  // Stream Marco's prose thinking when inspire loading starts
-  useEffect(() => {
-    if (!suggestionsLoading || isDayTrip || !qualifier) return;
-    setMarcoParagraphs([]);
-    marcoBufferRef.current = "";
-    if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
-    const params = `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/inspire/marco-thinking${params}`, { credentials: "include" });
-        if (!res.body || cancelled) return;
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let sseBuffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done || cancelled) break;
-          sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split("\n");
-          sseBuffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (line === "data: [DONE]") {
-              const remaining = marcoBufferRef.current.trim();
-              if (remaining) setMarcoParagraphs(prev => [...prev, remaining]);
-              marcoBufferRef.current = "";
-            } else if (line.startsWith("data: ")) {
-              try {
-                const { chunk } = JSON.parse(line.slice(6));
-                if (chunk) {
-                  marcoBufferRef.current += chunk;
-                  const parts = marcoBufferRef.current.split(/\n\n+/);
-                  if (parts.length > 1) {
-                    const complete = parts.slice(0, -1).map((p: string) => p.trim()).filter(Boolean);
-                    if (complete.length) setMarcoParagraphs(prev => [...prev, ...complete]);
-                    marcoBufferRef.current = parts[parts.length - 1];
-                  }
-                  if (marcoLiveRef.current) marcoLiveRef.current.textContent = marcoBufferRef.current;
-                }
-              } catch {}
-            }
-          }
-        }
-      } catch {}
-    })();
-    return () => { cancelled = true; };
-  }, [suggestionsLoading, isDayTrip]);
 
   // Scroll to bottom when a new paragraph commits
   useEffect(() => {
@@ -764,24 +734,14 @@ export default function Inspire() {
     );
   }
 
-  // ── Step 2: loading (show until first suggestion arrives or day trips load) ──
-  if ((suggestionsLoading && streamedSuggestions.length === 0) || isDayTripLoading) {
-    const inspirePhases = [
-      "Scanning destinations that fit your travel window…",
-      "Weighing hidden gems against the classics…",
-      "Matching your travel style and budget…",
-      "Checking seasonal timing and local conditions…",
-      "Filtering by realistic travel time from home…",
-      "Putting the final list together…",
-    ];
+  // ── Step 2: loading (show until [DONE] — destinations buffered, revealed all at once) ──
+  if (suggestionsLoading || isDayTripLoading) {
     const dayTripPhases = [
       "Searching for top-rated spots near you…",
       "Checking distance and drive time…",
       "Finding hidden gems within reach…",
       "Almost there…",
     ];
-    const phases = isDayTrip ? dayTripPhases : inspirePhases;
-    const phase = phases[loadingPhaseIdx % phases.length];
 
     return (
       <Layout>
@@ -795,24 +755,21 @@ export default function Inspire() {
             </div>
           </div>
 
-          {/* Streaming prose (non-day-trip only) or cycling phrase */}
-          {!isDayTrip && marcoParagraphs.length > 0 ? (
+          {/* Streaming prose deliberation for non-day-trip */}
+          {!isDayTrip ? (
             <div
               ref={marcoScrollRef}
-              className="w-full max-w-sm rounded-xl bg-background border border-primary/10 px-5 py-4 shadow-sm max-h-52 overflow-y-auto scroll-smooth space-y-3"
+              className="w-full max-w-xl rounded-xl bg-background border border-primary/10 px-6 py-6 shadow-sm max-h-80 overflow-y-auto scroll-smooth space-y-3"
             >
               {marcoParagraphs.map((p, i) => (
-                <p key={i} className="text-sm text-foreground/80 leading-relaxed font-serif">{p}</p>
+                <p key={i} className="text-base text-foreground/80 leading-relaxed font-serif">{p}</p>
               ))}
-              <p ref={marcoLiveRef} className="text-sm text-foreground/80 leading-relaxed font-serif min-h-[1.25rem]" />
+              <p ref={marcoLiveRef} className="text-base text-foreground/80 leading-relaxed font-serif min-h-[1.5rem]" />
             </div>
           ) : (
             <div className="text-center max-w-xs">
-              <p
-                key={loadingPhaseIdx}
-                className="text-sm text-muted-foreground animate-in fade-in duration-500"
-              >
-                {phase}
+              <p className="text-sm text-muted-foreground animate-in fade-in duration-500">
+                {dayTripPhases[0]}
               </p>
             </div>
           )}
@@ -1042,15 +999,15 @@ export default function Inspire() {
           <TabsContent value="all" className="mt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filterByCategory("all").map((gem, idx) => (
-                <GemCard key={`${gem.title}-${idx}`} gem={gem} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
+                <div
+                  key={`${gem.title}-${idx}`}
+                  className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                  style={{ animationDelay: `${idx * 60}ms` }}
+                >
+                  <GemCard gem={gem} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
+                </div>
               ))}
             </div>
-            {suggestionsLoading && streamedSuggestions.length > 0 && (
-              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Finding more destinations…
-              </div>
-            )}
             {filterByCategory("all").length === 0 && !suggestionsLoading && (
               <div className="py-12 text-center text-muted-foreground">
                 <p>No destinations match your search.</p>
@@ -1062,7 +1019,13 @@ export default function Inspire() {
             <TabsContent key={cat} value={slugify(cat)} className="mt-0">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterByCategory(slugify(cat)).map((gem, idx) => (
-                  <GemCard key={`${gem.title}-${idx}`} gem={gem} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
+                  <div
+                    key={`${gem.title}-${idx}`}
+                    className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                    style={{ animationDelay: `${idx * 60}ms` }}
+                  >
+                    <GemCard gem={gem} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
+                  </div>
                 ))}
               </div>
               {filterByCategory(slugify(cat)).length === 0 && (
