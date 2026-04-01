@@ -1766,8 +1766,12 @@ export default function TripPlanner() {
                     const url = `${window.location.origin}/share/${journey.id}`;
                     const dest = journey.finalDestination || journey.destinations?.[0] || "an amazing destination";
                     const subject = encodeURIComponent(`Check out my trip to ${dest}!`);
+                    const rawSummary = (journey as any).itinerary?.summary as string | undefined;
+                    const teaser = rawSummary
+                      ? rawSummary.match(/[^.!?]+[.!?]+/g)?.slice(0, 4).join(" ").trim() ?? ""
+                      : "";
                     const body = encodeURIComponent(
-                      `Hey!\n\nI'm planning a trip to ${dest} and wanted to share my itinerary with you.\n\nMarco put together a full day-by-day plan — check it out here:\n${url}\n\nHope you can join me!`
+                      `Hey!\n\nI'm planning a trip to ${dest} and wanted to share my itinerary with you.\n\n${teaser ? `${teaser}\n\n` : ""}Check out the full day-by-day plan here:\n${url}\n\nHope you can join me!`
                     );
                     window.location.href = `mailto:?subject=${subject}&body=${body}`;
                   }}

@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { MapPin, Calendar, Clock, DollarSign, Compass, ArrowLeft } from "lucide-react";
+import { MapPin, Calendar, Clock, DollarSign, Compass, ArrowLeft, Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 interface Activity {
   time?: string;
@@ -44,6 +45,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function SharedJourney() {
   const { id } = useParams<{ id: string }>();
+  const [copied, setCopied] = useState(false);
 
   const { data: journey, isLoading, error } = useQuery<SharedJourneyData>({
     queryKey: ["/api/public/journey", id],
@@ -90,9 +92,24 @@ export default function SharedJourney() {
       <header className="border-b border-border bg-sidebar/60 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <span className="font-serif text-xl font-bold tracking-tight text-primary">VOYAGER</span>
-          <Link href="/register">
-            <Button size="sm" variant="outline">Plan your own trip →</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                });
+              }}
+            >
+              {copied ? <Check className="mr-2 h-3.5 w-3.5 text-green-600" /> : <Copy className="mr-2 h-3.5 w-3.5" />}
+              {copied ? "Copied!" : "Copy Link"}
+            </Button>
+            <Link href="/register">
+              <Button size="sm">Plan your own trip →</Button>
+            </Link>
+          </div>
         </div>
       </header>
 
