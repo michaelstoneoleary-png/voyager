@@ -32,6 +32,7 @@ export interface IStorage {
 
   getJourneys(userId: string): Promise<Journey[]>;
   getJourney(id: string, userId: string): Promise<Journey | undefined>;
+  getJourneyPublic(id: string): Promise<Omit<Journey, "userId"> | undefined>;
   createJourney(journey: InsertJourney): Promise<Journey>;
   createJourneys(journeyList: InsertJourney[]): Promise<Journey[]>;
   updateJourney(id: string, userId: string, data: Partial<InsertJourney>): Promise<Journey | undefined>;
@@ -92,6 +93,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(journeys.id, id));
     if (journey && journey.userId !== userId) return undefined;
     return journey ? normalizeJourney(journey) : undefined;
+  }
+
+  async getJourneyPublic(id: string): Promise<Omit<Journey, "userId"> | undefined> {
+    const [journey] = await db.select().from(journeys).where(eq(journeys.id, id));
+    if (!journey) return undefined;
+    const { userId: _uid, ...publicFields } = normalizeJourney(journey) as any;
+    return publicFields;
   }
 
   async createJourney(journey: InsertJourney): Promise<Journey> {
