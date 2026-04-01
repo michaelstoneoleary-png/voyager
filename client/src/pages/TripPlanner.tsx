@@ -16,7 +16,6 @@ import {
   MapPin,
   Calendar,
   Car,
-  Info,
   Plus,
   Loader2,
   Sparkles,
@@ -27,7 +26,6 @@ import {
   Eye,
   UtensilsCrossed,
   Star,
-  ChevronRight,
   ExternalLink,
   ShieldCheck,
   ListPlus,
@@ -41,7 +39,6 @@ import {
   Plane,
   Footprints as Walk,
   Trash2,
-  RefreshCw,
   TimerReset,
   MoreVertical,
   Replace,
@@ -50,10 +47,7 @@ import {
   ThumbsDown,
   Send,
   Compass,
-  Heart,
   Sun,
-  Coffee,
-  Navigation,
   Luggage,
   BookOpen,
   Download,
@@ -161,16 +155,6 @@ interface HighlightItem {
   review_query?: string;
 }
 
-interface DestinationHighlights {
-  name: string;
-  must_see: HighlightItem[];
-  must_do: HighlightItem[];
-  must_eat: HighlightItem[];
-}
-
-interface Highlights {
-  destinations: DestinationHighlights[];
-}
 
 interface Journey {
   id: string;
@@ -294,8 +278,7 @@ export default function TripPlanner() {
 
   const [viewMode, setViewMode] = useState<"itinerary" | "photos">("itinerary");
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
-  const [activeHighlightDest, setActiveHighlightDest] = useState(0);
-  const [showHighlights, setShowHighlights] = useState(false);
+
   const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
   const [wishlistItems, setWishlistItems] = useState<string[]>([]);
@@ -571,21 +554,6 @@ export default function TripPlanner() {
     }
   }, [marcoParagraphs.length]);
 
-  const highlightsMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/journeys/${journeyId}/generate-highlights`);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
-      queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-      setShowHighlights(true);
-      toast({ title: "Highlights ready", description: "Must See, Must Do, and Must Eat recommendations are ready." });
-    },
-    onError: (err: any) => {
-      toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
-    },
-  });
 
   const activityMutation = useMutation({
     mutationFn: async (params: { dayIndex: number; activityIndex: number; action: string; replaceType?: string; customRequest?: string }) => {
@@ -622,7 +590,6 @@ export default function TripPlanner() {
   ];
 
   const itinerary = journey?.itinerary as Itinerary | undefined;
-  const highlights = journey?.highlights as Highlights | undefined;
   const currentDayData = itinerary?.days?.[selectedDay];
 
   const allMarkers = useMemo(() => {
@@ -1384,8 +1351,7 @@ export default function TripPlanner() {
           </div>
 
           <div className="lg:col-span-2 flex flex-col gap-6">
-             {!showHighlights ? (
-               <>
+             <>
                  <div className="flex-1 bg-muted rounded-xl border border-border relative overflow-hidden group min-h-[300px]">
                    <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
                       <ChangeView center={mapCenter} zoom={mapZoom} />
@@ -1577,97 +1543,6 @@ export default function TripPlanner() {
                    </Card>
                  )}
                </>
-             ) : (
-               <Card className="flex-1 min-h-0 flex flex-col" data-testid="highlights-panel">
-                 <CardHeader className="pb-3">
-                   <div className="flex items-center justify-between">
-                     <CardTitle className="text-lg font-serif flex items-center gap-2">
-                       <Star className="h-5 w-5 text-amber-500" /> Destination Highlights
-                     </CardTitle>
-                     <Button variant="ghost" size="sm" onClick={() => setShowHighlights(false)} data-testid="button-back-to-map">
-                       <ArrowLeft className="mr-1 h-4 w-4" /> Back to Map
-                     </Button>
-                   </div>
-                   {highlights && highlights.destinations.length > 1 && (
-                     <div className="flex gap-2 flex-wrap mt-2">
-                       {highlights.destinations.map((dest, idx) => (
-                         <Button
-                           key={idx}
-                           variant={activeHighlightDest === idx ? "default" : "outline"}
-                           size="sm"
-                           className="text-xs"
-                           onClick={() => setActiveHighlightDest(idx)}
-                           data-testid={`button-highlight-dest-${idx}`}
-                         >
-                           {dest.name}
-                         </Button>
-                       ))}
-                     </div>
-                   )}
-                 </CardHeader>
-                 <CardContent className="flex-1 overflow-y-auto">
-                   {highlights && highlights.destinations[activeHighlightDest] ? (
-                     <div className="space-y-6">
-                       {highlights.destinations.length <= 1 && (
-                         <h3 className="font-serif text-xl font-bold">{highlights.destinations[activeHighlightDest].name}</h3>
-                       )}
-                       
-                       {[
-                         { key: "must_see", label: "Must See", icon: <Eye className="h-4 w-4 text-violet-500" />, items: highlights.destinations[activeHighlightDest].must_see, colors: { bg: "bg-violet-50 dark:bg-violet-950/20", border: "border-violet-200 dark:border-violet-800", accent: "text-violet-600 dark:text-violet-400", confidence: "text-violet-700", link: "text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-300" }, testPrefix: "see" },
-                         { key: "must_do", label: "Must Do", icon: <Walk className="h-4 w-4 text-emerald-500" />, items: highlights.destinations[activeHighlightDest].must_do, colors: { bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-800", accent: "text-emerald-600 dark:text-emerald-400", confidence: "text-emerald-700", link: "text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300" }, testPrefix: "do" },
-                         { key: "must_eat", label: "Must Eat", icon: <UtensilsCrossed className="h-4 w-4 text-amber-500" />, items: highlights.destinations[activeHighlightDest].must_eat, colors: { bg: "bg-amber-50 dark:bg-amber-950/20", border: "border-amber-200 dark:border-amber-800", accent: "text-amber-600 dark:text-amber-400", confidence: "text-amber-700", link: "text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" }, testPrefix: "eat" },
-                       ].map(({ key, label, icon, items, colors, testPrefix }) => (
-                         <div key={key}>
-                           <h4 className="font-medium text-sm uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                             {icon} {label}
-                           </h4>
-                           <div className="space-y-3">
-                             {items?.map((item, idx) => (
-                               <div key={idx} className={`${colors.bg} border ${colors.border} rounded-lg p-3`} data-testid={`highlight-${testPrefix}-${idx}`}>
-                                 <div className="flex items-start justify-between gap-2">
-                                   <h5 className="font-serif font-medium text-sm">{item.title}</h5>
-                                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                                     {item.confidence != null && (
-                                       <span className={`text-[10px] font-medium ${colors.confidence} flex items-center gap-0.5`} title={`${item.confidence}% confidence`} data-testid={`confidence-${testPrefix}-${idx}`}>
-                                         <ShieldCheck className="h-3 w-3" />
-                                         {item.confidence}%
-                                       </span>
-                                     )}
-                                     {item.review_query && (
-                                       <a
-                                         href={`https://www.google.com/maps/search/${encodeURIComponent(item.review_query)}`}
-                                         target="_blank"
-                                         rel="noopener noreferrer"
-                                         className={`text-[10px] font-medium ${colors.link} flex items-center gap-0.5 transition-colors`}
-                                         title="View reviews and details on Google Maps"
-                                         data-testid={`review-link-${testPrefix}-${idx}`}
-                                       >
-                                         Reviews <ExternalLink className="h-2.5 w-2.5" />
-                                       </a>
-                                     )}
-                                   </div>
-                                 </div>
-                                 <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
-                                 {item.tip && (
-                                   <p className={`text-xs ${colors.accent} mt-1.5 flex items-start gap-1`}>
-                                     <Lightbulb className="h-3 w-3 mt-0.5 flex-shrink-0" /> {item.tip}
-                                   </p>
-                                 )}
-                               </div>
-                             ))}
-                           </div>
-                         </div>
-                       ))}
-                     </div>
-                   ) : (
-                     <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                       <Star className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                       <p className="text-muted-foreground text-sm">Generating highlights...</p>
-                     </div>
-                   )}
-                 </CardContent>
-               </Card>
-             )}
           </div>
         </div>
         )}
