@@ -801,7 +801,7 @@ export default function TripPlanner() {
             </Card>
           )}
 
-          {generateMutation.isPending && (marcoParagraphs.length > 0 || marcoBufferRef.current) ? (
+          {generateMutation.isPending ? (
             <div className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
                 <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">

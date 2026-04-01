@@ -57,6 +57,7 @@ interface Suggestion {
   image_url?: string;
   image_query?: string;
   why_for_you: string;
+  travel_time_estimate?: string;
 }
 
 interface InspireData {
@@ -389,6 +390,13 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
           <Calendar className="h-3 w-3 flex-shrink-0" />
           <span>Best: {gem.best_months}</span>
         </div>
+
+        {gem.travel_time_estimate && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+            <Clock className="h-3 w-3 flex-shrink-0" />
+            <span>{gem.travel_time_estimate}</span>
+          </div>
+        )}
 
         {gem.why_for_you && (
           <div className="bg-primary/5 border border-primary/10 rounded-md px-3 py-2 mb-3">
@@ -935,44 +943,45 @@ export default function Inspire() {
               <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
                 <DollarSign className="h-3 w-3" /> {budgetLabel}
               </span>
-              {/* Departing from chip — shows current origin with inline override */}
-              {(settings.homeLocation || originOverride) && (
-                <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full pl-3 pr-1 py-1 text-muted-foreground">
-                  <MapPin className="h-3 w-3 flex-shrink-0" />
-                  {showOriginEdit ? (
-                    <>
-                      <input
-                        autoFocus
-                        className="bg-transparent outline-none w-28 text-xs text-foreground"
-                        defaultValue={originOverride || settings.homeLocation || ""}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            setOriginOverride((e.target as HTMLInputElement).value.trim());
-                            setShowOriginEdit(false);
-                          }
-                          if (e.key === "Escape") setShowOriginEdit(false);
-                        }}
-                        onBlur={(e) => {
-                          setOriginOverride(e.target.value.trim());
+              {/* Departing from chip — always visible; inline edit to override */}
+              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full pl-3 pr-1 py-1 text-muted-foreground">
+                <MapPin className="h-3 w-3 flex-shrink-0" />
+                {showOriginEdit ? (
+                  <>
+                    <input
+                      autoFocus
+                      className="bg-transparent outline-none w-28 text-xs text-foreground"
+                      defaultValue={originOverride || settings.homeLocation || ""}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          setOriginOverride((e.target as HTMLInputElement).value.trim());
                           setShowOriginEdit(false);
-                        }}
-                      />
-                      <Check className="h-3 w-3 text-primary cursor-pointer" onClick={() => setShowOriginEdit(false)} />
-                    </>
-                  ) : (
-                    <>
-                      <span>{originOverride || settings.homeLocation}</span>
-                      <button
-                        onClick={() => setShowOriginEdit(true)}
-                        className="ml-0.5 p-1 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
-                        title="Not home? Override your departure city"
-                      >
-                        <Pencil className="h-2.5 w-2.5" />
-                      </button>
-                    </>
-                  )}
-                </span>
-              )}
+                        }
+                        if (e.key === "Escape") setShowOriginEdit(false);
+                      }}
+                      onBlur={(e) => {
+                        setOriginOverride(e.target.value.trim());
+                        setShowOriginEdit(false);
+                      }}
+                    />
+                    <Check className="h-3 w-3 text-primary cursor-pointer" onClick={() => setShowOriginEdit(false)} />
+                  </>
+                ) : (
+                  <>
+                    <span className={originOverride || settings.homeLocation ? "" : "italic"}>
+                      {originOverride || settings.homeLocation || "Set departure city"}
+                    </span>
+                    <button
+                      onClick={() => setShowOriginEdit(true)}
+                      className="ml-0.5 p-1 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                      title="Not home? Change your departure city"
+                      aria-label="Edit departure city"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
+              </span>
               <Button
                 size="sm"
                 variant="outline"
