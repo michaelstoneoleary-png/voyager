@@ -69,6 +69,7 @@ interface Qualifier {
   transport: string[];    // one or more of "flying" | "driving" | "train"
   budget: string;         // "budget" | "midrange" | "luxury" | "unlimited"
   maxTravelHours: string; // "2" | "4" | "8" | "any"
+  homeLocation: string;   // confirmed departure city
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -131,11 +132,12 @@ function daysLabel(days: number): string {
   return "3+ weeks — open-ended";
 }
 
-function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
+function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier) => void; defaultLocation: string }) {
   const [days, setDays] = useState<number>(7);
   const [transport, setTransport] = useState<string[]>([]);
   const [budget, setBudget] = useState<string | null>(null);
   const [maxTravelHours, setMaxTravelHours] = useState<string | null>(null);
+  const [homeLocation, setHomeLocation] = useState<string>(defaultLocation);
 
   const isDayTrip = days === 1;
   const travelTimeOptions = isDayTrip ? DAY_TRIP_TRAVEL_TIME_OPTIONS : TRAVEL_TIME_OPTIONS;
@@ -153,11 +155,11 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
     );
   };
 
-  const ready = transport.length > 0 && budget && maxTravelHours;
+  const ready = transport.length > 0 && budget && maxTravelHours && homeLocation.trim();
 
   const handleSubmit = () => {
     if (!ready) return;
-    const q: Qualifier = { days, transport, budget, maxTravelHours };
+    const q: Qualifier = { days, transport, budget, maxTravelHours, homeLocation: homeLocation.trim() };
     onSubmit(q);
   };
 
@@ -281,6 +283,24 @@ function QualifierView({ onSubmit }: { onSubmit: (q: Qualifier) => void }) {
           onChange={setBudget}
           cols={4}
         />
+
+        {/* Departure location */}
+        <div>
+          <h3 className="font-serif text-lg font-semibold mb-1 text-foreground flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-primary" />
+            Where are you departing from?
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Marco uses this to calculate realistic travel times to each destination.
+          </p>
+          <input
+            type="text"
+            value={homeLocation}
+            onChange={e => setHomeLocation(e.target.value)}
+            placeholder="e.g. Jacksonville, FL"
+            className="w-full rounded-xl border-2 border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
+          />
+        </div>
 
         <Button
           size="lg"
@@ -729,7 +749,13 @@ export default function Inspire() {
   if (!qualifier) {
     return (
       <Layout>
-        <QualifierView onSubmit={(q) => setQualifier(q)} />
+        <QualifierView
+          defaultLocation={settings.homeLocation || ""}
+          onSubmit={(q) => {
+            setOriginOverride(q.homeLocation);
+            setQualifier(q);
+          }}
+        />
       </Layout>
     );
   }
@@ -759,7 +785,7 @@ export default function Inspire() {
           {!isDayTrip ? (
             <div
               ref={marcoScrollRef}
-              className="w-full max-w-xl rounded-xl bg-background border border-primary/10 px-6 py-6 shadow-sm max-h-80 overflow-y-auto scroll-smooth space-y-3"
+              className="w-full max-w-xl rounded-xl bg-background border border-primary/10 px-6 py-6 shadow-sm max-h-[55vh] overflow-y-auto scroll-smooth space-y-3"
             >
               {marcoParagraphs.map((p, i) => (
                 <p key={i} className="text-base text-foreground/80 leading-relaxed font-serif">{p}</p>

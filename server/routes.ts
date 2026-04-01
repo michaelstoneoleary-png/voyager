@@ -1402,6 +1402,7 @@ RULES:
 - Suggest destinations they have NOT already visited
 - Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
 - TRAVEL TIME IS A HARD FILTER — calculate it accurately before including any suggestion. Exclude any destination that does not fit. Do not fudge the numbers.
+- If you determine a destination does NOT fit the travel time constraint, SKIP IT ENTIRELY — do not write its prose line or its JSON line at all. Move on to the next candidate silently. Never put reconsideration or removal notes in why_for_you.
 - avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
 - Include a diverse mix of destinations that genuinely fit the constraints
 - All data must be REAL — real places, accurate coordinates, factual descriptions
@@ -1452,11 +1453,10 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
           const trimmed = line.trim();
           if (!trimmed) continue;
           if (trimmed.startsWith("{")) {
-            // JSON destination line — parse and buffer for reveal
+            // JSON destination line — buffer only, emit after filtering at end
             try {
               const parsed = JSON.parse(trimmed);
               collected.push(parsed);
-              res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
             } catch {
               // Incomplete JSON — skip
             }
@@ -1467,6 +1467,8 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
         }
       });
 
+      const removalPattern = /exceed|remov(e|ing)|does not fit|over the.{0,10}limit|too far/i;
+
       stream.on("finalMessage", () => {
         // Flush any remaining buffer content
         if (lineBuffer.trim()) {
@@ -1475,15 +1477,20 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
             try {
               const parsed = JSON.parse(trimmed);
               collected.push(parsed);
-              res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
             } catch {}
           } else {
             res.write(`data: ${JSON.stringify({ chunk: trimmed })}\n\n`);
           }
         }
+        // Filter out any destinations Claude flagged as out-of-range in why_for_you
+        const qualified = collected.filter(d => !removalPattern.test(d.why_for_you || ""));
+        // Emit qualified destinations, then signal done
+        for (const d of qualified) {
+          res.write(`data: ${JSON.stringify({ destination: JSON.stringify(d) })}\n\n`);
+        }
         // Cache the full result for subsequent requests
-        if (collected.length > 0) {
-          inspireCache.set(cacheKey, { data: { suggestions: collected, generatedAt: new Date().toISOString() }, timestamp: Date.now() });
+        if (qualified.length > 0) {
+          inspireCache.set(cacheKey, { data: { suggestions: qualified, generatedAt: new Date().toISOString() }, timestamp: Date.now() });
         }
         res.write("data: [DONE]\n\n");
         res.end();
