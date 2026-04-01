@@ -305,42 +305,29 @@ export async function registerRoutes(
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const response = await anthropic.messages.create({
+      const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
-        max_tokens: 2000,
+        max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator with genuine insider knowledge. Output ONLY a JSON array of exactly 12 thought beats as you mentally plan a ${days}-day trip to ${destination}${homeLocation ? ` for a traveler from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you plan this ${days}-day trip to ${destination}${homeLocation ? ` for someone from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
 
-Each beat has three fields:
-- "title": 3–6 word punchy section header (e.g. "Maastricht First — Obviously", "The Mosel Wine Thread", "Where to Actually Eat")
-- "body": 2–3 sentences in Marco's full voice — conversational, excited, specific. Name real places, streets, dishes, cultural details. Sound like a well-traveled friend who's been there, not a brochure.
-- "icon": one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route
-
-Cover the full arc of planning: entry point logic, neighborhoods, food scenes, cultural gems, logistics, seasonal notes, hidden spots, pacing, accommodation areas, and what makes this specific trip special. Vary the tone — some beats enthusiastic, some practical-insider, some quietly revelatory.
-Output ONLY a raw JSON array, no markdown, no explanation.`,
+Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Name real neighborhoods, dishes, streets, cultural details. Build the case for why this itinerary makes sense in the order it unfolds. Target 350–500 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately with your first thought — no intro phrase.`,
         }],
       });
 
-      const raw = ((response.content[0] as any).text || "").trim();
-      let beats: Array<{title: string; body: string; icon: string}> = [];
-      try {
-        beats = JSON.parse(raw);
-      } catch {
-        beats = [
-          { title: `${days} Days in ${destination}`, body: "Mapping the route now — weighing the classics against the hidden gems that actually make a trip memorable.", icon: "map" },
-          { title: "Timing and Season", body: "Checking what's in season, what events are on, and where the light hits best for your dates.", icon: "sun" },
-          { title: "Food and Culture Thread", body: "Matching your style and budget to the right neighborhoods, restaurants, and experiences.", icon: "coffee" },
-          { title: "Building Your Days Now…", body: "Putting it all together — real places, accurate times, insider tips.", icon: "sparkles" },
-        ];
-      }
-
-      for (let i = 0; i < beats.length; i++) {
-        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
-        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
+      stream.on("text", (text: string) => {
+        res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
+      });
+      stream.on("finalMessage", () => {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+      stream.on("error", (err: any) => {
+        console.error("[marco-thinking] stream error:", err.message);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
     } catch (err: any) {
       console.error("[marco-thinking] error:", err.message);
       res.write("data: [DONE]\n\n");
@@ -1252,42 +1239,29 @@ ${truncated}`,
       res.setHeader("Connection", "keep-alive");
       res.flushHeaders();
 
-      const response = await anthropic.messages.create({
+      const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
-        max_tokens: 2000,
+        max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a world-class travel curator with genuine insider knowledge. Output ONLY a JSON array of exactly 12 thought beats as you mentally curate destinations for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you scan the world for the right destination for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
 
-Each beat has three fields:
-- "title": 3–6 word punchy section header that feels like Marco thinking out loud (e.g. "The Sweet Spot Right Now", "Budget Actually Opens Doors Here", "Why Southeast Asia Keeps Winning")
-- "body": 2–3 sentences in Marco's full voice — conversational, excited, specific. Reference real regions, seasonal dynamics, cultural texture. Sound like a well-traveled friend sharing what they genuinely know, not a brochure.
-- "icon": one of: map|compass|star|sparkles|heart|clock|sun|coffee|calendar|route
-
-Cover the full thought process: seasonal timing, budget dynamics, transport logistics, underrated regions, why certain destinations deliver for this traveler profile, what's peaking right now, and what would genuinely surprise them. Vary tone — some beats enthusiastic, some quietly revelatory, some practically sharp.
-Output ONLY a raw JSON array, no markdown, no explanation.`,
+Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Reference real regions, seasonal dynamics, why certain places deliver for this exact profile right now. Build toward the destinations you're about to surface. Target 300–450 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately — no intro phrase.`,
         }],
       });
 
-      const raw = ((response.content[0] as any).text || "").trim();
-      let beats: Array<{title: string; body: string; icon: string}> = [];
-      try {
-        beats = JSON.parse(raw);
-      } catch {
-        beats = [
-          { title: "Scanning the Globe", body: "Looking at where your budget, timing, and travel style all line up — there are more options than you'd think.", icon: "compass" },
-          { title: "Weighing the Timing", body: "Season matters more than destination sometimes. Checking what's in peak form for your window.", icon: "sun" },
-          { title: "Hidden Gems vs. Classics", body: "There are places that keep delivering for people with your travel profile. Pulling those to the top.", icon: "star" },
-          { title: "Curating Your Shortlist…", body: "Putting together the destinations that will actually surprise and move you.", icon: "sparkles" },
-        ];
-      }
-
-      for (let i = 0; i < beats.length; i++) {
-        res.write(`data: ${JSON.stringify(beats[i])}\n\n`);
-        if (i < beats.length - 1) await new Promise(r => setTimeout(r, 420));
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
+      stream.on("text", (text: string) => {
+        res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
+      });
+      stream.on("finalMessage", () => {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+      stream.on("error", (err: any) => {
+        console.error("[inspire/marco-thinking] stream error:", err.message);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
     } catch (err: any) {
       console.error("[inspire/marco-thinking] error:", err.message);
       res.write("data: [DONE]\n\n");
@@ -1310,10 +1284,6 @@ Output ONLY a raw JSON array, no markdown, no explanation.`,
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
 
       const cacheKey = `inspire_${userId}_${days}_${transports.sort().join("-")}_${budget}_${maxTravelHours}`;
-      const cached = inspireCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
-        return res.json(cached.data);
-      }
 
       const [journeys, pastTrips, feedbackRows] = await Promise.all([
         storage.getJourneys(userId),
@@ -1400,12 +1370,7 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         unlimited: "unlimited — money is no object, recommend only the finest",
       };
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-5",
-        max_tokens: 4096,
-        messages: [{
-          role: "user",
-          content: `You are Marco, a world-class travel curator and dream-voyage architect. Generate 12 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
+      const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Generate 6 inspiring, personalized destination suggestions for this traveler. Think beyond the obvious — every suggestion must genuinely fit their constraints.
 
 TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
@@ -1430,49 +1395,85 @@ RULES:
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
 
-Return ONLY a JSON array (no markdown, no code fences):
-[
-  {
-    "title": "Destination Name",
-    "country": "Country",
-    "category": "One of the categories above",
-    "description": "2-3 sentence vivid description of what makes this place special",
-    "best_months": "e.g. April–October",
-    "avg_daily_budget": "e.g. $80-120",
-    "tags": ["3-4 relevant tags"],
-    "lat": 0.0000,
-    "lng": 0.0000,
-    "image_query": "Wikipedia article title for this specific place (e.g. 'Hallstatt', 'Chefchaouen', 'Luang_Prabang')",
-    "why_for_you": "One sentence explaining why Marco picked this given their duration, transport, budget, and travel style"
-  }
-]`
-        }],
+OUTPUT FORMAT: Output each destination as a single-line JSON object, one per line. No array brackets. No blank lines between entries. No markdown. All string values must be on one line (no newlines inside strings). Begin immediately with the first JSON object.
+
+Example line format (do not include this in output):
+{"title":"Destination Name","country":"Country","category":"Category","description":"2-3 sentence vivid description.","best_months":"Month–Month","avg_daily_budget":"$X–Y","tags":["tag1","tag2","tag3"],"lat":0.0,"lng":0.0,"image_query":"Wikipedia_Article_Title","why_for_you":"One sentence why Marco picked this for them."}`;
+
+      // Set SSE headers for progressive streaming
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      // Cache hit: emit all cached suggestions as rapid-fire lines
+      const cached = inspireCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
+        for (const suggestion of cached.data.suggestions) {
+          res.write(`data: ${JSON.stringify({ destination: JSON.stringify(suggestion) })}\n\n`);
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
+
+      // Cache miss: stream from Claude, emit each complete line as it arrives
+      const collected: any[] = [];
+      let lineBuffer = "";
+
+      const stream = anthropic.messages.stream({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        messages: [{ role: "user", content: suggestionPrompt }],
       });
 
-      const textContent = response.content.find(c => c.type === "text");
-      if (!textContent || textContent.type !== "text") {
-        return res.status(500).json({ message: "No response from AI" });
-      }
+      stream.on("text", (text: string) => {
+        lineBuffer += text;
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop()!;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed);
+            collected.push(parsed);
+            res.write(`data: ${JSON.stringify({ destination: trimmed })}\n\n`);
+          } catch {
+            // Incomplete or non-JSON fragment — skip
+          }
+        }
+      });
 
-      let suggestions;
-      try {
-        const cleaned = textContent.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        suggestions = JSON.parse(cleaned);
-      } catch {
-        return res.status(422).json({ message: "AI returned invalid format. Please try again." });
-      }
+      stream.on("finalMessage", () => {
+        // Flush any remaining buffer content
+        if (lineBuffer.trim()) {
+          try {
+            const parsed = JSON.parse(lineBuffer.trim());
+            collected.push(parsed);
+            res.write(`data: ${JSON.stringify({ destination: lineBuffer.trim() })}\n\n`);
+          } catch {}
+        }
+        // Cache the full result for subsequent requests
+        if (collected.length > 0) {
+          inspireCache.set(cacheKey, { data: { suggestions: collected, generatedAt: new Date().toISOString() }, timestamp: Date.now() });
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
 
-      if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        return res.status(422).json({ message: "No suggestions generated. Please try again." });
-      }
-
-      // Return immediately without image fetching — images are loaded lazily per-card
-      const result = { suggestions, generatedAt: new Date().toISOString() };
-      inspireCache.set(cacheKey, { data: result, timestamp: Date.now() });
-      res.json(result);
+      stream.on("error", (err: any) => {
+        console.error("[inspire/suggestions] stream error:", err.message);
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
     } catch (error) {
       console.error("Error generating inspire suggestions:", error);
-      res.status(500).json({ message: "Failed to generate suggestions" });
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to generate suggestions" });
+      } else {
+        res.write("data: [DONE]\n\n");
+        res.end();
+      }
     }
   });
 

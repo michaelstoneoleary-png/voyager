@@ -539,10 +539,18 @@ export default function Inspire() {
   const [searchQuery, setSearchQuery] = useState("");
   const [qualifier, setQualifier] = useState<Qualifier | null>(null);
   const [loadingPhaseIdx, setLoadingPhaseIdx] = useState(0);
-  const [marcoBeats, setMarcoBeats] = useState<Array<{title: string; body: string; icon: string}>>([]);
-  const [activeBeatIdx, setActiveBeatIdx] = useState(0);
+  const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
+  const marcoLiveRef = useRef<HTMLParagraphElement | null>(null);
+  const marcoBufferRef = useRef<string>("");
+  const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const [originOverride, setOriginOverride] = useState<string>("");
   const [showOriginEdit, setShowOriginEdit] = useState(false);
+
+  // Streaming suggestions state (replaces useQuery)
+  const [streamedSuggestions, setStreamedSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [fetchRevision, setFetchRevision] = useState(0);
 
   const isDayTrip = qualifier?.days === 1;
 
@@ -550,20 +558,51 @@ export default function Inspire() {
     ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
     : null;
 
-  const { data, isLoading, error } = useQuery<InspireData>({
-    queryKey: ["/api/inspire/suggestions", qualifier],
-    queryFn: async () => {
-      const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to load suggestions");
+  // Stream suggestions from SSE endpoint whenever qualifier changes or refresh is triggered
+  useEffect(() => {
+    if (!qualifier || isDayTrip) return;
+    setStreamedSuggestions([]);
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
+        if (!res.body || cancelled) { setSuggestionsLoading(false); return; }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || cancelled) break;
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (line === "data: [DONE]") {
+              if (!cancelled) setSuggestionsLoading(false);
+            } else if (line.startsWith("data: ")) {
+              try {
+                const { destination } = JSON.parse(line.slice(6));
+                if (destination) {
+                  const parsed = JSON.parse(destination);
+                  if (!cancelled) setStreamedSuggestions(prev => [...prev, parsed]);
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setSuggestionsError("Marco had trouble finding destinations. Try again?");
+          setSuggestionsLoading(false);
+        }
       }
-      return res.json();
-    },
-    enabled: !!qualifier && !isDayTrip,
-    staleTime: 30 * 60 * 1000,
-    retry: 0,
-  });
+    })();
+
+    return () => { cancelled = true; };
+  }, [qualifier, fetchRevision]);
 
   const { data: dayTripData, isLoading: isDayTripLoading, error: dayTripError } = useQuery<{ dayTrips: DayTripResult[]; homeLocation: string }>({
     queryKey: ["/api/inspire/day-trips", qualifier?.maxTravelHours],
@@ -584,17 +623,19 @@ export default function Inspire() {
 
   // Cycle through short loading phrases while suggestions are being fetched
   useEffect(() => {
-    if (!isLoading && !isDayTripLoading) return;
+    if (!suggestionsLoading && !isDayTripLoading) return;
     const interval = setInterval(() => {
       setLoadingPhaseIdx(i => i + 1);
     }, 2800);
     return () => clearInterval(interval);
-  }, [isLoading, isDayTripLoading]);
+  }, [suggestionsLoading, isDayTripLoading]);
 
-  // Stream Marco's planning thought beats when inspire loading starts
+  // Stream Marco's prose thinking when inspire loading starts
   useEffect(() => {
-    if (!isLoading || isDayTrip || !qualifier) return;
-    setMarcoBeats([]);
+    if (!suggestionsLoading || isDayTrip || !qualifier) return;
+    setMarcoParagraphs([]);
+    marcoBufferRef.current = "";
+    if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
     const params = `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`;
     let cancelled = false;
     (async () => {
@@ -603,15 +644,31 @@ export default function Inspire() {
         if (!res.body || cancelled) return;
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let sseBuffer = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done || cancelled) break;
-          const lines = decoder.decode(value, { stream: true }).split("\n");
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
           for (const line of lines) {
-            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            if (line === "data: [DONE]") {
+              const remaining = marcoBufferRef.current.trim();
+              if (remaining) setMarcoParagraphs(prev => [...prev, remaining]);
+              marcoBufferRef.current = "";
+            } else if (line.startsWith("data: ")) {
               try {
-                const beat = JSON.parse(line.slice(6));
-                if (beat.title) setMarcoBeats(prev => [...prev, beat]);
+                const { chunk } = JSON.parse(line.slice(6));
+                if (chunk) {
+                  marcoBufferRef.current += chunk;
+                  const parts = marcoBufferRef.current.split(/\n\n+/);
+                  if (parts.length > 1) {
+                    const complete = parts.slice(0, -1).map((p: string) => p.trim()).filter(Boolean);
+                    if (complete.length) setMarcoParagraphs(prev => [...prev, ...complete]);
+                    marcoBufferRef.current = parts[parts.length - 1];
+                  }
+                  if (marcoLiveRef.current) marcoLiveRef.current.textContent = marcoBufferRef.current;
+                }
               } catch {}
             }
           }
@@ -619,26 +676,21 @@ export default function Inspire() {
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [isLoading, isDayTrip]);
+  }, [suggestionsLoading, isDayTrip]);
 
-  // Auto-advance Marco beat cards every 5 seconds while loading
+  // Scroll to bottom when a new paragraph commits
   useEffect(() => {
-    if (!isLoading || marcoBeats.length === 0) return;
-    const interval = setInterval(() => {
-      setActiveBeatIdx(i => (i + 1) % marcoBeats.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isLoading, marcoBeats.length]);
+    if (marcoParagraphs.length > 0 && marcoScrollRef.current) {
+      marcoScrollRef.current.scrollTo({ top: marcoScrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [marcoParagraphs.length]);
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/inspire/refresh");
-      const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to refresh");
-      return res.json();
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["/api/inspire/suggestions", qualifier], data);
+    onSuccess: () => {
+      setFetchRevision(r => r + 1);
       toast({ title: "Fresh inspiration", description: "Marco has curated new dream destinations just for you." });
     },
     onError: () => {
@@ -697,7 +749,9 @@ export default function Inspire() {
   });
 
   function handleChangeSearch() {
-    queryClient.removeQueries({ queryKey: ["/api/inspire/suggestions"] });
+    setStreamedSuggestions([]);
+    setSuggestionsLoading(false);
+    setSuggestionsError(null);
     setQualifier(null);
   }
 
@@ -710,8 +764,8 @@ export default function Inspire() {
     );
   }
 
-  // ── Step 2: loading ─────────────────────────────────────────────────────────
-  if (isLoading || isDayTripLoading) {
+  // ── Step 2: loading (show until first suggestion arrives or day trips load) ──
+  if ((suggestionsLoading && streamedSuggestions.length === 0) || isDayTripLoading) {
     const inspirePhases = [
       "Scanning destinations that fit your travel window…",
       "Weighing hidden gems against the classics…",
@@ -741,35 +795,16 @@ export default function Inspire() {
             </div>
           </div>
 
-          {/* Beat cards (non-day-trip only) or cycling phrase */}
-          {!isDayTrip && marcoBeats.length > 0 ? (
-            <div className="w-full max-w-sm">
-              {(() => {
-                const b = marcoBeats[activeBeatIdx];
-                if (!b) return null;
-                const Icon = {
-                  map: Navigation, compass: Compass, star: Star, sparkles: Sparkles,
-                  heart: Heart, clock: Clock, sun: Sun, coffee: Coffee,
-                  calendar: Calendar, route: Navigation,
-                }[b.icon] ?? Sparkles;
-                return (
-                  <div key={activeBeatIdx} className="rounded-xl bg-background border border-primary/10 px-5 py-4 shadow-sm animate-in fade-in duration-500">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon className="h-4 w-4 text-primary/70 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-foreground">{b.title}</span>
-                    </div>
-                    <p className="text-sm text-foreground/70 leading-relaxed pl-6">{b.body}</p>
-                  </div>
-                );
-              })()}
-              <div className="flex gap-1.5 justify-center mt-3">
-                {marcoBeats.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${i === activeBeatIdx ? "w-4 bg-primary" : "w-1.5 bg-primary/20"}`}
-                  />
-                ))}
-              </div>
+          {/* Streaming prose (non-day-trip only) or cycling phrase */}
+          {!isDayTrip && marcoParagraphs.length > 0 ? (
+            <div
+              ref={marcoScrollRef}
+              className="w-full max-w-sm rounded-xl bg-background border border-primary/10 px-5 py-4 shadow-sm max-h-52 overflow-y-auto scroll-smooth space-y-3"
+            >
+              {marcoParagraphs.map((p, i) => (
+                <p key={i} className="text-sm text-foreground/80 leading-relaxed font-serif">{p}</p>
+              ))}
+              <p ref={marcoLiveRef} className="text-sm text-foreground/80 leading-relaxed font-serif min-h-[1.25rem]" />
             </div>
           ) : (
             <div className="text-center max-w-xs">
@@ -787,12 +822,12 @@ export default function Inspire() {
   }
 
   // ── Step 3: error ───────────────────────────────────────────────────────────
-  const suggestions = data?.suggestions || [];
+  const suggestions = streamedSuggestions;
   const dayTrips = dayTripData?.dayTrips || [];
-  const activeError = isDayTrip ? dayTripError : error;
+  const activeError = isDayTrip ? dayTripError : (suggestionsError ? new Error(suggestionsError) : null);
   const hasResults = isDayTrip ? dayTrips.length > 0 : suggestions.length > 0;
 
-  if (activeError || !hasResults) {
+  if (activeError || (!isDayTrip && !suggestionsLoading && !hasResults)) {
     const errMsg = activeError instanceof Error ? activeError.message : undefined;
     return (
       <Layout>
@@ -1010,7 +1045,13 @@ export default function Inspire() {
                 <GemCard key={`${gem.title}-${idx}`} gem={gem} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
               ))}
             </div>
-            {filterByCategory("all").length === 0 && (
+            {suggestionsLoading && streamedSuggestions.length > 0 && (
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Finding more destinations…
+              </div>
+            )}
+            {filterByCategory("all").length === 0 && !suggestionsLoading && (
               <div className="py-12 text-center text-muted-foreground">
                 <p>No destinations match your search.</p>
               </div>
