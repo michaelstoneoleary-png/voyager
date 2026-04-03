@@ -65,6 +65,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const bottomNavItems = [
     { href: "/packing", label: "Smart Pack", icon: Luggage },
     { href: "/inspire", label: "Inspire", icon: Sparkles },
+    { href: "/intel", label: "Intel", icon: Globe },
     { href: "/community", label: "Community", icon: Users },
   ];
 

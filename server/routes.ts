@@ -512,7 +512,6 @@ ${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels
       });
 
       const response = await stream.finalMessage();
-      console.log("[generate-itinerary] stop_reason:", response.stop_reason, "| output_tokens:", response.usage?.output_tokens);
 
       const textContent = response.content.find(c => c.type === "text");
       if (!textContent || textContent.type !== "text") {
@@ -939,7 +938,6 @@ Rules:
         }
 
         truncated = cleanedTabs.join("\n\n").slice(0, 80000);
-        console.log(`AI Parse: multi-tab spreadsheet, ${tabSections.length} tabs, ${totalRows} total rows, sending ${truncated.length} chars to AI`);
       } else {
         const parsed_csv = Papa.parse(csvText.trim(), {
           header: true,
@@ -967,7 +965,6 @@ Rules:
         ].join("\n");
 
         truncated = csvSummary.slice(0, 80000);
-        console.log(`AI Parse: single sheet, ${rows.length} total rows, sending ${sampledRows.length} rows (${truncated.length} chars) to AI`);
       }
 
       const message = await anthropic.messages.create({
@@ -1667,14 +1664,17 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
       const contextParts: string[] = [];
       let itineraryContext = "";
 
+      let isDayTrip = false;
+
       if (journeyId) {
         const journey = await storage.getJourney(journeyId, userId);
         if (journey) {
+          isDayTrip = journey.days === 1;
           const allStops = [journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean);
           if (allStops.length > 0) contextParts.push(`Destinations: ${allStops.join(" → ")}`);
           if (journey.origin) contextParts.push(`Starting from: ${journey.origin}`);
           if (journey.finalDestination) contextParts.push(`Ending at: ${journey.finalDestination}`);
-          if (journey.days) contextParts.push(`Duration: ${journey.days} days`);
+          if (journey.days) contextParts.push(`Duration: ${isDayTrip ? "Day trip (no overnight stay)" : `${journey.days} days`}`);
           if (journey.cost) contextParts.push(`Budget: ${journey.cost}`);
           if (journey.dates) contextParts.push(`Travel dates: ${journey.dates}`);
           const jTravelMode = (journey as any).travelMode;
@@ -1727,12 +1727,14 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
 
 ${contextParts.join("\n")}${itineraryContext}
 
-WEATHER & SEASON RULE: Based on the destination and travel dates above, reason about typical weather conditions during that period (temperature range, precipitation, humidity). Pack weather-appropriate clothing and gear. State the expected conditions briefly in item reasons where relevant (e.g., "Average high 28°C in July — light breathable fabrics essential").
+${isDayTrip ? `DAY TRIP RULE — this is a single day out with NO overnight stay. Do NOT include: sleepwear, pyjamas, multiple outfit changes, hotel toiletries (toothbrush, toothpaste, shampoo, conditioner, razor), luggage locks, or anything that only makes sense for overnight travel. Focus on a light day bag: comfortable clothes for the day, snacks/water, sun protection, phone/wallet/keys, any activity-specific gear, and a light jacket if needed. Keep the list short and practical.
 
-UNDERGARMENT RULE — this is mandatory:
+` : ""}WEATHER & SEASON RULE: Based on the destination and travel dates above, reason about typical weather conditions during that period (temperature range, precipitation, humidity). Pack weather-appropriate clothing and gear. State the expected conditions briefly in item reasons where relevant (e.g., "Average high 28°C in July — light breathable fabrics essential").
+
+${!isDayTrip ? `UNDERGARMENT RULE — this is mandatory:
 - Pack underwear/underpants for EVERY single day (quantity = trip days, minimum). Underwear is a daily change item — never under-pack it.
 ${isFemale ? `- Female traveler: pack underwear at 2× per day rate for longer trips or hot/active travel — women often change mid-day in heat or after exercise. Add bras separately (1 everyday bra per 2 days + 1 sports bra if any active days). Pack panty liners as a standard toiletry item.` : ""}
-- List underwear explicitly as its own item in Clothing with the correct quantity.
+- List underwear explicitly as its own item in Clothing with the correct quantity.` : ""}
 
 Return a JSON object with a "categories" array. Each category has:
 - name: category name (Clothing, Toiletries, Electronics, Documents, Health, Accessories)
