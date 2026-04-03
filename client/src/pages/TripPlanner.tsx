@@ -187,6 +187,18 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
   return null;
 }
 
+function FitBoundsView({ bounds }: { bounds: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds.length > 1) {
+      map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [48, 48], maxZoom: 14 });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 14);
+    }
+  }, [bounds.map(b => `${b[0]},${b[1]}`).join("|")]);
+  return null;
+}
+
 function createNumberedIcon(num: number, isSelected: boolean) {
   return L.divIcon({
     className: "custom-numbered-marker",
@@ -1354,7 +1366,10 @@ export default function TripPlanner() {
              <>
                  <div className="flex-1 bg-muted rounded-xl border border-border relative overflow-hidden group min-h-[300px]">
                    <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
-                      <ChangeView center={mapCenter} zoom={mapZoom} />
+                      {(selectedActivity?.lat || selectedHotel?.lat)
+                        ? <ChangeView center={mapCenter} zoom={mapZoom} />
+                        : <FitBoundsView bounds={[...allMarkers.map(m => [m.lat, m.lng] as [number, number]), ...hotelMarkers.map(m => [m.lat, m.lng] as [number, number])]} />
+                      }
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
