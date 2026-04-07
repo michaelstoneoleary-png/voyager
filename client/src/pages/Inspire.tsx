@@ -591,7 +591,7 @@ export default function Inspire() {
   const isDayTrip = qualifier?.days === 1;
 
   const queryParams = qualifier
-    ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}`
+    ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}&homeLocation=${encodeURIComponent(qualifier.homeLocation)}`
     : null;
 
   // Stream suggestions from SSE endpoint whenever qualifier changes or refresh is triggered
