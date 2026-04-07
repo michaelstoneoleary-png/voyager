@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -1592,7 +1592,7 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
 
       const removalPattern = /exceed|remov(e|ing)|does not fit|over the.{0,10}limit|too far/i;
 
-      stream.on("finalMessage", () => {
+      stream.on("finalMessage", async () => {
         // Flush any remaining buffer content
         if (lineBuffer.trim()) {
           const trimmed = lineBuffer.trim();
@@ -1607,13 +1607,35 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
         }
         // Filter out any destinations Claude flagged as out-of-range in why_for_you
         const qualified = collected.filter(d => !removalPattern.test(d.why_for_you || ""));
-        // Emit qualified destinations, then signal done
-        for (const d of qualified) {
+
+        // Validate and correct Claude's lat/lng via Google Geocoding.
+        // Runs all lookups in parallel — ~100-200ms, invisible since cards are
+        // buffered on the frontend until [DONE] anyway.
+        // Falls back to Claude's original coordinates if geocoding fails.
+        const validated = await Promise.all(
+          qualified.map(async (d) => {
+            try {
+              const coords = await geocodeLocation(`${d.title}, ${d.country}`);
+              if (coords) {
+                if (Math.abs(coords.lat - d.lat) > 0.5 || Math.abs(coords.lng - d.lng) > 0.5) {
+                  console.log(`[inspire-geocode] corrected ${d.title}: (${d.lat},${d.lng}) → (${coords.lat},${coords.lng})`);
+                }
+                return { ...d, lat: coords.lat, lng: coords.lng };
+              }
+            } catch (err) {
+              console.warn(`[inspire-geocode] failed for ${d.title}:`, err);
+            }
+            return d;
+          })
+        );
+
+        // Emit validated destinations, then signal done
+        for (const d of validated) {
           res.write(`data: ${JSON.stringify({ destination: JSON.stringify(d) })}\n\n`);
         }
         // Cache the full result for subsequent requests
-        if (qualified.length > 0) {
-          inspireCache.set(cacheKey, { data: { suggestions: qualified, generatedAt: new Date().toISOString() }, timestamp: Date.now() });
+        if (validated.length > 0) {
+          inspireCache.set(cacheKey, { data: { suggestions: validated, generatedAt: new Date().toISOString() }, timestamp: Date.now() });
         }
         res.write("data: [DONE]\n\n");
         res.end();
