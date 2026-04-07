@@ -1378,8 +1378,33 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
           const candidateTasks: Promise<string[]>[] = [];
 
           if (isDrivingOnly) {
+            // Google Places: captures resort towns, B&Bs, and hidden gems near origin
             candidateTasks.push(
               searchInspireDestinations({ homeLocation, maxTravelHours: travelTimeLimit })
+            );
+            // Haiku: captures major cities and well-known destinations that Google Places
+            // misses — its queries are semantically biased toward resorts/small towns, and
+            // the 320km radius exceeds the Places locationBias cap so no geo circle is applied
+            const driveRangeMiles = Math.round(travelTimeLimit * 50);
+            const drivingHaikuPrompt =
+              `List exactly 30 specific travel destinations (city + state/country) reachable from ${homeLocation} within ${travelTimeLimit} hours by car (driving range ~${driveRangeMiles} miles).\n\n` +
+              `Include destinations in multiple directions from ${homeLocation}. Include roughly 22 popular/well-known destinations and 8 lesser-visited hidden gems.\n\n` +
+              `Output ONLY a numbered list in the format "1. Savannah, GA". No prose, no explanations, nothing else.`;
+            candidateTasks.push(
+              anthropic.messages.create({
+                model: "claude-haiku-4-5-20251001",
+                max_tokens: 600,
+                messages: [{ role: "user", content: drivingHaikuPrompt }],
+              }).then(msg => {
+                const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+                return text
+                  .split("\n")
+                  .map(line => line.replace(/^\d+\.\s*/, "").trim())
+                  .filter(line => line.length > 2 && !/^\d+$/.test(line));
+              }).catch(err => {
+                console.error("[inspire-candidates] Haiku driving call failed:", err);
+                return [];
+              })
             );
           } else {
             // Build transport context with computed reach distances
