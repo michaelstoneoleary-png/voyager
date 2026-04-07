@@ -299,6 +299,7 @@ export default function TripPlanner() {
   const marcoLiveRef = useRef<HTMLParagraphElement | null>(null);
   const marcoBufferRef = useRef<string>("");
   const marcoScrollRef = useRef<HTMLDivElement | null>(null);
+  const thinkingAbortRef = useRef<AbortController | null>(null);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -504,8 +505,11 @@ export default function TripPlanner() {
       if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
 
       // Stream Marco's prose thinking concurrently with itinerary generation
-      const thinkingFetch = fetch(`/api/journeys/${journeyId}/marco-thinking`, { credentials: "include" });
-      thinkingFetch.then(async (thinkRes) => {
+      thinkingAbortRef.current?.abort();
+      const thinkingController = new AbortController();
+      thinkingAbortRef.current = thinkingController;
+      fetch(`/api/journeys/${journeyId}/marco-thinking`, { credentials: "include", signal: thinkingController.signal })
+      .then(async (thinkRes) => {
         if (!thinkRes.body) return;
         const reader = thinkRes.body.getReader();
         const decoder = new TextDecoder();
@@ -553,6 +557,7 @@ export default function TripPlanner() {
       toast({ title: "Itinerary generated", description: "Your personalized itinerary from Marco is ready." });
     },
     onError: (err: any) => {
+      thinkingAbortRef.current?.abort();
       setMarcoParagraphs([]);
       marcoBufferRef.current = "";
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
@@ -627,6 +632,14 @@ export default function TripPlanner() {
     }
     return markers;
   }, [currentDayData]);
+
+  const allBounds = useMemo(
+    () => [
+      ...allMarkers.map(m => [m.lat, m.lng] as [number, number]),
+      ...hotelMarkers.map(m => [m.lat, m.lng] as [number, number]),
+    ],
+    [allMarkers, hotelMarkers]
+  );
 
   const routePath = useMemo(() => {
     return allMarkers.map(m => [m.lat, m.lng] as [number, number]);
@@ -1368,7 +1381,7 @@ export default function TripPlanner() {
                    <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
                       {(selectedActivity?.lat || selectedHotel?.lat)
                         ? <ChangeView center={mapCenter} zoom={mapZoom} />
-                        : <FitBoundsView bounds={[...allMarkers.map(m => [m.lat, m.lng] as [number, number]), ...hotelMarkers.map(m => [m.lat, m.lng] as [number, number])]} />
+                        : <FitBoundsView bounds={allBounds} />
                       }
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

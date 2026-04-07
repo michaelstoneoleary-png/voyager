@@ -605,10 +605,11 @@ export default function Inspire() {
     setSuggestionsLoading(true);
     setSuggestionsError(null);
     let cancelled = false;
+    const controller = new AbortController();
 
     (async () => {
       try {
-        const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include" });
+        const res = await fetch(`/api/inspire/suggestions${queryParams}`, { credentials: "include", signal: controller.signal });
         if (!res.body || cancelled) { setSuggestionsLoading(false); return; }
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -663,7 +664,7 @@ export default function Inspire() {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [qualifier, fetchRevision]);
 
   const { data: dayTripData, isLoading: isDayTripLoading, error: dayTripError } = useQuery<{ dayTrips: DayTripResult[]; homeLocation: string }>({

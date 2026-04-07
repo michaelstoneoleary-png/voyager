@@ -1332,11 +1332,30 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       };
       const travelTimeNote = travelTimeDesc[maxTravelHours] || travelTimeDesc["any"];
 
+      const travelTimeLimit = maxTravelHours === "any" ? null : parseInt(maxTravelHours);
+
+      // Set SSE headers immediately so the browser knows to expect a stream.
+      // Do this before any async work so cache hits are served without delay.
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      // Cache hit: serve immediately — skip Stage 1 entirely
+      const cached = inspireCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
+        for (const suggestion of cached.data.suggestions) {
+          res.write(`data: ${JSON.stringify({ destination: JSON.stringify(suggestion) })}\n\n`);
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
+
       // ── Stage 1: Geographic candidate discovery ──────────────────────────────
       // Build a pool of geographically valid destinations before calling Claude,
       // so Claude curates from reality rather than inventing candidates that fail
       // the travel-time filter. Skip when maxTravelHours is "any" (no constraint).
-      const travelTimeLimit = maxTravelHours === "any" ? null : parseInt(maxTravelHours);
 
       let candidateList: string[] = [];
       if (travelTimeLimit && homeLocation) {
@@ -1512,23 +1531,6 @@ Example block (do not include this in output):
 Lisbon is calling — the combination of historic trams, world-class seafood, and genuinely affordable luxury makes it a perfect match for a midrange week abroad.
 {"title":"Lisbon","country":"Portugal","category":"Urban","description":"2-3 sentence vivid description.","best_months":"Apr–Jun","avg_daily_budget":"$120–180","tags":["food","history","walkable"],"lat":38.72,"lng":-9.14,"image_query":"Lisbon_Portugal","why_for_you":"One sentence why Marco picked this for them.","travel_time_estimate":"~8 hrs door-to-door (incl. airport)","hidden_gem":false}`;
 
-      // Set SSE headers for progressive streaming
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.flushHeaders();
-
-      // Cache hit: emit all cached suggestions as rapid-fire destination events (no prose replay)
-      const cached = inspireCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
-        for (const suggestion of cached.data.suggestions) {
-          res.write(`data: ${JSON.stringify({ destination: JSON.stringify(suggestion) })}\n\n`);
-        }
-        res.write("data: [DONE]\n\n");
-        res.end();
-        return;
-      }
-
       // Cache miss: stream from Claude — detect prose vs JSON lines, emit each appropriately
       const collected: any[] = [];
       let lineBuffer = "";
@@ -1592,8 +1594,10 @@ Lisbon is calling — the combination of historic trams, world-class seafood, an
 
       stream.on("error", (err: any) => {
         console.error("[inspire/suggestions] stream error:", err.message);
-        res.write("data: [DONE]\n\n");
-        res.end();
+        if (!res.writableEnded) {
+          res.write("data: [DONE]\n\n");
+          res.end();
+        }
       });
     } catch (error) {
       console.error("Error generating inspire suggestions:", error);
