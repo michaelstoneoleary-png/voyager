@@ -1296,8 +1296,6 @@ Write in your own voice â€” specific, excited, self-correcting ("actually wait â
       const budget         = (req.query.budget    as string) || "midrange";
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
 
-      const cacheKey = `inspire_${userId}_${days}_${transports.sort().join("-")}_${budget}_${maxTravelHours}`;
-
       const [journeys, pastTrips, feedbackRows] = await Promise.all([
         storage.getJourneys(userId),
         storage.getPastTrips(userId),
@@ -1305,8 +1303,11 @@ Write in your own voice â€” specific, excited, self-correcting ("actually wait â
       ]);
 
       const travelStyles = (user.travelStyles as string[]) || [];
-      const homeLocation = user.homeLocation || "";
+      // Allow per-search origin override; fall back to profile home location
+      const homeLocation = (req.query.homeLocation as string)?.trim() || user.homeLocation || "";
       const passportCountry = user.passportCountry || "";
+
+      const cacheKey = `inspire_${userId}_${homeLocation}_${days}_${transports.sort().join("-")}_${budget}_${maxTravelHours}`;
 
       const likedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
       const rejectedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "hard_reject").map(r => r.activityType).filter(Boolean))];
