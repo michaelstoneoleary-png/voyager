@@ -1334,6 +1334,13 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
 
       const travelTimeLimit = maxTravelHours === "any" ? null : parseInt(maxTravelHours);
 
+      // Declare transport mode booleans early — used in both Stage 1 and the prompt builder.
+      // Must be declared before Stage 1 to avoid TDZ in the esbuild CJS bundle.
+      const hasFlying  = transports.includes("flying");
+      const hasDriving = transports.includes("driving");
+      const hasRail    = transports.includes("train");
+      const hasAll     = hasFlying && hasDriving && hasRail;
+
       // Set SSE headers immediately so the browser knows to expect a stream.
       // Do this before any async work so cache hits are served without delay.
       res.setHeader("Content-Type", "text/event-stream");
@@ -1459,12 +1466,6 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         : "";
 
       // Build transport description from the selected modes array
-      const allModes = ["flying", "driving", "train"];
-      const hasFlying  = transports.includes("flying");
-      const hasDriving = transports.includes("driving");
-      const hasRail    = transports.includes("train");
-      const hasAll     = hasFlying && hasDriving && hasRail;
-
       let transportDesc: string;
       if (hasAll || transports.length === 0) {
         transportDesc = "open to any mode of transport — choose whichever makes most sense for each destination given the travel time constraint";
