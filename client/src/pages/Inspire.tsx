@@ -399,12 +399,10 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
           <span>Best: {gem.best_months}</span>
         </div>
 
-        {gem.travel_time_estimate && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
-            <Clock className="h-3 w-3 flex-shrink-0" />
-            <span>{gem.travel_time_estimate}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+          <Clock className="h-3 w-3 flex-shrink-0" />
+          <span>{gem.travel_time_estimate || "Travel time varies"}</span>
+        </div>
 
         {gem.why_for_you && (
           <div className="bg-primary/5 border border-primary/10 rounded-md px-3 py-2 mb-3">

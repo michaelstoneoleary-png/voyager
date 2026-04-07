@@ -1546,7 +1546,7 @@ RULES:
 - 2-3 of your 10 suggestions should be off the beaten path — well-regarded but lesser-known destinations that serious travelers love but most tourists miss (solid rating, far fewer reviews than the famous choices). Mark these with "hidden_gem": true. The rest should have "hidden_gem": false.
 - All data must be REAL — real places, accurate coordinates, factual descriptions
 - Categories must be one of: "Adventure", "Culture", "Food & Drink", "Nature", "Urban", "Beach", "Wellness"
-- travel_time_estimate: total door-to-door time using the same calculation as the hard filter (drive to nearest airport + check-in/security (90 min) + flight time + layovers if any + ground transport at destination; or road distance at realistic speeds for driving). Express as a short phrase, e.g. "~6 hrs door-to-door (incl. airport)", "~3 hr drive", "~9 hrs with 1 connection". Never use just flight time — always include the full journey.
+- travel_time_estimate: REQUIRED — always include this field. Total door-to-door time from the traveler's home using the most likely transport mode. Driving: realistic road time at ~55 mph avg. Flying: ground transfer to origin airport + 90 min check-in/security + flight time + any connections + ground transfer at destination. Express as a short phrase e.g. "~3.5 hr drive", "~6 hrs door-to-door (incl. airport)", "~9 hrs with 1 connection". Never use flight time alone — always total door-to-door. If origin is unknown, use your best geographic estimate.
 
 OUTPUT FORMAT: For each destination, write exactly two lines:
 1. A single prose sentence in Marco's voice — name the destination and give one vivid, specific reason it fits this traveler (no markdown, no label, just the thought)
