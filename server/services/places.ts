@@ -377,6 +377,74 @@ export async function searchDayTrips(params: {
   }
 }
 
+// ── Inspire Destination Discovery (Driving) ───────────────────────────────────
+
+/**
+ * Extract "City, ST" from a Google Places formattedAddress string.
+ * Falls back to the second-to-last comma-separated component for non-US addresses.
+ */
+function extractCityFromAddress(address: string): string | null {
+  if (!address) return null;
+  // Match US pattern: "City, ST 12345" or "City, ST, Country"
+  const usMatch = address.match(/([^,]+,\s*[A-Z]{2})(?:\s+\d{5})?(?:,|$)/);
+  if (usMatch) return usMatch[1].trim();
+  // Fallback: penultimate comma-separated token
+  const parts = address.split(",").map(p => p.trim()).filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 2] : null;
+}
+
+/**
+ * Search for multi-day travel destinations within driving range of homeLocation.
+ * Uses Google Places text search to find tourist cities/areas, then extracts
+ * unique city names from their addresses. Returns up to 30 city names.
+ */
+export async function searchInspireDestinations(params: {
+  homeLocation: string;
+  maxTravelHours: number;
+}): Promise<string[]> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) {
+    console.warn("GOOGLE_PLACES_API_KEY not set — inspire destination search unavailable");
+    return [];
+  }
+
+  const center = await geocodeLocation(params.homeLocation);
+  if (!center) {
+    console.warn("[inspire-destinations] Could not geocode:", params.homeLocation);
+    return [];
+  }
+
+  // 80 km/h avg road speed (more realistic than 100 km/h for long highway drives)
+  const RADIUS_METERS = Math.round(params.maxTravelHours * 80_000);
+
+  const queries = [
+    `tourist resort hotel vacation destination near ${params.homeLocation}`,
+    `historic downtown city center tourism near ${params.homeLocation}`,
+    `unique hidden gem small town bed and breakfast destination near ${params.homeLocation}`,
+  ];
+
+  try {
+    const batches = await Promise.all(
+      queries.map(q => runPlacesTextSearch(q, center, RADIUS_METERS, apiKey, 20))
+    );
+
+    const citySet = new Set<string>();
+    for (const batch of batches) {
+      for (const place of batch) {
+        const city = extractCityFromAddress(place.address);
+        if (city) citySet.add(city);
+      }
+    }
+
+    const cities = Array.from(citySet).slice(0, 30);
+    console.log(`[inspire-destinations] ${cities.length} candidate cities (radius: ${RADIUS_METERS}m):`, cities.slice(0, 5).join(", "));
+    return cities;
+  } catch (err) {
+    console.error("[inspire-destinations] search failed:", err);
+    return [];
+  }
+}
+
 export function formatRestaurantsForPrompt(businesses: PlaceResult[]): string {
   if (!businesses.length) return "";
   return businesses

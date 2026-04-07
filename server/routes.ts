@@ -5,7 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -1281,6 +1281,8 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
   });
 
   const inspireCache = new Map<string, { data: any; timestamp: number }>();
+  // Candidate cache: 24h TTL — geographic validity doesn't change with user preferences
+  const inspireCandidateCache = new Map<string, { data: string[]; timestamp: number }>();
 
   app.get("/api/inspire/suggestions", isAuthenticated, async (req: any, res) => {
     try {
@@ -1330,10 +1332,96 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       };
       const travelTimeNote = travelTimeDesc[maxTravelHours] || travelTimeDesc["any"];
 
-      // Strict travel time enforcement with home-airport awareness
+      // ── Stage 1: Geographic candidate discovery ──────────────────────────────
+      // Build a pool of geographically valid destinations before calling Claude,
+      // so Claude curates from reality rather than inventing candidates that fail
+      // the travel-time filter. Skip when maxTravelHours is "any" (no constraint).
       const travelTimeLimit = maxTravelHours === "any" ? null : parseInt(maxTravelHours);
-      const homeAirportNote = homeLocation && travelTimeLimit
-        ? `STRICT TRAVEL TIME ENFORCEMENT — this is a hard disqualifier:
+
+      let candidateList: string[] = [];
+      if (travelTimeLimit && homeLocation) {
+        const candidateCacheKey = `inspire_candidates_${homeLocation}_${transports.slice().sort().join("-")}_${maxTravelHours}`;
+        const cachedCandidates = inspireCandidateCache.get(candidateCacheKey);
+        if (cachedCandidates && Date.now() - cachedCandidates.timestamp < 24 * 60 * 60 * 1000) {
+          candidateList = cachedCandidates.data;
+          console.log(`[inspire-candidates] cache hit: ${candidateList.length} candidates`);
+        } else {
+          // Driving only → Google Places radius search (real geographic data)
+          // Flying / rail / mixed → Haiku pre-call (Claude knows direct flight availability)
+          const isDrivingOnly = hasDriving && !hasFlying && !hasRail;
+          const candidateTasks: Promise<string[]>[] = [];
+
+          if (isDrivingOnly) {
+            candidateTasks.push(
+              searchInspireDestinations({ homeLocation, maxTravelHours: travelTimeLimit })
+            );
+          } else {
+            // Build transport context with computed reach distances
+            const transportParts: string[] = [];
+            if (hasFlying) {
+              const airportOverhead = 2.5;
+              const effectiveFlightHours = Math.max(0, travelTimeLimit - airportOverhead);
+              const flightRangeMiles = Math.round(effectiveFlightHours * 500);
+              transportParts.push(
+                `flying — direct flight reach ~${flightRangeMiles} miles from ${homeLocation}` +
+                ` after ${airportOverhead}h airport overhead (check-in/security/boarding/taxi);` +
+                ` for regional airports without many direct routes, add ~1h for connections`
+              );
+            }
+            if (hasDriving) {
+              const driveRangeMiles = Math.round(travelTimeLimit * 50);
+              transportParts.push(`driving — ~${driveRangeMiles} miles road range from ${homeLocation}`);
+            }
+            if (hasRail) {
+              const railRangeMiles = Math.round(travelTimeLimit * 60);
+              transportParts.push(`train/rail — ~${railRangeMiles} miles from ${homeLocation} at ~60 mph avg including station stops`);
+            }
+
+            const haikusPrompt =
+              `List exactly 30 specific travel destinations (city + state/country) reachable from ${homeLocation} within ${travelTimeLimit} hours total door-to-door by: ${transportParts.join("; ")}.\n\n` +
+              `Include destinations in multiple directions from ${homeLocation}. Include roughly 22 popular/well-known destinations and 8 lesser-visited hidden gems.\n\n` +
+              `Output ONLY a numbered list in the format "1. Savannah, GA". No prose, no explanations, nothing else.`;
+
+            candidateTasks.push(
+              anthropic.messages.create({
+                model: "claude-haiku-4-5-20251001",
+                max_tokens: 600,
+                messages: [{ role: "user", content: haikusPrompt }],
+              }).then(msg => {
+                const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+                return text
+                  .split("\n")
+                  .map(line => line.replace(/^\d+\.\s*/, "").trim())
+                  .filter(line => line.length > 2 && !/^\d+$/.test(line));
+              }).catch(err => {
+                console.error("[inspire-candidates] Haiku call failed:", err);
+                return [];
+              })
+            );
+
+            // For driving+rail combos, also run Google Places to anchor local driving range
+            if (hasDriving && !hasFlying) {
+              candidateTasks.push(
+                searchInspireDestinations({ homeLocation, maxTravelHours: travelTimeLimit })
+              );
+            }
+          }
+
+          const results = await Promise.all(candidateTasks);
+          candidateList = [...new Set(results.flat())].slice(0, 40);
+          console.log(`[inspire-candidates] generated ${candidateList.length} candidates for ${homeLocation} / ${maxTravelHours}h`);
+          if (candidateList.length > 0) {
+            inspireCandidateCache.set(candidateCacheKey, { data: candidateList, timestamp: Date.now() });
+          }
+        }
+      }
+
+      // When we have a candidate list, geographic filtering is already done — no need for
+      // Claude to self-enforce travel time. Keep travelTimeNote so Claude writes accurate
+      // travel_time_estimate values, but drop the hard-disqualifier enforcement block.
+      const homeAirportNote = candidateList.length === 0
+        ? (homeLocation && travelTimeLimit
+          ? `STRICT TRAVEL TIME ENFORCEMENT — this is a hard disqualifier:
 The traveler lives in "${homeLocation}". You must calculate realistic door-to-door travel time for EVERY suggestion before including it.
 
 Door-to-door calculation:
@@ -1343,14 +1431,12 @@ Door-to-door calculation:
 
 Hard limit: ${travelTimeLimit} hours total door-to-door. ANY destination where the realistic travel time exceeds ${travelTimeLimit} hours MUST be excluded — do not include it and do not round down.
 
-Examples of what does NOT fit ${travelTimeLimit} hours from ${homeLocation}:
-  - Long-haul international destinations (Europe, Asia, South America) unless direct flights exist
-  - Destinations requiring multiple long connections
-  - Destinations that are close "as the crow flies" but have no direct road/rail (e.g. islands requiring ferries adding hours)
-
 Only suggest destinations you are confident fit within ${travelTimeLimit} hours door-to-door from ${homeLocation}.`
+          : homeLocation
+          ? `The traveler lives in "${homeLocation}". Calculate realistic travel times from this location for every suggestion.`
+          : "")
         : homeLocation
-        ? `The traveler lives in "${homeLocation}". Calculate realistic travel times from this location for every suggestion.`
+        ? `The traveler lives in "${homeLocation}". Use this to write accurate travel_time_estimate values for each destination's JSON.`
         : "";
 
       // Build transport description from the selected modes array
@@ -1381,9 +1467,16 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         unlimited: "unlimited — money is no object, recommend only the finest",
       };
 
+      const candidateBlock = candidateList.length > 0
+        ? `CANDIDATE DESTINATIONS — all verified to be within travel range from ${homeLocation}:\n` +
+          candidateList.map((d, i) => `${i + 1}. ${d}`).join("\n") +
+          `\n\nIMPORTANT: Select from ONLY the above candidates. Do not suggest any destination not on this list. ` +
+          `The list includes lesser-visited hidden gems — identify them and mark them hidden_gem: true.\n\n`
+        : "";
+
       const suggestionPrompt = `You are Marco, a world-class travel curator and dream-voyage architect. Deliberate out loud as you choose 10 destinations for this traveler — then commit to each one.
 
-TRAVELER PROFILE:
+${candidateBlock}TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
 - Passport: ${passportCountry || "Not specified"}
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
