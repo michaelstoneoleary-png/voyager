@@ -184,7 +184,7 @@ export function TravelCheckInDialog({ userId, firstName, passportCountry, journe
                 onClick={handleNeverAskAgain}
                 className="text-xs text-muted-foreground hover:text-foreground text-center transition-colors"
               >
-                Don't ask about this journey again
+                Maybe someday!
               </button>
             </DialogFooter>
           </>
