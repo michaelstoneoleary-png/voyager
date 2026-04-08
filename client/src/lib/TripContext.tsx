@@ -36,6 +36,8 @@ export interface Trip {
   } | null;
   destinations?: string[] | null;
   travelMode?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 interface TripContextType {

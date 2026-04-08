@@ -129,7 +129,7 @@ export class DatabaseStorage implements IStorage {
   async updateJourney(id: string, userId: string, data: Partial<InsertJourney>): Promise<Journey | undefined> {
     const existing = await this.getJourney(id, userId);
     if (!existing) return undefined;
-    const [updated] = await db.update(journeys).set(data).where(eq(journeys.id, id)).returning();
+    const [updated] = await db.update(journeys).set({ ...data, updatedAt: new Date() }).where(eq(journeys.id, id)).returning();
     return updated;
   }
 

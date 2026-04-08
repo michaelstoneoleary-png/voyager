@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTrips } from "@/lib/TripContext";
 import heroTravel from "@/assets/hero-travel.png";
 import { NewTripDialog } from "@/components/NewTripDialog";
+import { TravelCheckInDialog } from "@/components/TravelCheckInDialog";
 import { useState } from "react";
 import { Link } from "wouter";
 
@@ -28,10 +29,18 @@ export default function Dashboard() {
 
   return (
     <>
-      <NewTripDialog 
-        open={isNewTripOpen} 
-        onOpenChange={setIsNewTripOpen} 
+      <NewTripDialog
+        open={isNewTripOpen}
+        onOpenChange={setIsNewTripOpen}
       />
+      {user && (
+        <TravelCheckInDialog
+          userId={user.id}
+          firstName={user.firstName || "Traveler"}
+          passportCountry={user.passportCountry}
+          journeys={trips}
+        />
+      )}
       <Layout>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
