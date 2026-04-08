@@ -4,7 +4,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { isUnauthorizedError } from '@/lib/auth-utils';
 import { useToast } from '@/hooks/use-toast';
 
-export type TripStatus = "Upcoming" | "Planning" | "Dreaming" | "Completed";
+export type TripStatus = "Upcoming" | "Planning" | "Dreaming" | "Completed" | "Archived";
 
 export interface Trip {
   id: string;

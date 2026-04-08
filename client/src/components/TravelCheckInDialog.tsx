@@ -49,7 +49,7 @@ function getEligibleJourneys(journeys: Trip[], userId: string, passportCountry: 
 
   return journeys.filter((j) => {
     if (!j.finalDestination) return false;
-    if (j.status === "Completed") return false;
+    if (j.status === "Completed" || j.status === "Archived") return false;
     if (localStorage.getItem(`trip_checkin_dismissed_${j.id}`)) return false;
 
     const endDate = parseJourneyEndDate(j.dates);

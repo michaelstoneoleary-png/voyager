@@ -183,7 +183,7 @@ export default function Dashboard() {
                   <CardDescription>Quick overview of your plans</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {trips.slice(0, 3).map(trip => (
+                  {trips.filter(t => t.status !== "Archived").slice(0, 3).map(trip => (
                     <div key={trip.id} className="p-3 bg-background rounded-lg border border-border">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-primary">{trip.title}</span>
