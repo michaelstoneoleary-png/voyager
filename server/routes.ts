@@ -331,7 +331,8 @@ Write in your own voice â€” specific, excited, self-correcting ("actually wait â
       stream.on("text", (text: string) => {
         res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
       });
-      stream.on("finalMessage", () => {
+      stream.on("finalMessage", (msg: any) => {
+        storage.recordApiUsage({ userId, feature: "marco-thinking", model: "claude-sonnet-4-6", inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0 }).catch(() => {});
         res.write("data: [DONE]\n\n");
         res.end();
       });
@@ -512,6 +513,7 @@ ${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels
       });
 
       const response = await stream.finalMessage();
+      storage.recordApiUsage({ userId, feature: "itinerary", model: "claude-sonnet-4-6", inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 }).catch(() => {});
 
       const textContent = response.content.find(c => c.type === "text");
       if (!textContent || textContent.type !== "text") {
@@ -693,6 +695,7 @@ Rules:
           }],
         });
 
+        storage.recordApiUsage({ userId, feature: "activity-replace", model: "claude-sonnet-4-5", inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 }).catch(() => {});
         const textContent = response.content.find(c => c.type === "text");
         if (!textContent || textContent.type !== "text") {
           return res.status(500).json({ message: "No response from AI" });
@@ -811,6 +814,7 @@ Rules:
         }],
       });
 
+      storage.recordApiUsage({ userId, feature: "highlights", model: "claude-sonnet-4-5", inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 }).catch(() => {});
       const textContent = response.content.find(c => c.type === "text");
       if (!textContent || textContent.type !== "text") {
         return res.status(500).json({ message: "No response from AI" });
@@ -1042,6 +1046,7 @@ ${truncated}`,
         ],
       });
 
+      storage.recordApiUsage({ userId: getUserId(req)!, feature: "csv-parse", model: "claude-sonnet-4-5", inputTokens: message.usage?.input_tokens ?? 0, outputTokens: message.usage?.output_tokens ?? 0 }).catch(() => {});
       const content = message.content[0];
       const responseText = content.type === "text" ? content.text : "";
 
@@ -1264,7 +1269,8 @@ Write in your own voice â€” specific, excited, self-correcting ("actually wait â
       stream.on("text", (text: string) => {
         res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
       });
-      stream.on("finalMessage", () => {
+      stream.on("finalMessage", (msg: any) => {
+        storage.recordApiUsage({ userId, feature: "inspire-thinking", model: "claude-sonnet-4-6", inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0 }).catch(() => {});
         res.write("data: [DONE]\n\n");
         res.end();
       });
@@ -1393,6 +1399,7 @@ Write in your own voice â€” specific, excited, self-correcting ("actually wait â
                 max_tokens: 600,
                 messages: [{ role: "user", content: drivingHaikuPrompt }],
               }).then(msg => {
+                storage.recordApiUsage({ userId, feature: "inspire", model: "claude-haiku-4-5-20251001", inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0 }).catch(() => {});
                 const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
                 return text
                   .split("\n")
@@ -1436,6 +1443,7 @@ Write in your own voice â€” specific, excited, self-correcting ("actually wait â
                 max_tokens: 600,
                 messages: [{ role: "user", content: haikusPrompt }],
               }).then(msg => {
+                storage.recordApiUsage({ userId, feature: "inspire", model: "claude-haiku-4-5-20251001", inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0 }).catch(() => {});
                 const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
                 return text
                   .split("\n")
@@ -1588,7 +1596,8 @@ Lisbon is calling â€” the combination of historic trams, world-class seafood, an
 
       const removalPattern = /exceed|remov(e|ing)|does not fit|over the.{0,10}limit|too far/i;
 
-      stream.on("finalMessage", async () => {
+      stream.on("finalMessage", async (msg: any) => {
+        storage.recordApiUsage({ userId, feature: "inspire", model: "claude-sonnet-4-6", inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0 }).catch(() => {});
         // Flush any remaining buffer content
         if (lineBuffer.trim()) {
           const trimmed = lineBuffer.trim();
@@ -1895,6 +1904,8 @@ Return ONLY the JSON object, no other text.`,
         ],
       });
 
+      storage.recordApiUsage({ userId: getUserId(req)!, feature: "packing", model: "claude-sonnet-4-5", inputTokens: message.usage?.input_tokens ?? 0, outputTokens: message.usage?.output_tokens ?? 0 }).catch(() => {});
+
       const content = message.content[0];
       const responseText = content.type === "text" ? content.text : "";
 
@@ -2063,6 +2074,8 @@ Rules:
 - Return ONLY the JSON object, no other text`,
         }],
       });
+
+      storage.recordApiUsage({ userId, feature: "intel", model: "claude-sonnet-4-5", inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 }).catch(() => {});
 
       const textContent = response.content.find(c => c.type === "text");
       if (!textContent || textContent.type !== "text") {
@@ -2473,6 +2486,15 @@ Rules:
     } catch (err) {
       console.error("Admin delete user error:", err);
       res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.get("/api/admin/usage", isAuthenticated, isAdminUser, async (_req, res) => {
+    try {
+      res.json(await storage.getApiUsageSummary());
+    } catch (error) {
+      console.error("Error fetching usage summary:", error);
+      res.status(500).json({ error: "Failed to fetch usage summary" });
     }
   });
 
