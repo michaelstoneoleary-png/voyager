@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,16 @@ import {
   History,
   Search,
   Zap,
+  Activity,
+  RefreshCw,
+  Clock,
+  Database,
+  Globe,
+  MessageSquare,
+  Phone,
+  Key,
+  Rss,
+  Image,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -60,6 +71,19 @@ interface UsageSummaryRow {
   byFeature: Record<string, { input: number; output: number }>;
 }
 
+type HealthStatus = "healthy" | "degraded" | "configured" | "unconfigured";
+interface ServiceHealth {
+  name: string;
+  status: HealthStatus;
+  latency?: number;
+  message?: string;
+  checkedAt: string;
+}
+interface HealthReport {
+  services: ServiceHealth[];
+  generatedAt: string;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 // Cost rates per million tokens [input, output]
@@ -93,6 +117,81 @@ function estimateCost(byFeature: Record<string, { input: number; output: number 
   return total;
 }
 
+// ── Health components ──────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<HealthStatus, { label: string; dotClass: string; badgeClass: string }> = {
+  healthy:      { label: "Healthy",      dotClass: "bg-green-500",  badgeClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  degraded:     { label: "Error",        dotClass: "bg-red-500",    badgeClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  configured:   { label: "Configured",   dotClass: "bg-yellow-400", badgeClass: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  unconfigured: { label: "Unconfigured", dotClass: "bg-gray-400",   badgeClass: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+};
+
+const SERVICE_ICONS: Record<string, React.ReactNode> = {
+  "Anthropic":    <Activity className="h-4 w-4" />,
+  "Google Places":<Globe className="h-4 w-4" />,
+  "Wikipedia":    <Globe className="h-4 w-4" />,
+  "RSS Feed":     <Rss className="h-4 w-4" />,
+  "Database":     <Database className="h-4 w-4" />,
+  "Resend":       <MessageSquare className="h-4 w-4" />,
+  "Twilio":       <Phone className="h-4 w-4" />,
+  "Google OAuth": <Key className="h-4 w-4" />,
+  "Apple OAuth":  <Key className="h-4 w-4" />,
+  "Cloudinary":   <Image className="h-4 w-4" />,
+};
+
+function HealthServiceCard({ service }: { service: ServiceHealth }) {
+  const config = STATUS_CONFIG[service.status];
+  const icon = SERVICE_ICONS[service.name] ?? <Activity className="h-4 w-4" />;
+  const checkedTime = new Date(service.checkedAt).toLocaleTimeString();
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="text-muted-foreground">{icon}</span>
+            {service.name}
+          </div>
+          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${config.badgeClass}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${config.dotClass}`} />
+            {config.label}
+          </span>
+        </div>
+        {service.latency !== undefined && (
+          <p className="text-xs text-muted-foreground">{service.latency} ms</p>
+        )}
+        {service.message && (service.status === "degraded" || service.status === "unconfigured") && (
+          <p className={`text-xs break-words ${service.status === "degraded" ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+            {service.message}
+          </p>
+        )}
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          Checked at {checkedTime}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HealthSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <Card key={i}>
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-24" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 // ── Stat card ──────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
@@ -117,6 +216,7 @@ export default function AdminPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "usage" | "health">("overview");
 
   // Debounce search
   const handleSearch = (value: string) => {
@@ -149,6 +249,14 @@ export default function AdminPage() {
   const { data: usageRows = [] } = useQuery<UsageSummaryRow[]>({
     queryKey: ["/api/admin/usage"],
     queryFn: () => fetch("/api/admin/usage", { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: healthReport, isLoading: healthLoading, refetch: refetchHealth } = useQuery<HealthReport>({
+    queryKey: ["/api/admin/health"],
+    queryFn: () => fetch("/api/admin/health", { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "health",
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   // ── Mutations ──
@@ -187,8 +295,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
+          <TabsList className="grid w-full max-w-xl grid-cols-4 mb-8">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
@@ -197,6 +305,9 @@ export default function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="usage" className="gap-2">
               <Zap className="h-4 w-4" /> Usage
+            </TabsTrigger>
+            <TabsTrigger value="health" className="gap-2">
+              <Activity className="h-4 w-4" /> Health
             </TabsTrigger>
           </TabsList>
 
@@ -367,6 +478,44 @@ export default function AdminPage() {
                   );
                 })}
               </div>
+            )}
+          </TabsContent>
+
+          {/* ── Health ── */}
+          <TabsContent value="health" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Real-time status of all external services. Results cached for 30 seconds.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => refetchHealth()}
+                disabled={healthLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${healthLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+
+            {healthLoading ? (
+              <HealthSkeleton />
+            ) : healthReport ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {healthReport.services.map((service) => (
+                    <HealthServiceCard key={service.name} service={service} />
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Report generated: {new Date(healthReport.generatedAt).toLocaleString()}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Switch to this tab to run health checks.
+              </p>
             )}
           </TabsContent>
         </Tabs>

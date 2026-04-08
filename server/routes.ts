@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { checkAllServices, type HealthReport } from "./lib/healthChecks";
 import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
@@ -2495,6 +2496,24 @@ Rules:
     } catch (error) {
       console.error("Error fetching usage summary:", error);
       res.status(500).json({ error: "Failed to fetch usage summary" });
+    }
+  });
+
+  const healthCache = new Map<string, { data: HealthReport; timestamp: number }>();
+  const HEALTH_CACHE_TTL = 30 * 1000;
+
+  app.get("/api/admin/health", isAuthenticated, isAdminUser, async (_req, res) => {
+    try {
+      const cached = healthCache.get("health");
+      if (cached && Date.now() - cached.timestamp < HEALTH_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+      const report = await checkAllServices();
+      healthCache.set("health", { data: report, timestamp: Date.now() });
+      res.json(report);
+    } catch (err) {
+      console.error("Admin health check error:", err);
+      res.status(500).json({ message: "Health check failed" });
     }
   });
 
