@@ -2387,6 +2387,27 @@ Rules:
 
   // ── Admin API routes ──────────────────────────────────────────────────────
 
+  // One-time bootstrap: promotes the calling user to admin.
+  // Only works when NO admin users exist yet — self-disables after first use.
+  app.post("/api/admin/bootstrap", isAuthenticated, async (req: any, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const alreadyHasAdmin = allUsers.some((u) => u.isAdmin);
+      if (alreadyHasAdmin) {
+        return res.status(403).json({ message: "An admin already exists. This endpoint is disabled." });
+      }
+      const userId = getUserId(req)!;
+      const updated = await storage.updateUser(userId, { isAdmin: true });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      const { passwordHash: _, ...safeUser } = updated as any;
+      console.log(`[admin-bootstrap] User ${userId} promoted to admin.`);
+      res.json({ ok: true, user: safeUser });
+    } catch (err) {
+      console.error("Bootstrap error:", err);
+      res.status(500).json({ message: "Bootstrap failed" });
+    }
+  });
+
   app.get("/api/admin/stats", isAuthenticated, isAdminUser, async (_req, res) => {
     try {
       const stats = await storage.getAdminStats();
