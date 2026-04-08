@@ -49,6 +49,11 @@ export const users = pgTable("users", {
   dietaryRestrictions: text("dietary_restrictions").array(),
   diningPriceRange: varchar("dining_price_range"),
   expoPushToken: varchar("expo_push_token"),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerificationToken: varchar("email_verification_token"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
+  googleId: varchar("google_id").unique(),
+  appleId: varchar("apple_id").unique(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

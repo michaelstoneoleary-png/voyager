@@ -1,5 +1,7 @@
 import * as client from "openid-client";
 import { Strategy, type VerifyFunction } from "openid-client/passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import AppleStrategy from "passport-apple";
 
 import passport from "passport";
 import session from "express-session";
@@ -69,7 +71,90 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  // Replit OIDC is only available when running on Replit (REPL_ID is set)
+  // ── Google OAuth ──────────────────────────────────────────────────────────
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    passport.use(new GoogleStrategy({
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: "/api/auth/google/callback",
+    }, async (accessToken, refreshToken, profile, done) => {
+      try {
+        // 1. Existing Google-linked user
+        let user = await authStorage.getUserByGoogleId(profile.id);
+        if (user) return done(null, { userId: user.id, authProvider: "google" } as any);
+
+        // 2. Email matches existing local account — link it
+        const email = profile.emails?.[0]?.value;
+        if (email) {
+          user = await authStorage.getUserByEmail(email);
+          if (user) {
+            await authStorage.updateUser(user.id, { googleId: profile.id, emailVerified: true });
+            return done(null, { userId: user.id, authProvider: "google" } as any);
+          }
+        }
+
+        // 3. New user
+        user = await authStorage.upsertUser({
+          email: email || null,
+          firstName: profile.name?.givenName || profile.displayName?.split(" ")[0] || null,
+          lastName: profile.name?.familyName || null,
+          profileImageUrl: profile.photos?.[0]?.value || null,
+          googleId: profile.id,
+          authProvider: "google",
+          emailVerified: true,
+        });
+        return done(null, { userId: user.id, authProvider: "google" } as any);
+      } catch (err) {
+        return done(err as Error);
+      }
+    }));
+  }
+
+  // ── Apple OAuth ───────────────────────────────────────────────────────────
+  if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY) {
+    passport.use(new AppleStrategy({
+      clientID: process.env.APPLE_CLIENT_ID,
+      teamID: process.env.APPLE_TEAM_ID,
+      keyID: process.env.APPLE_KEY_ID,
+      privateKeyString: process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      callbackURL: "/api/auth/apple/callback",
+      scope: ["name", "email"],
+    } as any, async (accessToken: any, refreshToken: any, idToken: any, profile: any, done: any) => {
+      try {
+        const appleId = idToken?.sub || profile?.id;
+        const email = idToken?.email || profile?.email;
+        const firstName = profile?.name?.firstName || null;
+        const lastName = profile?.name?.lastName || null;
+
+        if (!appleId) return done(new Error("No Apple ID in token"));
+
+        let user = await authStorage.getUserByAppleId(appleId);
+        if (user) return done(null, { userId: user.id, authProvider: "apple" });
+
+        if (email) {
+          user = await authStorage.getUserByEmail(email);
+          if (user) {
+            await authStorage.updateUser(user.id, { appleId, emailVerified: true });
+            return done(null, { userId: user.id, authProvider: "apple" });
+          }
+        }
+
+        user = await authStorage.upsertUser({
+          email: email || null,
+          firstName,
+          lastName,
+          appleId,
+          authProvider: "apple",
+          emailVerified: true,
+        });
+        return done(null, { userId: user.id, authProvider: "apple" });
+      } catch (err) {
+        return done(err as Error);
+      }
+    }));
+  }
+
+  // ── Replit OIDC (legacy) ──────────────────────────────────────────────────
   if (!process.env.REPL_ID) {
     app.get("/api/logout", (req, res) => {
       req.logout(() => {
@@ -130,7 +215,7 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/logout", (req, res) => {
     const user = req.user as any;
-    const isLocalUser = user?.authProvider === "local";
+    const isLocalUser = user?.authProvider === "local" || user?.authProvider === "google" || user?.authProvider === "apple";
 
     req.logout(() => {
       if (isLocalUser) {
@@ -152,8 +237,8 @@ export async function setupAuth(app: Express) {
 export function getUserId(req: any): string | null {
   const user = req.user as any;
   if (!user) return null;
-  if (user.authProvider === "local") return user.userId;
-  if (user.claims?.sub) return user.claims.sub;
+  if (user.userId) return user.userId; // local, google, apple
+  if (user.claims?.sub) return user.claims.sub; // Replit OIDC
   return null;
 }
 
@@ -164,11 +249,13 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (user.authProvider === "local") {
+  // Local, Google, Apple — session-based, no token refresh needed
+  if (user.authProvider === "local" || user.authProvider === "google" || user.authProvider === "apple") {
     if (user.userId) return next();
     return res.status(401).json({ message: "Unauthorized" });
   }
 
+  // Replit OIDC — token refresh
   if (!user.expires_at) {
     return res.status(401).json({ message: "Unauthorized" });
   }

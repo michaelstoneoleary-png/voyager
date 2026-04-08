@@ -20,6 +20,7 @@ import Settings from "@/pages/Settings";
 import SmsConsent from "@/pages/SmsConsent";
 import SharedJourney from "@/pages/SharedJourney";
 import AdminPage from "@/pages/Admin";
+import VerifyEmail from "@/pages/VerifyEmail";
 import { UserProvider, useUser } from "@/lib/UserContext";
 import { TripProvider } from "@/lib/TripContext";
 import { useAuth } from "@/hooks/use-auth";
@@ -121,6 +122,7 @@ function Router() {
       <Route path="/history">{() => <ProtectedRoute component={PastJourneys} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
       <Route path="/admin">{() => <AdminRoute />}</Route>
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route component={NotFound} />
     </Switch>
   );
