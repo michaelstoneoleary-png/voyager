@@ -24,9 +24,23 @@ function isJourneyDomestic(finalDestination: string, passportCountry: string | n
   return finalDestination.toLowerCase().includes(passportCountry.toLowerCase());
 }
 
-function getTodayString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const GATE_DAYS = 14;
+
+function getLastShownKey(userId: string): string {
+  return `trip_checkin_last_shown_${userId}`;
+}
+
+function hasShownWithin14Days(userId: string): boolean {
+  const stored = localStorage.getItem(getLastShownKey(userId));
+  if (!stored) return false;
+  const last = new Date(stored);
+  if (isNaN(last.getTime())) return false;
+  const daysSince = (Date.now() - last.getTime()) / (1000 * 60 * 60 * 24);
+  return daysSince < GATE_DAYS;
+}
+
+function markShownNow(userId: string): void {
+  localStorage.setItem(getLastShownKey(userId), new Date().toISOString());
 }
 
 function getEligibleJourneys(journeys: Trip[], userId: string, passportCountry: string | null | undefined): Trip[] {
@@ -74,34 +88,33 @@ export function TravelCheckInDialog({ userId, firstName, passportCountry, journe
   useEffect(() => {
     if (!userId || journeys.length === 0) return;
 
-    const todayKey = `trip_checkin_shown_${userId}_${getTodayString()}`;
-    if (localStorage.getItem(todayKey)) return;
+    if (hasShownWithin14Days(userId)) return;
 
     const eligible = getEligibleJourneys(journeys, userId, passportCountry);
     if (eligible.length === 0) return;
 
-    // 50% random chance
+    // 50% random chance — feels occasional, not clockwork
     if (Math.random() < 0.5) {
-      localStorage.setItem(todayKey, "1");
+      markShownNow(userId);
       return;
     }
 
     const journey = eligible[Math.floor(Math.random() * eligible.length)];
     setSelectedJourney(journey);
     setOpen(true);
-    localStorage.setItem(todayKey, "1");
+    markShownNow(userId);
   }, [userId, journeys, passportCountry]);
 
   function handleClose() {
     setOpen(false);
   }
 
-  function handleNotYet() {
-    // Daily gate already set on mount; just close
+  function handleAskLater() {
+    // 14-day gate already set on mount; just close
     setOpen(false);
   }
 
-  function handleDidntGo() {
+  function handleNeverAskAgain() {
     if (selectedJourney) {
       localStorage.setItem(`trip_checkin_dismissed_${selectedJourney.id}`, "1");
     }
@@ -159,11 +172,11 @@ export function TravelCheckInDialog({ userId, firstName, passportCountry, journe
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={handleDidntGo} className="text-muted-foreground">
-                Didn't end up going
+              <Button variant="outline" size="sm" onClick={handleNeverAskAgain} className="text-muted-foreground">
+                Don't ask about this journey again
               </Button>
-              <Button variant="outline" size="sm" onClick={handleNotYet}>
-                Not yet
+              <Button variant="outline" size="sm" onClick={handleAskLater}>
+                Ask me later
               </Button>
               <Button size="sm" onClick={handleYes}>
                 Yes, I went! ✓
