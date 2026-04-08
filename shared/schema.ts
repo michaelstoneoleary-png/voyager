@@ -2,7 +2,7 @@ export * from "./models/auth";
 export * from "./models/chat";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, jsonb, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, jsonb, timestamp, doublePrecision, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./models/auth";
@@ -104,6 +104,16 @@ export const journeyPhotos = pgTable("journey_photos", {
   takenAt: timestamp("taken_at"),
   caption: text("caption"),
   dayIndex: integer("day_index"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const apiUsage = pgTable("api_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  feature: text("feature").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -4,6 +4,7 @@ import {
   journeyMembers, type JourneyMember, type InsertJourneyMember,
   pastTrips, type PastTrip, type InsertPastTrip,
   bookmarks, type Bookmark, type InsertBookmark,
+  apiUsage,
   packingLists, type PackingList, type InsertPackingList,
   journeyPhotos, type JourneyPhoto, type InsertJourneyPhoto,
   voyages, type Voyage, type InsertVoyage,
@@ -71,6 +72,8 @@ export interface IStorage {
   getAllUsers(search?: string, limit?: number, offset?: number): Promise<User[]>;
   getAdminStats(): Promise<{ totalUsers: number; newUsersThisWeek: number; newUsersThisMonth: number; totalJourneys: number; totalPastTrips: number; activeUsersThisWeek: number }>;
   deleteUserAccount(id: string): Promise<boolean>;
+  recordApiUsage(data: { userId: string; feature: string; model: string; inputTokens: number; outputTokens: number }): Promise<void>;
+  getApiUsageSummary(): Promise<Array<{ userId: string; firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -351,6 +354,42 @@ export class DatabaseStorage implements IStorage {
       totalPastTrips,
       activeUsersThisWeek: activeRows.length,
     };
+  }
+
+  async recordApiUsage(data: { userId: string; feature: string; model: string; inputTokens: number; outputTokens: number }): Promise<void> {
+    await db.insert(apiUsage).values(data);
+  }
+
+  async getApiUsageSummary() {
+    const rows = await db.select().from(apiUsage);
+    const userMap = new Map<string, { firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>();
+
+    for (const row of rows) {
+      if (!userMap.has(row.userId)) {
+        userMap.set(row.userId, { firstName: null, lastName: null, email: null, totalInputTokens: 0, totalOutputTokens: 0, byFeature: {} });
+      }
+      const entry = userMap.get(row.userId)!;
+      entry.totalInputTokens  += row.inputTokens;
+      entry.totalOutputTokens += row.outputTokens;
+      if (!entry.byFeature[row.feature]) entry.byFeature[row.feature] = { input: 0, output: 0 };
+      entry.byFeature[row.feature].input  += row.inputTokens;
+      entry.byFeature[row.feature].output += row.outputTokens;
+    }
+
+    // Hydrate user names/emails
+    const userIds = [...userMap.keys()];
+    if (userIds.length > 0) {
+      const userRows = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
+        .from(users).where(sql`${users.id} = ANY(${userIds})`);
+      for (const u of userRows) {
+        const entry = userMap.get(u.id);
+        if (entry) { entry.firstName = u.firstName; entry.lastName = u.lastName; entry.email = u.email; }
+      }
+    }
+
+    return [...userMap.entries()]
+      .map(([userId, data]) => ({ userId, ...data }))
+      .sort((a, b) => (b.totalInputTokens + b.totalOutputTokens) - (a.totalInputTokens + a.totalOutputTokens));
   }
 
   async deleteUserAccount(id: string): Promise<boolean> {

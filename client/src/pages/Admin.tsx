@@ -10,7 +10,6 @@ import {
   Users,
   BarChart3,
   Shield,
-  ShieldOff,
   UserX,
   UserCheck,
   Trash2,
@@ -18,6 +17,7 @@ import {
   MapPin,
   History,
   Search,
+  Zap,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -40,6 +40,7 @@ interface AdminUser {
   profileImageUrl: string | null;
   isAdmin: boolean;
   disabled: boolean;
+  role?: string;
   createdAt: string | null;
 }
 
@@ -47,6 +48,49 @@ interface UserDetail {
   user: AdminUser;
   journeys: Array<{ id: string; title: string; status: string; dates: string | null; finalDestination: string | null }>;
   pastTrips: Array<{ id: string; destination: string; startDate: string | null; endDate: string | null }>;
+}
+
+interface UsageSummaryRow {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  byFeature: Record<string, { input: number; output: number }>;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+// Cost rates per million tokens [input, output]
+const MODEL_RATES: Record<string, [number, number]> = {
+  "claude-haiku-4-5-20251001": [0.25, 1.25],
+  "claude-sonnet-4-6": [3, 15],
+  "claude-sonnet-4-5": [3, 15],
+};
+
+// Feature → model mapping for cost estimation
+const FEATURE_MODEL: Record<string, string> = {
+  "inspire": "claude-haiku-4-5-20251001",
+  "inspire-thinking": "claude-sonnet-4-6",
+  "marco-thinking": "claude-sonnet-4-6",
+  "itinerary": "claude-sonnet-4-6",
+  "activity-replace": "claude-sonnet-4-5",
+  "highlights": "claude-sonnet-4-5",
+  "csv-parse": "claude-sonnet-4-5",
+  "packing": "claude-sonnet-4-5",
+  "intel": "claude-sonnet-4-5",
+  "chat": "claude-sonnet-4-5",
+};
+
+function estimateCost(byFeature: Record<string, { input: number; output: number }>): number {
+  let total = 0;
+  for (const [feature, counts] of Object.entries(byFeature)) {
+    const model = FEATURE_MODEL[feature] || "claude-sonnet-4-5";
+    const [inRate, outRate] = MODEL_RATES[model] || [3, 15];
+    total += (counts.input / 1_000_000) * inRate + (counts.output / 1_000_000) * outRate;
+  }
+  return total;
 }
 
 // ── Stat card ──────────────────────────────────────────────────────────────
@@ -102,6 +146,11 @@ export default function AdminPage() {
     enabled: !!selectedUserId,
   });
 
+  const { data: usageRows = [] } = useQuery<UsageSummaryRow[]>({
+    queryKey: ["/api/admin/usage"],
+    queryFn: () => fetch("/api/admin/usage", { credentials: "include" }).then(r => r.json()),
+  });
+
   // ── Mutations ──
 
   const patchUser = useMutation({
@@ -139,12 +188,15 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="h-4 w-4" /> Users
+            </TabsTrigger>
+            <TabsTrigger value="usage" className="gap-2">
+              <Zap className="h-4 w-4" /> Usage
             </TabsTrigger>
           </TabsList>
 
@@ -208,7 +260,7 @@ export default function AdminPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <Button
                           size="sm" variant="ghost"
                           className="gap-1.5 text-muted-foreground"
@@ -217,14 +269,18 @@ export default function AdminPage() {
                           <Eye className="h-4 w-4" /> View
                         </Button>
 
-                        <Button
-                          size="sm" variant="ghost"
-                          className="gap-1.5 text-muted-foreground"
-                          title={u.isAdmin ? "Remove admin" : "Make admin"}
-                          onClick={() => patchUser.mutate({ id: u.id, data: { isAdmin: !u.isAdmin } })}
+                        {/* Role dropdown */}
+                        <select
+                          value={u.role || (u.isAdmin ? "admin" : "user")}
+                          onChange={(e) => patchUser.mutate({ id: u.id, data: {
+                            role: e.target.value,
+                            isAdmin: e.target.value === "admin",
+                          }})}
+                          className="text-xs border border-input rounded-md px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         >
-                          {u.isAdmin ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
-                        </Button>
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                        </select>
 
                         <Button
                           size="sm" variant="ghost"
@@ -264,6 +320,52 @@ export default function AdminPage() {
                 {users.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-8">No users found.</p>
                 )}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Usage ── */}
+          <TabsContent value="usage" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Token usage per user. Cost estimates use Haiku ($0.25/$1.25 per M) and Sonnet ($3/$15 per M) rates.
+            </p>
+            {usageRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No usage data yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {usageRows.map((row) => {
+                  const totalTokens = row.totalInputTokens + row.totalOutputTokens;
+                  const cost = estimateCost(row.byFeature);
+                  const name = [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || "Unknown";
+                  return (
+                    <Card key={row.userId}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm">{name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{row.email}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="font-semibold text-sm">{totalTokens.toLocaleString()} tokens</p>
+                            <p className="text-xs text-muted-foreground">≈ ${cost.toFixed(4)}</p>
+                          </div>
+                        </div>
+                        {/* Feature breakdown */}
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          {Object.entries(row.byFeature).map(([feature, counts]) => (
+                            <span
+                              key={feature}
+                              className="inline-flex items-center gap-1 text-[10px] bg-muted px-2 py-0.5 rounded-full"
+                            >
+                              <span className="font-medium">{feature}</span>
+                              <span className="text-muted-foreground">{(counts.input + counts.output).toLocaleString()}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>

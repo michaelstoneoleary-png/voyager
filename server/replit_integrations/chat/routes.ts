@@ -194,6 +194,10 @@ export function registerChatRoutes(app: Express): void {
         messages: chatMessages,
       });
 
+      stream.on("finalMessage", (msg: any) => {
+        storage.recordApiUsage({ userId, feature: "chat", model: "claude-sonnet-4-5", inputTokens: msg.usage?.input_tokens ?? 0, outputTokens: msg.usage?.output_tokens ?? 0 }).catch(() => {});
+      });
+
       let fullResponse = "";
 
       for await (const event of stream) {
