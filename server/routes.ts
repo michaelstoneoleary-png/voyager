@@ -2462,8 +2462,8 @@ Rules:
 
   app.patch("/api/admin/users/:id", isAuthenticated, isAdminUser, async (req: any, res) => {
     try {
-      const { isAdmin, disabled } = req.body;
-      const updated = await storage.updateUser(req.params.id, { isAdmin, disabled });
+      const { isAdmin, disabled, role } = req.body;
+      const updated = await storage.updateUser(req.params.id, { isAdmin, disabled, ...(role !== undefined && { role }) });
       if (!updated) return res.status(404).json({ message: "User not found" });
       const { passwordHash: _, ...safeUser } = updated as any;
       res.json(safeUser);

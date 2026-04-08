@@ -271,7 +271,7 @@ export default function AdminPage() {
 
                         {/* Role dropdown */}
                         <select
-                          value={u.role || (u.isAdmin ? "admin" : "user")}
+                          value={u.isAdmin ? "admin" : "user"}
                           onChange={(e) => patchUser.mutate({ id: u.id, data: {
                             role: e.target.value,
                             isAdmin: e.target.value === "admin",
