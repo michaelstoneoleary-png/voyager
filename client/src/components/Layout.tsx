@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { 
-  Luggage, 
-  LayoutDashboard, 
+import {
+  Luggage,
+  LayoutDashboard,
   Settings,
   Menu,
   X,
@@ -13,6 +13,7 @@ import {
   History,
   Compass,
   Sparkles,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -192,8 +193,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
-                    isActive 
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" 
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -204,6 +205,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+
+          {(user as any)?.isAdmin && (
+            <Link href="/admin">
+              <div
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
+                  location === "/admin"
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <Shield className={cn("h-5 w-5", location === "/admin" ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
+                Admin
+              </div>
+            </Link>
+          )}
 
         </nav>
 

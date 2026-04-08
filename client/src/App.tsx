@@ -19,6 +19,7 @@ import Onboarding from "@/pages/Onboarding";
 import Settings from "@/pages/Settings";
 import SmsConsent from "@/pages/SmsConsent";
 import SharedJourney from "@/pages/SharedJourney";
+import AdminPage from "@/pages/Admin";
 import { UserProvider, useUser } from "@/lib/UserContext";
 import { TripProvider } from "@/lib/TripContext";
 import { useAuth } from "@/hooks/use-auth";
@@ -45,6 +46,20 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
 
   return <Component />;
+}
+
+function AdminRoute() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  if (!user) return <Redirect to="/login" />;
+  if (!(user as any).isAdmin) return <Redirect to="/" />;
+  return <AdminPage />;
 }
 
 function OnboardingRoute() {
@@ -105,6 +120,7 @@ function Router() {
       <Route path="/inspire">{() => <ProtectedRoute component={Inspire} />}</Route>
       <Route path="/history">{() => <ProtectedRoute component={PastJourneys} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={Settings} />}</Route>
+      <Route path="/admin">{() => <AdminRoute />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

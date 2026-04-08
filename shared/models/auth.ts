@@ -34,6 +34,8 @@ export const users = pgTable("users", {
   dateFormat: varchar("date_format").default("MM/DD/YYYY"),
   travelStyles: text("travel_styles").array(),
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  disabled: boolean("disabled").notNull().default(false),
   socialInstagram: varchar("social_instagram"),
   socialBlogUrl: varchar("social_blog_url"),
   socialYoutube: varchar("social_youtube"),

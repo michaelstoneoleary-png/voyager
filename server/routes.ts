@@ -2375,5 +2375,85 @@ Rules:
     }
   });
 
+  // ── Admin middleware ──────────────────────────────────────────────────────
+
+  async function isAdminUser(req: any, res: any, next: any) {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const user = await storage.getUser(userId);
+    if (!user?.isAdmin) return res.status(403).json({ message: "Forbidden" });
+    next();
+  }
+
+  // ── Admin API routes ──────────────────────────────────────────────────────
+
+  app.get("/api/admin/stats", isAuthenticated, isAdminUser, async (_req, res) => {
+    try {
+      const stats = await storage.getAdminStats();
+      res.json(stats);
+    } catch (err) {
+      console.error("Admin stats error:", err);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  app.get("/api/admin/users", isAuthenticated, isAdminUser, async (req: any, res) => {
+    try {
+      const search = (req.query.search as string) || undefined;
+      const limit  = Math.min(parseInt(String(req.query.limit  || "50"), 10), 200);
+      const offset = parseInt(String(req.query.offset || "0"), 10);
+      const users  = await storage.getAllUsers(search, limit, offset);
+      res.json(users.map(({ passwordHash: _, ...u }) => u));
+    } catch (err) {
+      console.error("Admin users error:", err);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/admin/users/:id", isAuthenticated, isAdminUser, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const [journeys, trips] = await Promise.all([
+        storage.getJourneys(req.params.id),
+        storage.getPastTrips(req.params.id),
+      ]);
+      const { passwordHash: _, ...safeUser } = user as any;
+      res.json({ user: safeUser, journeys, pastTrips: trips });
+    } catch (err) {
+      console.error("Admin user detail error:", err);
+      res.status(500).json({ message: "Failed to fetch user detail" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id", isAuthenticated, isAdminUser, async (req: any, res) => {
+    try {
+      const { isAdmin, disabled } = req.body;
+      const updated = await storage.updateUser(req.params.id, { isAdmin, disabled });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      const { passwordHash: _, ...safeUser } = updated as any;
+      res.json(safeUser);
+    } catch (err) {
+      console.error("Admin update user error:", err);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", isAuthenticated, isAdminUser, async (req: any, res) => {
+    try {
+      // Prevent self-deletion
+      const requestingId = getUserId(req);
+      if (req.params.id === requestingId) {
+        return res.status(400).json({ message: "Cannot delete your own account via admin" });
+      }
+      const ok = await storage.deleteUserAccount(req.params.id);
+      if (!ok) return res.status(404).json({ message: "User not found" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Admin delete user error:", err);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
   return httpServer;
 }
