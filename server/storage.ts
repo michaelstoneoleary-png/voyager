@@ -10,7 +10,7 @@ import {
   userActivityFeedback,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, ilike, gte, count, sql } from "drizzle-orm";
 
 function toTitleCase(str: string): string {
   return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
@@ -66,6 +66,11 @@ export interface IStorage {
   recordActivityFeedback(data: { userId: string; journeyId?: string; activityTitle: string; activityType?: string; location?: string; signal: "liked" | "hard_reject" }): Promise<void>;
   getHardRejectedTitles(userId: string): Promise<string[]>;
   getActivityFeedbackSignals(userId: string): Promise<Array<{ signal: string; activityType: string | null }>>;
+
+  // Admin
+  getAllUsers(search?: string, limit?: number, offset?: number): Promise<User[]>;
+  getAdminStats(): Promise<{ totalUsers: number; newUsersThisWeek: number; newUsersThisMonth: number; totalJourneys: number; totalPastTrips: number; activeUsersThisWeek: number }>;
+  deleteUserAccount(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -308,6 +313,63 @@ export class DatabaseStorage implements IStorage {
     return db.select({ signal: userActivityFeedback.signal, activityType: userActivityFeedback.activityType })
       .from(userActivityFeedback)
       .where(eq(userActivityFeedback.userId, userId));
+  }
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+
+  async getAllUsers(search?: string, limit = 50, offset = 0): Promise<User[]> {
+    if (search) {
+      const pattern = `%${search}%`;
+      return db.select().from(users)
+        .where(or(ilike(users.email, pattern), ilike(users.firstName, pattern), ilike(users.lastName, pattern)))
+        .orderBy(desc(users.createdAt))
+        .limit(limit)
+        .offset(offset);
+    }
+    return db.select().from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getAdminStats() {
+    const weekAgo  = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [{ value: totalUsers }]        = await db.select({ value: count() }).from(users);
+    const [{ value: newUsersThisWeek }]  = await db.select({ value: count() }).from(users).where(gte(users.createdAt, weekAgo));
+    const [{ value: newUsersThisMonth }] = await db.select({ value: count() }).from(users).where(gte(users.createdAt, monthAgo));
+    const [{ value: totalJourneys }]     = await db.select({ value: count() }).from(journeys);
+    const [{ value: totalPastTrips }]    = await db.select({ value: count() }).from(pastTrips);
+    const activeRows = await db.selectDistinct({ userId: journeys.userId }).from(journeys).where(gte(journeys.updatedAt, weekAgo));
+
+    return {
+      totalUsers,
+      newUsersThisWeek,
+      newUsersThisMonth,
+      totalJourneys,
+      totalPastTrips,
+      activeUsersThisWeek: activeRows.length,
+    };
+  }
+
+  async deleteUserAccount(id: string): Promise<boolean> {
+    const user = await this.getUser(id);
+    if (!user) return false;
+    await db.transaction(async (tx) => {
+      const userJourneys = await tx.select({ id: journeys.id }).from(journeys).where(eq(journeys.userId, id));
+      for (const j of userJourneys) {
+        await tx.delete(journeyMembers).where(eq(journeyMembers.journeyId, j.id));
+        await tx.delete(pastTrips).where(eq(pastTrips.journeyId, j.id));
+      }
+      await tx.delete(journeys).where(eq(journeys.userId, id));
+      await tx.delete(pastTrips).where(eq(pastTrips.userId, id));
+      await tx.delete(bookmarks).where(eq(bookmarks.userId, id));
+      await tx.delete(packingLists).where(eq(packingLists.userId, id));
+      await tx.delete(userActivityFeedback).where(eq(userActivityFeedback.userId, id));
+      await tx.delete(users).where(eq(users.id, id));
+    });
+    return true;
   }
 }
 

@@ -4,15 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Calendar, 
-  Clock, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Calendar,
+  Clock,
   Wallet,
   MoreHorizontal,
   Plus,
   Info,
   TrendingUp,
-  Users
+  Users,
+  Archive,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -21,26 +30,49 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NewTripDialog } from "@/components/NewTripDialog";
 import { Link } from "wouter";
 import { useTrips } from "@/lib/TripContext";
+import { apiRequest } from "@/lib/queryClient";
 
 const DEFAULT_IMAGE = "/images/destinations/city.jpg";
 
 export default function Journeys() {
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { trips } = useTrips();
+  const queryClient = useQueryClient();
 
-  const upcomingJourneys = trips.filter(t => t.status !== "Completed");
-  const pastJourneys = trips.filter(t => t.status === "Completed");
+  const upcomingJourneys = trips.filter(t => t.status !== "Completed" && t.status !== "Archived");
+  const pastJourneys     = trips.filter(t => t.status === "Completed");
+  const archivedJourneys = trips.filter(t => t.status === "Archived");
+
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/journeys/${id}`, { status: "Archived" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/journeys"] }),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/journeys/${id}`, { status: "Planning" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/journeys"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/journeys/${id}`),
+    onSuccess: () => {
+      setConfirmDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
+    },
+  });
 
   return (
     <>
-      <NewTripDialog 
-        open={isNewTripOpen} 
-        onOpenChange={setIsNewTripOpen} 
+      <NewTripDialog
+        open={isNewTripOpen}
+        onOpenChange={setIsNewTripOpen}
       />
-      
+
       <Layout>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-center justify-between">
@@ -48,8 +80,8 @@ export default function Journeys() {
               <h1 className="font-serif text-3xl font-bold">Your Journeys</h1>
               <p className="text-muted-foreground">Manage your upcoming adventures and relive past memories.</p>
             </div>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
               onClick={() => setIsNewTripOpen(true)}
             >
@@ -58,9 +90,12 @@ export default function Journeys() {
           </div>
 
         <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
             <TabsTrigger value="upcoming">Upcoming & Planning</TabsTrigger>
             <TabsTrigger value="past">Past Journeys</TabsTrigger>
+            <TabsTrigger value="archived">
+              Archived{archivedJourneys.length > 0 && ` (${archivedJourneys.length})`}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="upcoming" className="space-y-6">
@@ -70,9 +105,9 @@ export default function Journeys() {
                   <DialogTrigger asChild>
                     <Card className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors flex flex-col h-full text-left">
                       <div className="aspect-[16/9] relative overflow-hidden">
-                        <img 
-                          src={trip.image || DEFAULT_IMAGE} 
-                          alt={trip.title} 
+                        <img
+                          src={trip.image || DEFAULT_IMAGE}
+                          alt={trip.title}
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -92,11 +127,28 @@ export default function Journeys() {
                       <CardContent className="p-5 flex-1 flex flex-col">
                         <div className="flex justify-between items-start mb-2">
                            <h3 className="font-serif text-xl font-bold leading-tight group-hover:text-primary transition-colors">{trip.title}</h3>
-                           <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 -mt-1 text-muted-foreground">
-                             <MoreHorizontal className="h-4 w-4" />
-                           </Button>
+                           <DropdownMenu>
+                             <DropdownMenuTrigger asChild>
+                               <Button
+                                 variant="ghost" size="icon"
+                                 className="h-6 w-6 -mr-2 -mt-1 text-muted-foreground"
+                                 onClick={(e) => e.stopPropagation()}
+                                 onPointerDown={(e) => e.stopPropagation()}
+                               >
+                                 <MoreHorizontal className="h-4 w-4" />
+                               </Button>
+                             </DropdownMenuTrigger>
+                             <DropdownMenuContent align="end">
+                               <DropdownMenuItem
+                                 onClick={() => archiveMutation.mutate(trip.id)}
+                                 className="gap-2"
+                               >
+                                 <Archive className="h-4 w-4" /> Archive journey
+                               </DropdownMenuItem>
+                             </DropdownMenuContent>
+                           </DropdownMenu>
                         </div>
-                        
+
                         <div className="text-sm text-muted-foreground mb-4 space-y-1">
                            <div className="flex items-center gap-2">
                              <Calendar className="h-3.5 w-3.5" /> {trip.dates || "No dates"}
@@ -117,12 +169,12 @@ export default function Journeys() {
                       </CardContent>
                     </Card>
                   </DialogTrigger>
-                  
+
                   <DialogContent className="sm:max-w-[600px] overflow-hidden p-0">
                     <div className="relative h-48 w-full">
-                      <img 
-                        src={trip.image || DEFAULT_IMAGE} 
-                        alt={trip.title} 
+                      <img
+                        src={trip.image || DEFAULT_IMAGE}
+                        alt={trip.title}
                         className="absolute inset-0 w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-black/40" />
@@ -270,9 +322,9 @@ export default function Journeys() {
                   </DialogContent>
                 </Dialog>
               ))}
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 className="h-full min-h-[300px] flex flex-col gap-4 border-dashed text-muted-foreground hover:text-foreground hover:bg-muted/30 cursor-pointer w-full"
                 onClick={() => setIsNewTripOpen(true)}
               >
@@ -300,9 +352,9 @@ export default function Journeys() {
                 <Link key={trip.id} href={`/planner/${trip.id}`}>
                   <Card className="group overflow-hidden cursor-pointer hover:border-primary/50 transition-colors opacity-80 hover:opacity-100" data-testid={`card-past-journey-${trip.id}`}>
                     <div className="aspect-[16/9] relative overflow-hidden">
-                      <img 
-                        src={trip.image || DEFAULT_IMAGE} 
-                        alt={trip.title} 
+                      <img
+                        src={trip.image || DEFAULT_IMAGE}
+                        alt={trip.title}
                         className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
                       />
                       <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
@@ -323,6 +375,80 @@ export default function Journeys() {
                 </Link>
               ))}
             </div>
+          </TabsContent>
+
+          <TabsContent value="archived" className="space-y-6">
+            {archivedJourneys.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Archive className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No archived journeys.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {archivedJourneys.map(trip => (
+                  <Card key={trip.id} className="overflow-hidden opacity-70 hover:opacity-90 transition-opacity">
+                    <div className="aspect-[16/9] relative overflow-hidden">
+                      <img
+                        src={trip.image || DEFAULT_IMAGE}
+                        alt={trip.title}
+                        className="absolute inset-0 w-full h-full object-cover grayscale"
+                      />
+                      <div className="absolute inset-0 bg-black/50" />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="font-serif text-lg font-bold text-white leading-tight">{trip.title}</h3>
+                        {trip.dates && <p className="text-xs text-white/70 mt-0.5">{trip.dates}</p>}
+                      </div>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-muted-foreground mb-4">
+                        {trip.days && <span>{trip.days} days</span>}
+                        {trip.days && trip.cost && " · "}
+                        {trip.cost && <span>{trip.cost}</span>}
+                      </div>
+
+                      {confirmDeleteId === trip.id ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-destructive font-medium">Delete permanently? This cannot be undone.</p>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => deleteMutation.mutate(trip.id)}
+                            >
+                              {deleteMutation.isPending ? "Deleting..." : "Yes, delete"}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            disabled={restoreMutation.isPending}
+                            onClick={() => restoreMutation.mutate(trip.id)}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" /> Restore
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setConfirmDeleteId(trip.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Delete permanently
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

@@ -69,6 +69,10 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
+      if (user.disabled) {
+        return res.status(403).json({ message: "This account has been suspended. Please contact support." });
+      }
+
       req.login({ userId: user.id, authProvider: "local" }, (err: any) => {
         if (err) {
           console.error("Session login error:", err);
