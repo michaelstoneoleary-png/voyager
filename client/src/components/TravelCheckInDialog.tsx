@@ -168,19 +168,24 @@ export function TravelCheckInDialog({ userId, firstName, passportCountry, journe
             <DialogHeader>
               <DialogTitle className="font-serif text-xl">Hey {firstName}!</DialogTitle>
               <DialogDescription className="text-base pt-1">
-                You planned a trip to <strong>{destination}</strong> — did you make it?
+                You planned a trip to <strong className="text-foreground">{destination}</strong> — did you make it?
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={handleNeverAskAgain} className="text-muted-foreground">
-                Don't ask about this journey again
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleAskLater}>
-                Ask me later
-              </Button>
-              <Button size="sm" onClick={handleYes}>
-                Yes, I went! ✓
-              </Button>
+            <DialogFooter className="flex-col gap-2 pt-2">
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={handleAskLater}>
+                  Ask me later
+                </Button>
+                <Button size="sm" onClick={handleYes}>
+                  Yes, I went! ✓
+                </Button>
+              </div>
+              <button
+                onClick={handleNeverAskAgain}
+                className="text-xs text-muted-foreground hover:text-foreground text-center transition-colors"
+              >
+                Maybe someday!
+              </button>
             </DialogFooter>
           </>
         )}
