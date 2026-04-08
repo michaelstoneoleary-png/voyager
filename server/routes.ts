@@ -1296,8 +1296,7 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       const budget         = (req.query.budget    as string) || "midrange";
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
 
-      const [journeys, pastTrips, feedbackRows] = await Promise.all([
-        storage.getJourneys(userId),
+      const [pastTrips, feedbackRows] = await Promise.all([
         storage.getPastTrips(userId),
         storage.getActivityFeedbackSignals(userId),
       ]);
@@ -1312,10 +1311,7 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       const likedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
       const rejectedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "hard_reject").map(r => r.activityType).filter(Boolean))];
 
-      const visitedPlaces = [
-        ...journeys.map(j => [j.origin, ...(j.destinations as string[] || []), j.finalDestination].filter(Boolean)).flat(),
-        ...pastTrips.map(t => t.destination).filter(Boolean),
-      ];
+      const visitedPlaces = pastTrips.map(t => t.destination).filter(Boolean);
       const uniqueVisited = Array.from(new Set(visitedPlaces.filter((p): p is string => !!p)));
 
       // Human-readable qualifier descriptions for the prompt
@@ -1526,7 +1522,7 @@ ${candidateBlock}TRAVELER PROFILE:
 - Home: ${homeLocation || "Not specified"}
 - Passport: ${passportCountry || "Not specified"}
 - Travel styles: ${travelStyles.length > 0 ? travelStyles.join(", ") : "Not specified"}
-- Places already visited/planned: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}${likedActivityTypes.length > 0 ? `\n- Enjoys: ${likedActivityTypes.join(", ")} activities (from past likes — lean into destinations where these shine)` : ""}${rejectedActivityTypes.length > 0 ? `\n- Avoids: ${rejectedActivityTypes.join(", ")} activities (from past rejections — deprioritise destinations that are mainly about these)` : ""}
+- Places already visited: ${uniqueVisited.length > 0 ? uniqueVisited.join(", ") : "None yet"}${likedActivityTypes.length > 0 ? `\n- Enjoys: ${likedActivityTypes.join(", ")} activities (from past likes — lean into destinations where these shine)` : ""}${rejectedActivityTypes.length > 0 ? `\n- Avoids: ${rejectedActivityTypes.join(", ")} activities (from past rejections — deprioritise destinations that are mainly about these)` : ""}
 
 TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all of these):
 - Duration: ${durationDesc}
