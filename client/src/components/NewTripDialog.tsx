@@ -159,12 +159,16 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       ? allStops[0]
       : (finalDest && origin && finalDest.toLowerCase().trim() !== origin.toLowerCase().trim() ? finalDest : null);
 
+    const actualDays = (formData.dateType === "fixed" && formData.startDate && formData.endDate)
+      ? Math.round((new Date(formData.endDate).getTime() - new Date(formData.startDate).getTime()) / 86400000) + 1
+      : formData.duration;
+
     addTrip({
       title: titleDest ? `Journey to ${titleDest}` : "New Adventure",
       origin,
       finalDestination: finalDest,
       dates: datesStr,
-      days: formData.duration,
+      days: actualDays,
       cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
       status: "Planning",
       destinations: allStops,

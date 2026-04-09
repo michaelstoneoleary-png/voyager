@@ -331,14 +331,33 @@ export default function TripPlanner() {
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
 
-  // Travel dates — derive startDate from journey.dates if it contains an ISO date
+  // Travel dates — derive startDate from journey.dates in any format
   const parsedStartDate = useMemo(() => {
     const raw = (journey as any)?.dates as string | undefined;
     if (!raw) return "";
-    // Try to find a parseable date: "Mar 15–22, 2026" → try first date
+    // ISO format
     const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2})/);
     if (isoMatch) return isoMatch[1];
+    // Friendly fixed range: "Apr 24 - Apr 28, 2026"
+    const friendlyMatch = raw.match(/^([A-Za-z]+ \d{1,2})\s*[-–]\s*[A-Za-z]+ \d{1,2},\s*(\d{4})/);
+    if (friendlyMatch) {
+      const d = new Date(`${friendlyMatch[1]}, ${friendlyMatch[2]}`);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
+    // Month-only: "May 2026"
+    const monthMatch = raw.match(/^([A-Za-z]+)\s+(\d{4})$/);
+    if (monthMatch) {
+      const d = new Date(`${monthMatch[1]} 1, ${monthMatch[2]}`);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
     return "";
+  }, [(journey as any)?.dates]);
+
+  // True when journey has fixed or month-selected dates (not "Flexible ..." or "TBD")
+  const hasFixedDates = useMemo(() => {
+    const raw = (journey as any)?.dates as string | undefined;
+    if (!raw || raw === "TBD") return false;
+    return !raw.startsWith("Flexible");
   }, [(journey as any)?.dates]);
 
   const [startDate, setStartDate] = useState<string>("");
@@ -390,6 +409,17 @@ export default function TripPlanner() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+    },
+  });
+
+  const monthSaveMutation = useMutation({
+    mutationFn: async (monthLabel: string) => {
+      const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, { dates: monthLabel });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+      setBriefStep(4);
     },
   });
 
@@ -774,12 +804,13 @@ export default function TripPlanner() {
               .slice(0, 6);
 
             // Step dots
+            const totalSteps = hasFixedDates ? 3 : 4;
             const StepDots = ({ current }: { current: number }) => (
               <div className="flex items-center gap-1.5 mb-4">
-                {[1, 2, 3, 4].map(n => (
+                {Array.from({ length: totalSteps }, (_, i) => i + 1).map(n => (
                   <div key={n} className={`h-2 w-2 rounded-full transition-colors ${n <= current ? "bg-primary" : "bg-muted"}`} />
                 ))}
-                <span className="text-xs text-muted-foreground ml-1">Step {current} of 4</span>
+                <span className="text-xs text-muted-foreground ml-1">Step {current} of {totalSteps}</span>
               </div>
             );
 
@@ -878,10 +909,10 @@ export default function TripPlanner() {
                       data-testid="input-wishlist"
                     />
                     <div className="flex justify-between pt-1">
-                      <Button variant="ghost" size="sm" onClick={() => { setWishlist(""); setBriefStep(3); }}>
+                      <Button variant="ghost" size="sm" onClick={() => { setWishlist(""); setBriefStep(hasFixedDates ? 4 : 3); }}>
                         Skip — let Marco choose
                       </Button>
-                      <Button size="sm" onClick={() => setBriefStep(3)}>Next →</Button>
+                      <Button size="sm" onClick={() => setBriefStep(hasFixedDates ? 4 : 3)}>Next →</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -889,53 +920,44 @@ export default function TripPlanner() {
             }
 
             if (briefStep === 3) {
+              // Build next 12 months for month picker
+              const months: { label: string; short: string; year: number }[] = [];
+              const now = new Date();
+              for (let i = 1; i <= 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                months.push({
+                  label: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+                  short: d.toLocaleDateString("en-US", { month: "short" }),
+                  year: d.getFullYear(),
+                });
+              }
+
               return (
                 <Card className="w-full">
                   <CardContent className="pt-6 pb-5 space-y-4">
                     <MarcoAvatar />
                     <StepDots current={3} />
                     <div>
-                      <h2 className="font-serif text-xl font-semibold mb-1">When are you thinking of going?</h2>
+                      <h2 className="font-serif text-xl font-semibold mb-1">Which month are you thinking?</h2>
                       <p className="text-xs text-muted-foreground">
-                        {startDate && formattedDateRange
-                          ? `You're planning ${tripDays ? `${tripDays} days` : "a trip"} — I'll plan around ${formattedDateRange}. Want to adjust the start date?`
-                          : "Setting a start date lets me plan around real days, local events, and seasonal conditions."}
+                        This helps me factor in weather, events, and seasonal highlights.
                       </p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-                      <div className="flex-1">
-                        <label className="text-xs text-muted-foreground mb-1.5 block">Start date</label>
-                        <input
-                          type="date"
-                          value={startDate}
-                          min={new Date().toISOString().split("T")[0]}
-                          onChange={(e) => {
-                            setStartDate(e.target.value);
-                            if (e.target.value) dateSaveMutation.mutate(e.target.value);
-                          }}
-                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        />
-                      </div>
-                      {endDate && (
-                        <div className="flex-1">
-                          <label className="text-xs text-muted-foreground mb-1.5 block">End date</label>
-                          <div className="flex h-9 items-center px-3 rounded-md border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
-                            {new Date(endDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                          </div>
-                        </div>
-                      )}
+                    <div className="grid grid-cols-3 gap-2">
+                      {months.map((m) => (
+                        <button
+                          key={m.label}
+                          onClick={() => monthSaveMutation.mutate(m.label)}
+                          disabled={monthSaveMutation.isPending}
+                          className="rounded-xl border-2 border-border bg-background px-2 py-3 text-center hover:border-primary/50 transition-all disabled:opacity-50"
+                        >
+                          <div className="text-sm font-semibold">{m.short}</div>
+                          <div className="text-xs text-muted-foreground">{m.year}</div>
+                        </button>
+                      ))}
                     </div>
-                    {formattedDateRange && (
-                      <p className="text-xs text-primary font-medium flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {formattedDateRange}{tripDays ? ` · ${tripDays} day${tripDays !== 1 ? "s" : ""}` : ""}
-                        {dateSaveMutation.isPending && <span className="text-muted-foreground font-normal ml-1">Saving…</span>}
-                        {dateSaveMutation.isSuccess && !dateSaveMutation.isPending && <span className="text-emerald-600 font-normal ml-1">Saved</span>}
-                      </p>
-                    )}
-                    <div className="flex justify-between pt-1">
-                      <Button variant="ghost" size="sm" onClick={() => setBriefStep(4)}>Dates are flexible</Button>
-                      <Button size="sm" onClick={() => setBriefStep(4)}>Next →</Button>
+                    <div className="flex justify-end pt-1">
+                      <Button variant="ghost" size="sm" onClick={() => setBriefStep(4)}>Not sure yet →</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -947,7 +969,7 @@ export default function TripPlanner() {
               <Card className="w-full">
                 <CardContent className="pt-6 pb-5 space-y-4">
                   <MarcoAvatar />
-                  <StepDots current={4} />
+                  <StepDots current={totalSteps} />
                   <div>
                     <h2 className="font-serif text-xl font-semibold mb-1">Anything else I should know?</h2>
                     <p className="text-xs text-muted-foreground">
