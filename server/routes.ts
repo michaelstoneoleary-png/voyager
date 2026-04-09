@@ -8,6 +8,7 @@ import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, update
 import Anthropic from "@anthropic-ai/sdk";
 import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
+import { sendInviteEmail } from "./lib/email";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 import multer from "multer";
@@ -2633,6 +2634,86 @@ Rules:
     } catch (error) {
       console.error("Error fetching usage summary:", error);
       res.status(500).json({ error: "Failed to fetch usage summary" });
+    }
+  });
+
+  // ── Invite routes ────────────────────────────────────────────────────────────
+
+  // Validate an invite token (public — used by registration page)
+  app.get("/api/invites/:token", async (req, res) => {
+    try {
+      const invite = await storage.getInviteByToken(req.params.token);
+      if (!invite) return res.status(404).json({ error: "Invite not found" });
+      if (invite.expiresAt < new Date()) return res.status(410).json({ error: "Invite has expired" });
+      if (invite.acceptedAt) return res.status(409).json({ error: "Invite already used" });
+
+      // Return safe public info (no PII from the inviter beyond first name)
+      let inviterName: string | null = null;
+      if (invite.invitedBy) {
+        const inviter = await storage.getUser(invite.invitedBy);
+        inviterName = inviter ? (inviter.firstName || inviter.displayName || "A friend") : null;
+      }
+      res.json({ valid: true, email: invite.email, inviterName, note: invite.note });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to validate invite" });
+    }
+  });
+
+  // Create an invite (any authenticated user)
+  app.post("/api/invites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { email, note } = req.body || {};
+      const invite = await storage.createInvite({ email: email || undefined, invitedBy: userId, note: note || undefined });
+
+      if (email) {
+        const inviter = await storage.getUser(userId);
+        const fromName = inviter ? (inviter.firstName || inviter.displayName || "A Voyager user") : "A Voyager user";
+        await sendInviteEmail(email, fromName, invite.token, note || undefined);
+      }
+
+      const appUrl = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+      res.json({ token: invite.token, link: `${appUrl}/register?invite=${invite.token}` });
+    } catch (err) {
+      console.error("Error creating invite:", err);
+      res.status(500).json({ error: "Failed to create invite" });
+    }
+  });
+
+  // List invites sent by the current user
+  app.get("/api/invites", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const userInvites = await storage.getInvitesByUser(userId);
+      const appUrl = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+      res.json(userInvites.map(inv => ({
+        ...inv,
+        link: `${appUrl}/register?invite=${inv.token}`,
+        expired: inv.expiresAt < new Date(),
+      })));
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch invites" });
+    }
+  });
+
+  // Admin: create an invite on behalf of any user (same logic, just auth check)
+  app.post("/api/admin/invites", isAuthenticated, isAdminUser, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { email, note } = req.body || {};
+      const invite = await storage.createInvite({ email: email || undefined, invitedBy: userId, note: note || undefined });
+
+      if (email) {
+        const inviter = await storage.getUser(userId);
+        const fromName = inviter ? (inviter.firstName || inviter.displayName || "The Voyager team") : "The Voyager team";
+        await sendInviteEmail(email, fromName, invite.token, note || undefined);
+      }
+
+      const appUrl = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+      res.json({ token: invite.token, link: `${appUrl}/register?invite=${invite.token}` });
+    } catch (err) {
+      console.error("Error creating admin invite:", err);
+      res.status(500).json({ error: "Failed to create invite" });
     }
   });
 

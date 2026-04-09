@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, UserPlus, Gift } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -35,9 +35,24 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteInfo, setInviteInfo] = useState<{ inviterName: string | null; note: string | null } | null>(null);
 
   const params = new URLSearchParams(window.location.search);
+  const inviteToken = params.get("invite");
   const errorParam = params.get("error");
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    fetch(`/api/invites/${inviteToken}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        setInviteInfo({ inviterName: data.inviterName, note: data.note });
+        if (data.email && !email) setEmail(data.email);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inviteToken]);
   const oauthError = errorParam === "google"
     ? "Google sign-up failed. Please try again."
     : errorParam === "apple"
@@ -54,7 +69,7 @@ export default function Register() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password, firstName, lastName: lastName || undefined }),
+        body: JSON.stringify({ email, password, firstName, lastName: lastName || undefined, inviteToken: inviteToken || undefined }),
       });
 
       if (!res.ok) {
@@ -93,6 +108,17 @@ export default function Register() {
             <CardDescription>Join Voyager and start planning your journeys</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {inviteInfo && (
+              <div className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2.5">
+                <Gift className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">
+                    {inviteInfo.inviterName ? `${inviteInfo.inviterName} invited you!` : "You have an invitation!"}
+                  </p>
+                  {inviteInfo.note && <p className="text-muted-foreground mt-0.5">{inviteInfo.note}</p>}
+                </div>
+              </div>
+            )}
             {(oauthError || error) && (
               <p className="text-sm text-destructive" data-testid="text-register-error">{oauthError || error}</p>
             )}
@@ -103,11 +129,9 @@ export default function Register() {
                 <GoogleIcon /> Sign up with Google
               </Button>
             </a>
-            <a href="/api/auth/apple" className="block">
-              <Button variant="outline" className="w-full gap-2" type="button">
-                <AppleIcon /> Sign up with Apple
-              </Button>
-            </a>
+            <Button variant="outline" className="w-full gap-2 opacity-40 cursor-not-allowed" type="button" disabled>
+              <AppleIcon /> Sign up with Apple
+            </Button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

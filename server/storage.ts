@@ -10,6 +10,7 @@ import {
   voyages, type Voyage, type InsertVoyage,
   userActivityFeedback,
   destinationSuggestionsCache,
+  invites, type Invite,
 } from "@shared/schema";
 
 export interface CachedDestinationSuggestion {
@@ -86,6 +87,12 @@ export interface IStorage {
   getApiUsageSummary(opts?: { startDate?: Date; endDate?: Date }): Promise<Array<{ userId: string; firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>>;
   getCachedDestinationSuggestions(cacheKey: string): Promise<CachedDestinationSuggestion[] | null>;
   setCachedDestinationSuggestions(cacheKey: string, suggestions: CachedDestinationSuggestion[]): Promise<void>;
+
+  // Invites
+  createInvite(data: { email?: string; invitedBy?: string; note?: string }): Promise<Invite>;
+  getInviteByToken(token: string): Promise<Invite | null>;
+  getInvitesByUser(userId: string): Promise<Invite[]>;
+  acceptInvite(token: string, acceptedBy: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -452,6 +459,39 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(users).where(eq(users.id, id));
     });
     return true;
+  }
+
+  // ── Invites ──────────────────────────────────────────────────────────────────
+
+  async createInvite(data: { email?: string; invitedBy?: string; note?: string }): Promise<Invite> {
+    const { randomBytes } = await import("crypto");
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const [invite] = await db.insert(invites).values({
+      token,
+      email: data.email || null,
+      invitedBy: data.invitedBy || null,
+      note: data.note || null,
+      expiresAt,
+    }).returning();
+    return invite;
+  }
+
+  async getInviteByToken(token: string): Promise<Invite | null> {
+    const [invite] = await db.select().from(invites).where(eq(invites.token, token));
+    return invite || null;
+  }
+
+  async getInvitesByUser(userId: string): Promise<Invite[]> {
+    return db.select().from(invites)
+      .where(eq(invites.invitedBy, userId))
+      .orderBy(desc(invites.createdAt));
+  }
+
+  async acceptInvite(token: string, acceptedBy: string): Promise<void> {
+    await db.update(invites)
+      .set({ acceptedAt: new Date(), acceptedBy })
+      .where(eq(invites.token, token));
   }
 }
 
