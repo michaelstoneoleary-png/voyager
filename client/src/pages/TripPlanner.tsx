@@ -716,7 +716,7 @@ export default function TripPlanner() {
                   if (e.key === "Enter" && titleDraft.trim()) renameMutation.mutate(titleDraft.trim());
                   if (e.key === "Escape") setEditingTitle(false);
                 }}
-                className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none text-center mb-2 w-full max-w-sm"
+                className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none text-center mb-2 w-full sm:max-w-sm"
               />
             ) : (
               <h1
@@ -1017,7 +1017,7 @@ export default function TripPlanner() {
                       if (e.key === "Enter" && titleDraft.trim()) renameMutation.mutate(titleDraft.trim());
                       if (e.key === "Escape") setEditingTitle(false);
                     }}
-                    className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none max-w-sm"
+                    className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none w-full sm:max-w-sm"
                     data-testid="text-planner-title"
                   />
                 ) : (
@@ -1146,7 +1146,7 @@ export default function TripPlanner() {
           <div className="lg:col-span-1 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
               <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); setActivityMenu(null); setReplaceMode(null); }} className="w-full">
-                <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
+                <TabsList className="w-full justify-start overflow-x-auto gap-1 flex-nowrap h-auto pb-0.5">
                   {itinerary.days.map((d, idx) => (
                     <TabsTrigger key={idx} value={`day${idx}`} className="text-xs">
                       {d.date_label && d.date_label !== `Day ${d.day}` ? d.date_label : `Day ${d.day}`}
@@ -1755,7 +1755,7 @@ export default function TripPlanner() {
             onClick={() => setHotelModalCity(null)}
           >
             <div
-              className="bg-background rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+              className="bg-background rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300"
               onClick={e => e.stopPropagation()}
             >
               <div className="px-5 py-4 border-b flex items-center justify-between">

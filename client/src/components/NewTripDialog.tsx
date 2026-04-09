@@ -184,7 +184,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${step === 3 ? "sm:max-w-[900px]" : "sm:max-w-[600px]"} flex flex-col max-h-[90vh]`}>
+      <DialogContent className={`${step === 3 ? "w-[calc(100vw-1rem)] sm:w-full sm:max-w-[600px] md:max-w-[900px]" : "sm:max-w-[600px]"} flex flex-col max-h-[90vh]`}>
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl flex items-center gap-2">
             {step === 1 && <Users className="h-5 w-5 text-primary" />}
@@ -364,7 +364,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
               <div>
                 <p className="text-sm font-semibold text-foreground mb-1">How are you getting there?</p>
                 <p className="text-[11px] text-muted-foreground mb-3">Select all that apply</p>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {([
                     { value: "drive", label: "Drive",  sub: "Automobile",        Icon: Car   },
                     { value: "fly",   label: "Fly",    sub: "Air travel",         Icon: Plane },
@@ -422,7 +422,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
               {/* Budget Preferences — tile row */}
               <div className="pt-4 border-t">
                 <p className="text-sm font-semibold text-foreground mb-3">Budget</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {([
                     { value: "estimated", label: "Estimated",    sub: "Soft target"       },
                     { value: "fixed",     label: "Fixed Cap",    sub: "Strict limit"      },

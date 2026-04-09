@@ -159,7 +159,7 @@ export default function PastJourneys() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
-              <Card className="overflow-hidden border-sidebar-border h-[400px]">
+              <Card className="overflow-hidden border-sidebar-border h-[250px] sm:h-[400px]">
                 <CardHeader className="pb-2">
                    <div className="flex items-center justify-between">
                      <CardTitle className="font-serif text-xl flex items-center gap-2">
@@ -250,7 +250,7 @@ export default function PastJourneys() {
                 </TabsContent>
 
                 <TabsContent value="history">
-                  <Card className="border-sidebar-border h-[500px] flex flex-col">
+                  <Card className="border-sidebar-border h-[350px] sm:h-[500px] flex flex-col">
                     <CardHeader>
                       <CardTitle className="font-serif text-lg">Timeline</CardTitle>
                     </CardHeader>

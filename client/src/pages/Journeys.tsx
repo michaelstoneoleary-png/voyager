@@ -170,7 +170,7 @@ export default function Journeys() {
                     </Card>
                   </DialogTrigger>
 
-                  <DialogContent className="sm:max-w-[600px] overflow-hidden p-0">
+                  <DialogContent className="w-full sm:max-w-[600px] overflow-hidden p-0">
                     <div className="relative h-48 w-full">
                       <img
                         src={trip.image || DEFAULT_IMAGE}
@@ -255,7 +255,7 @@ export default function Journeys() {
                            {/* Logistics Mini-Grid */}
                            {trip.logistics && (
                              <div className="space-y-3">
-                               <div className="grid grid-cols-2 gap-3">
+                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   {(trip.logistics as any)?.visa && (
                                     <div className="bg-muted/30 p-3 rounded-lg border border-border">
                                       <span className="text-[10px] uppercase text-muted-foreground font-bold">Visa</span>
