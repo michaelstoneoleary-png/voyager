@@ -21,7 +21,7 @@ export interface CachedDestinationSuggestion {
   photoUrl: string | null;
 }
 import { db } from "./db";
-import { eq, and, desc, or, ilike, gte, gt, count, sql } from "drizzle-orm";
+import { eq, and, desc, or, ilike, gte, gt, count, sql, inArray } from "drizzle-orm";
 
 function toTitleCase(str: string): string {
   return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
@@ -419,7 +419,7 @@ export class DatabaseStorage implements IStorage {
     const userIds = [...userMap.keys()];
     if (userIds.length > 0) {
       const userRows = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
-        .from(users).where(sql`${users.id} = ANY(${userIds})`);
+        .from(users).where(inArray(users.id, userIds));
       for (const u of userRows) {
         const entry = userMap.get(u.id);
         if (entry) { entry.firstName = u.firstName; entry.lastName = u.lastName; entry.email = u.email; }
