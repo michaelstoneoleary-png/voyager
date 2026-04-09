@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM_ADDRESS = "Voyager <onboarding@resend.dev>";
+const FROM_ADDRESS = process.env.RESEND_FROM || "Voyager <onboarding@resend.dev>";
 const APP_URL = process.env.APP_URL || "https://voyager-7eka.onrender.com";
 
 export async function sendInviteEmail(
@@ -16,6 +16,7 @@ export async function sendInviteEmail(
     return;
   }
   const url = `${APP_URL}/register?invite=${token}`;
+  try {
   await resend.emails.send({
     from: FROM_ADDRESS,
     to,
@@ -110,6 +111,10 @@ export async function sendInviteEmail(
 </body>
 </html>`,
   });
+    console.log(`[email] Invite sent to ${to}`);
+  } catch (err) {
+    console.error(`[email] Failed to send invite to ${to}:`, err);
+  }
 }
 
 export async function sendVerificationEmail(
@@ -124,22 +129,27 @@ export async function sendVerificationEmail(
 
   const url = `${APP_URL}/verify-email?token=${token}`;
 
-  await resend.emails.send({
-    from: FROM_ADDRESS,
-    to,
-    subject: "Verify your Voyager account",
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-        <h2 style="font-size:22px;font-weight:700;margin-bottom:8px">Welcome to Voyager${firstName ? `, ${firstName}` : ""}!</h2>
-        <p style="color:#555;margin-bottom:24px">Please verify your email address to complete your account setup.</p>
-        <a href="${url}"
-           style="background:#2563eb;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-          Verify my email
-        </a>
-        <p style="color:#999;font-size:13px;margin-top:24px">
-          This link expires in 24 hours. If you didn't create a Voyager account, you can safely ignore this email.
-        </p>
-      </div>
-    `,
-  });
+  try {
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: "Verify your Voyager account",
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+          <h2 style="font-size:22px;font-weight:700;margin-bottom:8px">Welcome to Voyager${firstName ? `, ${firstName}` : ""}!</h2>
+          <p style="color:#555;margin-bottom:24px">Please verify your email address to complete your account setup.</p>
+          <a href="${url}"
+             style="background:#2563eb;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
+            Verify my email
+          </a>
+          <p style="color:#999;font-size:13px;margin-top:24px">
+            This link expires in 24 hours. If you didn't create a Voyager account, you can safely ignore this email.
+          </p>
+        </div>
+      `,
+    });
+    console.log(`[email] Verification sent to ${to}`);
+  } catch (err) {
+    console.error(`[email] Failed to send verification to ${to}:`, err);
+  }
 }
