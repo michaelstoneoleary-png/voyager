@@ -171,6 +171,7 @@ function RouteMap({
   onExpand,
   height = "100%",
   flyTo = null,
+  routePolyline = null,
 }: {
   orderedPoints: [number, number][];
   labels: string[];
@@ -179,6 +180,7 @@ function RouteMap({
   onExpand?: () => void;
   height?: string;
   flyTo?: [number, number] | null;
+  routePolyline?: [number, number][] | null;
 }) {
   return (
     <div className="relative rounded-xl overflow-hidden border border-border" style={{ height }}>
@@ -191,12 +193,18 @@ function RouteMap({
       >
         <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
 
-        {orderedPoints.length > 1 && (
+        {/* Road route (Google Directions) or straight-line fallback */}
+        {routePolyline && routePolyline.length > 1 ? (
+          <Polyline
+            positions={routePolyline}
+            pathOptions={{ color: "var(--primary)", weight: 3, opacity: 0.8 }}
+          />
+        ) : orderedPoints.length > 1 ? (
           <Polyline
             positions={orderedPoints}
             pathOptions={{ color: "var(--primary)", weight: 2, dashArray: "6 4", opacity: 0.8 }}
           />
-        )}
+        ) : null}
 
         {/* Route pins (added stops) */}
         {orderedPoints.map((pt, idx) => (
@@ -292,6 +300,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [mapFlyTo, setMapFlyTo] = useState<[number, number] | null>(null);
+  const [routePolyline, setRoutePolyline] = useState<[number, number][] | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -463,6 +472,29 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInternational]);
 
+  // Fetch actual road route from Google Directions when drive mode is selected
+  useEffect(() => {
+    const isDriving = formData.travelModes.includes("drive");
+    if (!isDriving || orderedPoints.length < 2) {
+      setRoutePolyline(null);
+      return;
+    }
+    const waypoints = orderedPoints.map(([lat, lng]) => ({ lat, lng }));
+    fetch("/api/places/directions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ waypoints }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.points?.length > 1) setRoutePolyline(data.points);
+        else setRoutePolyline(null);
+      })
+      .catch(() => setRoutePolyline(null));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderedPoints.length, formData.travelModes.join(",")]);
+
   // Fetch initial suggestions if origin is set and we have no suggestions yet
   useEffect(() => {
     if (formData.origin && suggestions.length === 0 && !suggestionsLoading) {
@@ -486,6 +518,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               onExpand={() => setMapExpanded(true)}
               height="100%"
               flyTo={mapFlyTo}
+              routePolyline={routePolyline}
             />
           </div>
 
@@ -744,6 +777,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               onAddSuggestion={addDestination}
               height="100%"
               flyTo={mapFlyTo}
+              routePolyline={routePolyline}
             />
           </div>
         </DialogContent>

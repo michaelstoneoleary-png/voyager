@@ -328,7 +328,7 @@ export default function Settings() {
             {/* Email invite */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Send by email</Label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   type="email"
                   placeholder="friend@example.com"
@@ -340,6 +340,7 @@ export default function Settings() {
                   size="sm"
                   onClick={() => sendInviteMutation.mutate({ email: inviteEmail, note: inviteNote || undefined })}
                   disabled={!inviteEmail || sendInviteMutation.isPending}
+                  className="sm:shrink-0"
                 >
                   {sendInviteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>

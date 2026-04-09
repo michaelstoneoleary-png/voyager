@@ -73,7 +73,7 @@ export default function Dashboard() {
             
             {activeTrip ? (
               <Card className="overflow-hidden border-sidebar-border shadow-md group relative">
-                <div className="absolute top-0 right-0 w-1/2 h-full">
+                <div className="absolute top-0 right-0 w-1/2 h-full hidden md:block">
                    <img 
                      src={activeTrip.image || heroTravel} 
                      alt="Travel" 
@@ -97,7 +97,7 @@ export default function Dashboard() {
                        </div>
                      </div>
 
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="bg-muted/30 p-3 rounded-lg border border-border">
                           <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Duration</span>
                           <div className="font-medium flex items-center gap-2">

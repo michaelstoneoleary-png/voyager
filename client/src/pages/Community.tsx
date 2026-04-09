@@ -58,7 +58,7 @@ function ArticleCard({
   return (
     <Card className="overflow-hidden border border-border bg-card/50 hover:bg-card transition-colors" data-testid={`card-article-${encodeURIComponent(link)}`}>
       {imageUrl && (
-        <div className="h-48 overflow-hidden">
+        <div className="h-32 sm:h-48 overflow-hidden">
           <img
             src={imageUrl}
             alt={title}
@@ -125,7 +125,7 @@ function SavedCard({ bookmark, onDelete, deletePending }: { bookmark: BookmarkIt
   return (
     <Card className="overflow-hidden border border-border bg-card/50 hover:bg-card transition-colors" data-testid={`card-bookmark-${bookmark.id}`}>
       {bookmark.imageUrl && (
-        <div className="h-48 overflow-hidden">
+        <div className="h-32 sm:h-48 overflow-hidden">
           <img
             src={bookmark.imageUrl}
             alt={bookmark.title}

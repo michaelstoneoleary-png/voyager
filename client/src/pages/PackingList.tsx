@@ -607,7 +607,7 @@ export default function PackingList() {
                   <Scale className="h-4 w-4 text-primary" />
                   <span className="text-xs font-bold uppercase tracking-wider text-primary">Weight Estimate</span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <div className="text-lg font-bold text-foreground" data-testid="text-contents-weight">{formatWeight(totalWeightGrams)}</div>
                     <span className="text-xs text-muted-foreground">Contents</span>
