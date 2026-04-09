@@ -502,9 +502,15 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
           ? `Round trip — the traveler returns home to ${journey.origin} at the end. ${journey.finalDestination} is the last travel stop. `
           : "";
 
-      const { wishlist } = req.body || {};
+      const { wishlist, vibes, extraContext } = req.body || {};
       const wishlistNote = wishlist && wishlist.trim()
         ? `\n\nThe traveler has specifically requested to include these places, activities, or interests in their itinerary:\n${wishlist}\n\nPrioritize incorporating these requests into the itinerary where possible, fitting them into the most logical days and times.`
+        : "";
+      const vibesNote = Array.isArray(vibes) && vibes.length > 0
+        ? `\n\nTRIP VIBE: The traveler has described this trip as: ${vibes.join(", ")}. Let this shape the tone, pacing, and activity mix — lean into these themes when choosing activities and experiences.`
+        : "";
+      const extraNote = extraContext && (extraContext as string).trim()
+        ? `\n\nADDITIONAL CONTEXT FROM THE TRAVELER: ${extraContext}`
         : "";
 
       const travelMode = (journey as any).travelMode || "mixed";
@@ -567,7 +573,7 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
         max_tokens: 32000,
         messages: [{
           role: "user",
-          content: `Create a detailed day-by-day travel itinerary for a ${days === 1 ? "day trip" : `${days}-day trip`} covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${days === 1 ? " This is a DAY TRIP — the traveler departs and returns home the same day. Do NOT include any hotel or accommodation recommendations." : ""}${datesNote}${hardRejectNote}${likedNote}${wishlistNote}${restaurantNote}
+          content: `Create a detailed day-by-day travel itinerary for a ${days === 1 ? "day trip" : `${days}-day trip`} covering: ${destinations}. ${originNote}${finalNote}Budget: ${budget} ${currency}.${days === 1 ? " This is a DAY TRIP — the traveler departs and returns home the same day. Do NOT include any hotel or accommodation recommendations." : ""}${datesNote}${hardRejectNote}${likedNote}${wishlistNote}${vibesNote}${extraNote}${restaurantNote}
 
 TRAVEL MODE: ${travelModeNote}
 
