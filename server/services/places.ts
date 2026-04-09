@@ -171,7 +171,7 @@ export async function searchRestaurants(params: SearchParams): Promise<PlaceResu
 
 export async function geocodeLocation(
   address: string
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<{ lat: number; lng: number; countryCode?: string } | null> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
   try {
@@ -184,7 +184,10 @@ export async function geocodeLocation(
     }
     const loc = data.results?.[0]?.geometry?.location;
     if (!loc) return null;
-    return { lat: loc.lat, lng: loc.lng };
+    const countryComponent = data.results?.[0]?.address_components?.find(
+      (c: { types: string[]; short_name: string }) => c.types.includes("country")
+    );
+    return { lat: loc.lat, lng: loc.lng, countryCode: countryComponent?.short_name };
   } catch (err) {
     console.error("[geocode] fetch threw for", address, err);
     return null;

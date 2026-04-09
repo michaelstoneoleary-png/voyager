@@ -17,11 +17,12 @@ import {
   X,
   Maximize2,
   Loader2,
+  Plane,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Coords { lat: number; lng: number }
+interface Coords { lat: number; lng: number; countryCode?: string }
 
 interface NearbySuggestion {
   name: string;
@@ -262,9 +263,9 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: name }),
       });
-      const data: { lat: number | null; lng: number | null } = await res.json();
+      const data: { lat: number | null; lng: number | null; countryCode?: string } = await res.json();
       if (data.lat !== null && data.lng !== null) {
-        const coords = { lat: data.lat, lng: data.lng };
+        const coords: Coords = { lat: data.lat, lng: data.lng, countryCode: data.countryCode };
         setCoordsCache((prev) => ({ ...prev, [name]: coords }));
         return coords;
       }
@@ -403,6 +404,21 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
   const travelRatio = tripMinutes > 0 ? travelMinutes / tripMinutes : 0;
   const barColor = travelRatio > 0.4 ? (travelRatio > 0.7 ? "bg-red-500" : "bg-amber-500") : "bg-primary";
 
+  // International detection — any destination in a different country than origin
+  const originCountry = formData.origin ? coordsCache[formData.origin]?.countryCode : undefined;
+  const isInternational = !!(originCountry && formData.destinations.some(dest => {
+    const dc = coordsCache[dest]?.countryCode;
+    return dc && dc !== originCountry;
+  }));
+
+  // Auto-add fly when international trip detected
+  useEffect(() => {
+    if (isInternational && !formData.travelModes.includes("fly")) {
+      setFormData(prev => ({ ...prev, travelModes: [...prev.travelModes, "fly"] }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInternational]);
+
   // Fetch initial suggestions if origin is set and we have no suggestions yet
   useEffect(() => {
     if (formData.origin && suggestions.length === 0 && !suggestionsLoading) {
@@ -428,6 +444,14 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               flyTo={mapFlyTo}
             />
           </div>
+
+          {/* International trip notice */}
+          {isInternational && (
+            <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-primary">
+              <Plane className="h-3.5 w-3.5 shrink-0" />
+              <span>International trip — <strong>fly</strong> added to your travel modes. Cruise support coming soon.</span>
+            </div>
+          )}
 
           {/* Nearby suggestions */}
           <div>
