@@ -28,7 +28,7 @@ import {
   Star,
   ExternalLink,
   ShieldCheck,
-  ListPlus,
+
   X,
   Building2,
   BedDouble,
@@ -179,6 +179,21 @@ const TRAVEL_MODE_LABELS: Record<string, string> = {
   ferry: "Ferry",
 };
 
+const VIBE_OPTIONS = [
+  { id: "adventure",   label: "Adventure & Thrills",    keywords: ["mountain","safari","canyon","trek","hike","national park","alps","andes","himalaya","kilimanjaro"] },
+  { id: "relax",       label: "Relax & Recharge",       keywords: ["beach","island","spa","coast","resort","bali","caribbean","maldives","hawaii","seychelles"] },
+  { id: "culture",     label: "Culture & History",      keywords: ["rome","athens","cairo","kyoto","istanbul","museum","ancient","ruins","acropolis","colosseum","florence","prague","vienna","budapest"] },
+  { id: "food",        label: "Food & Local Flavours",  keywords: ["tokyo","paris","barcelona","naples","street food","market","lyon","bologna","oaxaca","bangkok","singapore"] },
+  { id: "romance",     label: "Romance",                keywords: ["paris","santorini","venice","maldives","amalfi","monaco","bora bora","tuscany","capri","cinque terre"] },
+  { id: "nature",      label: "Nature & Scenery",       keywords: ["fjord","patagonia","amazon","yellowstone","lake","forest","national park","new zealand","iceland","norway","costa rica","galapagos"] },
+  { id: "city",        label: "City Exploration",       keywords: ["new york","london","tokyo","singapore","hong kong","amsterdam","berlin","dubai","sydney","los angeles","chicago","toronto"] },
+  { id: "wellness",    label: "Wellness & Mindfulness", keywords: ["bali","thailand","yoga","retreat","meditation","hot spring","ubud","chiang mai","sedona"] },
+  { id: "nightlife",   label: "Nightlife & Social",     keywords: ["berlin","ibiza","bangkok","new orleans","miami","las vegas","rio","montreal","amsterdam","seoul"] },
+  { id: "family",      label: "Family-Friendly",        keywords: ["disney","orlando","theme park","zoo","kid","legoland","universal","florida","anaheim"] },
+  { id: "photography", label: "Photography & Scenery",  keywords: ["patagonia","iceland","faroe","northern lights","scenic","santorini","dolomites","tuscany","cappadocia"] },
+  { id: "shopping",    label: "Shopping & Style",       keywords: ["milan","dubai","new york","tokyo","paris","london","hong kong","boutique","fashion","outlet"] },
+] as const;
+
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -293,8 +308,11 @@ export default function TripPlanner() {
 
   const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
-  const [wishlistItems, setWishlistItems] = useState<string[]>([]);
   const [inspireContext, setInspireContext] = useState<{ destination: string } | null>(null);
+  // Marco briefing state
+  const [briefStep, setBriefStep] = useState<"intro" | 1 | 2 | 3 | 4>("intro");
+  const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
+  const [anythingElse, setAnythingElse] = useState("");
   const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
   const marcoLiveRef = useRef<HTMLParagraphElement | null>(null);
   const marcoBufferRef = useRef<string>("");
@@ -308,7 +326,6 @@ export default function TripPlanner() {
   const [customReplaceText, setCustomReplaceText] = useState("");
   const [selectedHotelsPerCity, setSelectedHotelsPerCity] = useState<Record<string, Hotel>>({});
   const [hotelModalCity, setHotelModalCity] = useState<string | null>(null);
-  const wishlistInputRef = useRef<HTMLInputElement>(null);
 
   // Travel dates — derive startDate from journey.dates if it contains an ISO date
   const parsedStartDate = useMemo(() => {
@@ -330,7 +347,7 @@ export default function TripPlanner() {
     if (!raw) return;
     try {
       const ctx = JSON.parse(raw) as { tags: string[]; destination: string };
-      if (ctx.tags?.length) setWishlistItems(ctx.tags);
+      if (ctx.tags?.length) setWishlist(ctx.tags.join(", "));
       setInspireContext({ destination: ctx.destination });
     } catch {}
     localStorage.removeItem(`inspire_context_${journeyId}`);
@@ -485,21 +502,8 @@ export default function TripPlanner() {
     URL.revokeObjectURL(url);
   };
 
-  const addWishlistItem = () => {
-    const item = wishlist.trim();
-    if (item && !wishlistItems.includes(item)) {
-      setWishlistItems(prev => [...prev, item]);
-      setWishlist("");
-      wishlistInputRef.current?.focus();
-    }
-  };
-
-  const removeWishlistItem = (index: number) => {
-    setWishlistItems(prev => prev.filter((_, i) => i !== index));
-  };
-
   const generateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params?: { vibes?: string[]; extraContext?: string }) => {
       setMarcoParagraphs([]);
       marcoBufferRef.current = "";
       if (marcoLiveRef.current) marcoLiveRef.current.textContent = "";
@@ -544,9 +548,10 @@ export default function TripPlanner() {
         }
       }).catch(() => {});
 
-      const wishlistText = wishlistItems.length > 0 ? wishlistItems.join("\n- ") : "";
       const res = await apiRequest("POST", `/api/journeys/${journeyId}/generate-itinerary`, {
-        wishlist: wishlistText ? `- ${wishlistText}` : "",
+        wishlist: wishlist.trim(),
+        vibes: params?.vibes || [],
+        extraContext: params?.extraContext || "",
       });
       return res.json();
     },
@@ -695,107 +700,9 @@ export default function TripPlanner() {
             </p>
           </div>
 
-          <Card className="w-full" data-testid="wishlist-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ListPlus className="h-5 w-5 text-primary" />
-                Your Travel Wishlist
-              </CardTitle>
-              <CardDescription>
-                {inspireContext
-                  ? `Marco pre-loaded highlights from your Inspire pick — edit freely or add your own. Everything here shapes the itinerary.`
-                  : `Add places you want to visit, restaurants to try, activities you're interested in, or anything else you'd like included in your itinerary. Marco will weave these into your plan.`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <input
-                  ref={wishlistInputRef}
-                  type="text"
-                  value={wishlist}
-                  onChange={(e) => setWishlist(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addWishlistItem(); } }}
-                  placeholder="e.g. Visit the Rila Monastery, Try shopska salad, Walk through Vitosha park..."
-                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  data-testid="input-wishlist"
-                />
-                <Button size="sm" variant="outline" onClick={addWishlistItem} disabled={!wishlist.trim()} data-testid="button-add-wishlist">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {wishlistItems.length > 0 && (
-                <div className="flex flex-wrap gap-2" data-testid="wishlist-items">
-                  {wishlistItems.map((item, idx) => (
-                    <Badge key={idx} variant="secondary" className="py-1 px-3 flex items-center gap-1.5 text-sm" data-testid={`wishlist-item-${idx}`}>
-                      {item}
-                      <button onClick={() => removeWishlistItem(idx)} className="ml-0.5 hover:text-destructive transition-colors" data-testid={`button-remove-wishlist-${idx}`}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              {wishlistItems.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">
-                  No items yet — add what matters to you, or skip ahead and let Marco choose for you.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Travel dates picker */}
-          {!generateMutation.isPending && (
-            <Card className="w-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  When are you traveling?
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-                  <div className="flex-1">
-                    <label className="text-xs text-muted-foreground mb-1.5 block">Start date</label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => {
-                        setStartDate(e.target.value);
-                        if (e.target.value) dateSaveMutation.mutate(e.target.value);
-                      }}
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
-                  </div>
-                  {endDate && (
-                    <div className="flex-1">
-                      <label className="text-xs text-muted-foreground mb-1.5 block">End date</label>
-                      <div className="flex h-9 items-center px-3 rounded-md border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
-                        {new Date(endDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {formattedDateRange ? (
-                  <p className="text-xs text-primary font-medium flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {formattedDateRange}{tripDays ? ` · ${tripDays} day${tripDays !== 1 ? "s" : ""}` : ""}
-                    {dateSaveMutation.isPending && <span className="text-muted-foreground font-normal ml-1">Saving…</span>}
-                    {dateSaveMutation.isSuccess && !dateSaveMutation.isPending && <span className="text-emerald-600 font-normal ml-1">Saved</span>}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">
-                    Setting a start date lets Marco plan around real days, weather, and seasonal events.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
+          {/* Marco Briefing Flow */}
           {generateMutation.isPending ? (
-            <div className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-background shadow-md overflow-hidden">
                 <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/10">
                   <div className="relative flex-shrink-0">
@@ -818,28 +725,226 @@ export default function TripPlanner() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3 w-full">
-              <Button
-                size="lg"
-                className="w-full max-w-sm"
-                onClick={() => generateMutation.mutate()}
-                disabled={generateMutation.isPending}
-                data-testid="button-generate-itinerary"
-              >
-                {generateMutation.isPending ? (
-                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Marco is thinking...</>
-                ) : (
-                  <><Sparkles className="mr-2 h-5 w-5" /> Let Marco Plan It{wishlistItems.length > 0 ? ` with ${wishlistItems.length} request${wishlistItems.length > 1 ? "s" : ""}` : ""}</>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center max-w-sm">
-                {wishlistItems.length > 0
-                  ? "Marco will prioritize your requests alongside curated local recommendations."
-                  : "Marco will create a complete day-by-day itinerary with real places, local gems, and insider tips."}
-              </p>
-            </div>
-          )}
+          ) : (() => {
+            // Score and select top 6 vibe tiles based on destination keywords
+            const destStr = [journey.origin, ...(journey.destinations || []), journey.finalDestination]
+              .filter(Boolean).join(" ").toLowerCase();
+            const scored = VIBE_OPTIONS.map(v => ({
+              ...v,
+              score: v.keywords.filter(k => destStr.includes(k)).length,
+            }));
+            const displayVibes = [...scored]
+              .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
+              .slice(0, 6);
+
+            // Step dots
+            const StepDots = ({ current }: { current: number }) => (
+              <div className="flex items-center gap-1.5 mb-4">
+                {[1, 2, 3, 4].map(n => (
+                  <div key={n} className={`h-2 w-2 rounded-full transition-colors ${n <= current ? "bg-primary" : "bg-muted"}`} />
+                ))}
+                <span className="text-xs text-muted-foreground ml-1">Step {current} of 4</span>
+              </div>
+            );
+
+            // Marco avatar header
+            const MarcoAvatar = () => (
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <span className="text-primary font-bold text-xs font-serif">M</span>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">Marco</span>
+              </div>
+            );
+
+            if (briefStep === "intro") {
+              return (
+                <Card className="w-full">
+                  <CardContent className="pt-6 pb-5 space-y-4">
+                    <MarcoAvatar />
+                    <div>
+                      <h2 className="font-serif text-xl font-semibold mb-1">
+                        {inspireContext
+                          ? `I've already pulled in some ideas from your Inspire pick.`
+                          : `Before I start, I'd love to know what you're hoping for.`}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        {inspireContext
+                          ? `I have a few quick questions to help me personalise your ${tripDays ? `${tripDays}-day ` : ""}plan. It'll only take a moment.`
+                          : `A few quick questions will help me build a plan that really fits you. It'll only take a moment.`}
+                      </p>
+                    </div>
+                    <Button className="w-full" onClick={() => setBriefStep(1)}>
+                      <Sparkles className="mr-2 h-4 w-4" /> Let's get started
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            if (briefStep === 1) {
+              return (
+                <Card className="w-full">
+                  <CardContent className="pt-6 pb-5 space-y-4">
+                    <MarcoAvatar />
+                    <StepDots current={1} />
+                    <div>
+                      <h2 className="font-serif text-xl font-semibold mb-1">What kind of trip is this for you?</h2>
+                      <p className="text-xs text-muted-foreground">Pick all that apply — or skip if you're not sure.</p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {displayVibes.map(v => {
+                        const selected = selectedVibes.includes(v.id);
+                        return (
+                          <button
+                            key={v.id}
+                            onClick={() => setSelectedVibes(prev =>
+                              prev.includes(v.id) ? prev.filter(x => x !== v.id) : [...prev, v.id]
+                            )}
+                            className={`rounded-xl border-2 px-3 py-3 text-sm font-medium text-left transition-all ${
+                              selected
+                                ? "border-primary bg-primary/5 text-primary"
+                                : "border-border bg-background text-foreground hover:border-primary/50"
+                            }`}
+                          >
+                            {v.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between pt-1">
+                      <Button variant="ghost" size="sm" onClick={() => setBriefStep(2)}>Skip</Button>
+                      <Button size="sm" onClick={() => setBriefStep(2)}>Next →</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            if (briefStep === 2) {
+              return (
+                <Card className="w-full">
+                  <CardContent className="pt-6 pb-5 space-y-4">
+                    <MarcoAvatar />
+                    <StepDots current={2} />
+                    <div>
+                      <h2 className="font-serif text-xl font-semibold mb-1">Any must-sees or must-dos?</h2>
+                      <p className="text-xs text-muted-foreground">
+                        Specific places, experiences, or moments you absolutely can't miss.
+                      </p>
+                    </div>
+                    <textarea
+                      value={wishlist}
+                      onChange={(e) => setWishlist(e.target.value)}
+                      rows={4}
+                      placeholder="e.g. Walk across the Golden Gate Bridge, Watch the sunrise at Angkor Wat, Try pho at a streetside stall in Hanoi"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                      data-testid="input-wishlist"
+                    />
+                    <div className="flex justify-between pt-1">
+                      <Button variant="ghost" size="sm" onClick={() => { setWishlist(""); setBriefStep(3); }}>
+                        Skip — let Marco choose
+                      </Button>
+                      <Button size="sm" onClick={() => setBriefStep(3)}>Next →</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            if (briefStep === 3) {
+              return (
+                <Card className="w-full">
+                  <CardContent className="pt-6 pb-5 space-y-4">
+                    <MarcoAvatar />
+                    <StepDots current={3} />
+                    <div>
+                      <h2 className="font-serif text-xl font-semibold mb-1">When are you thinking of going?</h2>
+                      <p className="text-xs text-muted-foreground">
+                        {startDate && formattedDateRange
+                          ? `You're planning ${tripDays ? `${tripDays} days` : "a trip"} — I'll plan around ${formattedDateRange}. Want to adjust the start date?`
+                          : "Setting a start date lets me plan around real days, local events, and seasonal conditions."}
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground mb-1.5 block">Start date</label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          min={new Date().toISOString().split("T")[0]}
+                          onChange={(e) => {
+                            setStartDate(e.target.value);
+                            if (e.target.value) dateSaveMutation.mutate(e.target.value);
+                          }}
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+                      </div>
+                      {endDate && (
+                        <div className="flex-1">
+                          <label className="text-xs text-muted-foreground mb-1.5 block">End date</label>
+                          <div className="flex h-9 items-center px-3 rounded-md border border-dashed border-border bg-muted/30 text-sm text-muted-foreground">
+                            {new Date(endDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {formattedDateRange && (
+                      <p className="text-xs text-primary font-medium flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {formattedDateRange}{tripDays ? ` · ${tripDays} day${tripDays !== 1 ? "s" : ""}` : ""}
+                        {dateSaveMutation.isPending && <span className="text-muted-foreground font-normal ml-1">Saving…</span>}
+                        {dateSaveMutation.isSuccess && !dateSaveMutation.isPending && <span className="text-emerald-600 font-normal ml-1">Saved</span>}
+                      </p>
+                    )}
+                    <div className="flex justify-between pt-1">
+                      <Button variant="ghost" size="sm" onClick={() => setBriefStep(4)}>Dates are flexible</Button>
+                      <Button size="sm" onClick={() => setBriefStep(4)}>Next →</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            // Step 4
+            return (
+              <Card className="w-full">
+                <CardContent className="pt-6 pb-5 space-y-4">
+                  <MarcoAvatar />
+                  <StepDots current={4} />
+                  <div>
+                    <h2 className="font-serif text-xl font-semibold mb-1">Anything else I should know?</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Think logistics, pace, accommodation style, or a special occasion.
+                    </p>
+                  </div>
+                  <textarea
+                    value={anythingElse}
+                    onChange={(e) => setAnythingElse(e.target.value)}
+                    rows={3}
+                    placeholder="e.g. We'll have a rental car the whole time, we prefer boutique hotels, we're celebrating a big anniversary, we'd like a relaxed pace with some flexibility"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                  />
+                  <div className="flex justify-between pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => generateMutation.mutate({ vibes: selectedVibes, extraContext: "" })}
+                    >
+                      Skip
+                    </Button>
+                    <Button
+                      onClick={() => generateMutation.mutate({ vibes: selectedVibes, extraContext: anythingElse })}
+                      disabled={generateMutation.isPending}
+                      data-testid="button-generate-itinerary"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" /> Let Marco Plan It
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <div className="flex gap-2">
             <Link href="/journeys">
