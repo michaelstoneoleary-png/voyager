@@ -29,8 +29,11 @@ import {
   Key,
   Rss,
   Image,
+  UserPlus,
+  Loader2,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -212,11 +215,16 @@ function StatCard({ label, value, sub }: { label: string; value: number; sub?: s
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "usage" | "health">("overview");
+  const [adminInviteOpen, setAdminInviteOpen] = useState(false);
+  const [adminInviteEmail, setAdminInviteEmail] = useState("");
+  const [adminInviteNote, setAdminInviteNote] = useState("");
+  const [adminInvitePending, setAdminInvitePending] = useState(false);
 
   // Usage date filter
   type UsagePeriod = "7d" | "30d" | "90d" | "all" | "custom";
@@ -365,17 +373,94 @@ export default function AdminPage() {
 
           {/* ── Users ── */}
           <TabsContent value="users" className="space-y-4">
-            {/* Search */}
-            <div className="relative max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search by name or email…"
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            {/* Search + Invite */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email…"
+                  value={search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <Button size="sm" className="gap-1.5 flex-shrink-0" onClick={() => setAdminInviteOpen(true)}>
+                <UserPlus className="h-4 w-4" /> Invite user
+              </Button>
             </div>
+
+            {/* Admin invite dialog */}
+            <Dialog open={adminInviteOpen} onOpenChange={setAdminInviteOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Invite a user</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Email address</label>
+                    <input
+                      type="email"
+                      value={adminInviteEmail}
+                      onChange={e => setAdminInviteEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-muted-foreground">Personal note (optional)</label>
+                    <input
+                      value={adminInviteNote}
+                      onChange={e => setAdminInviteNote(e.target.value)}
+                      placeholder="Looking forward to having you on Voyager!"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      className="flex-1"
+                      disabled={!adminInviteEmail || adminInvitePending}
+                      onClick={async () => {
+                        setAdminInvitePending(true);
+                        try {
+                          const r = await fetch("/api/admin/invites", {
+                            method: "POST", credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email: adminInviteEmail, note: adminInviteNote || undefined }),
+                          });
+                          if (!r.ok) throw new Error();
+                          toast({ title: "Invite sent!", description: `Invitation sent to ${adminInviteEmail}.` });
+                          setAdminInviteOpen(false); setAdminInviteEmail(""); setAdminInviteNote("");
+                        } catch {
+                          toast({ title: "Failed to send invite", variant: "destructive" });
+                        } finally { setAdminInvitePending(false); }
+                      }}
+                    >
+                      {adminInvitePending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Send invite email
+                    </Button>
+                    <Button variant="outline" onClick={async () => {
+                      setAdminInvitePending(true);
+                      try {
+                        const r = await fetch("/api/admin/invites", {
+                          method: "POST", credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ note: adminInviteNote || undefined }),
+                        });
+                        const data = await r.json();
+                        await navigator.clipboard?.writeText(data.link);
+                        toast({ title: "Invite link copied!", description: "Share it with the user." });
+                        setAdminInviteOpen(false); setAdminInviteEmail(""); setAdminInviteNote("");
+                      } catch {
+                        toast({ title: "Failed", variant: "destructive" });
+                      } finally { setAdminInvitePending(false); }
+                    }}>
+                      Copy link
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {usersLoading ? (
               <div className="text-muted-foreground text-sm">Loading…</div>

@@ -6,6 +6,7 @@ import { registerSchema, loginSchema } from "@shared/models/auth";
 import bcrypt from "bcryptjs";
 import passport from "passport";
 import { sendVerificationEmail } from "../../lib/email";
+import { storage } from "../../storage";
 
 // Simple in-memory rate limit for resend verification (per userId)
 const resendRateLimit = new Map<string, number>();
@@ -53,6 +54,12 @@ export function registerAuthRoutes(app: Express): void {
       authStorage.setVerificationToken(user.id, token, expiry)
         .then(() => sendVerificationEmail(user.email!, user.firstName || "", token))
         .catch((err) => console.error("Verification email error:", err));
+
+      // Accept invite if token provided
+      const inviteToken = req.body.inviteToken;
+      if (inviteToken) {
+        storage.acceptInvite(inviteToken, user.id).catch(() => {});
+      }
 
       req.login({ userId: user.id, authProvider: "local" }, (err: any) => {
         if (err) {

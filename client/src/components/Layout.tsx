@@ -14,6 +14,7 @@ import {
   Compass,
   Sparkles,
   Shield,
+  Gift,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/inspire", label: "Inspire", icon: Sparkles },
     { href: "/intel", label: "Intel", icon: Globe },
     { href: "/community", label: "Community", icon: Users },
+    { href: "/settings#invite", label: "Invite Friends", icon: Gift },
   ];
 
   const isJourneyActive = location === "/journeys" || location === "/history";

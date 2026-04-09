@@ -264,3 +264,19 @@ export const destinationSuggestionsCache = pgTable("destination_suggestions_cach
 export type DestinationSuggestionsCache = typeof destinationSuggestionsCache.$inferSelect;
 
 export type UserActivityFeedback = typeof userActivityFeedback.$inferSelect;
+
+// ── Invites ───────────────────────────────────────────────────────────────────
+
+export const invites = pgTable("invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: varchar("token", { length: 64 }).unique().notNull(),
+  email: varchar("email"),                    // null = shareable link (no specific recipient)
+  invitedBy: varchar("invited_by").references(() => users.id, { onDelete: "set null" }),
+  note: varchar("note", { length: 500 }),     // optional personal message
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  acceptedBy: varchar("accepted_by").references(() => users.id, { onDelete: "set null" }),
+});
+
+export type Invite = typeof invites.$inferSelect;
