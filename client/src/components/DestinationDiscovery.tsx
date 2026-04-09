@@ -17,11 +17,12 @@ import {
   X,
   Maximize2,
   Loader2,
+  Plane,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Coords { lat: number; lng: number }
+interface Coords { lat: number; lng: number; countryCode?: string }
 
 interface NearbySuggestion {
   name: string;
@@ -36,6 +37,47 @@ interface Props {
   formData: TripFormData;
   setFormData: React.Dispatch<React.SetStateAction<TripFormData>>;
 }
+
+// ── Continent lookup (ISO 3166-1 alpha-2 → continent code) ───────────────────
+// Used to detect intercontinental travel — same-continent international trips
+// (e.g. intra-EU, US↔Canada) don't require a flight.
+
+const COUNTRY_CONTINENT: Record<string, string> = {
+  // Europe
+  AD:"EU",AL:"EU",AT:"EU",BA:"EU",BE:"EU",BG:"EU",BY:"EU",CH:"EU",CY:"EU",
+  CZ:"EU",DE:"EU",DK:"EU",EE:"EU",ES:"EU",FI:"EU",FR:"EU",GB:"EU",GR:"EU",
+  HR:"EU",HU:"EU",IE:"EU",IS:"EU",IT:"EU",LI:"EU",LT:"EU",LU:"EU",LV:"EU",
+  MC:"EU",MD:"EU",ME:"EU",MK:"EU",MT:"EU",NL:"EU",NO:"EU",PL:"EU",PT:"EU",
+  RO:"EU",RS:"EU",RU:"EU",SE:"EU",SI:"EU",SK:"EU",SM:"EU",TR:"EU",UA:"EU",
+  VA:"EU",XK:"EU",
+  // North America (inc. Central America & Caribbean — all reachable by land/sea)
+  AG:"NA",BB:"NA",BL:"NA",BM:"NA",BS:"NA",BZ:"NA",CA:"NA",CR:"NA",CU:"NA",
+  DM:"NA",DO:"NA",GD:"NA",GL:"NA",GP:"NA",GT:"NA",HN:"NA",HT:"NA",JM:"NA",
+  KN:"NA",KY:"NA",LC:"NA",MF:"NA",MQ:"NA",MS:"NA",MX:"NA",NI:"NA",PA:"NA",
+  PM:"NA",PR:"NA",SV:"NA",TC:"NA",TT:"NA",US:"NA",VC:"NA",VI:"NA",VG:"NA",
+  // South America
+  AR:"SA",BO:"SA",BR:"SA",CL:"SA",CO:"SA",EC:"SA",FK:"SA",GF:"SA",GY:"SA",
+  PE:"SA",PY:"SA",SR:"SA",UY:"SA",VE:"SA",
+  // Asia
+  AE:"AS",AF:"AS",AM:"AS",AZ:"AS",BD:"AS",BH:"AS",BN:"AS",BT:"AS",CN:"AS",
+  GE:"AS",HK:"AS",ID:"AS",IL:"AS",IN:"AS",IQ:"AS",IR:"AS",JO:"AS",JP:"AS",
+  KG:"AS",KH:"AS",KP:"AS",KR:"AS",KW:"AS",KZ:"AS",LA:"AS",LB:"AS",LK:"AS",
+  MM:"AS",MN:"AS",MO:"AS",MV:"AS",MY:"AS",NP:"AS",OM:"AS",PH:"AS",PK:"AS",
+  PS:"AS",QA:"AS",SA:"AS",SG:"AS",SY:"AS",TH:"AS",TJ:"AS",TL:"AS",TM:"AS",
+  TW:"AS",UZ:"AS",VN:"AS",YE:"AS",
+  // Africa
+  AO:"AF",BF:"AF",BI:"AF",BJ:"AF",BW:"AF",CD:"AF",CF:"AF",CG:"AF",CI:"AF",
+  CM:"AF",CV:"AF",DJ:"AF",DZ:"AF",EG:"AF",ER:"AF",ET:"AF",GA:"AF",GH:"AF",
+  GM:"AF",GN:"AF",GQ:"AF",GW:"AF",KE:"AF",KM:"AF",LR:"AF",LS:"AF",LY:"AF",
+  MA:"AF",MG:"AF",ML:"AF",MR:"AF",MU:"AF",MW:"AF",MZ:"AF",NA:"AF",NE:"AF",
+  NG:"AF",RE:"AF",RW:"AF",SC:"AF",SD:"AF",SL:"AF",SN:"AF",SO:"AF",SS:"AF",
+  ST:"AF",SZ:"AF",TD:"AF",TG:"AF",TN:"AF",TZ:"AF",UG:"AF",ZA:"AF",ZM:"AF",
+  ZW:"AF",
+  // Oceania
+  AU:"OC",CK:"OC",FJ:"OC",FM:"OC",GU:"OC",KI:"OC",MH:"OC",MP:"OC",NC:"OC",
+  NR:"OC",NU:"OC",NZ:"OC",PF:"OC",PG:"OC",PW:"OC",SB:"OC",TK:"OC",TO:"OC",
+  TV:"OC",VU:"OC",WF:"OC",WS:"OC",
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -262,9 +304,9 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: name }),
       });
-      const data: { lat: number | null; lng: number | null } = await res.json();
+      const data: { lat: number | null; lng: number | null; countryCode?: string } = await res.json();
       if (data.lat !== null && data.lng !== null) {
-        const coords = { lat: data.lat, lng: data.lng };
+        const coords: Coords = { lat: data.lat, lng: data.lng, countryCode: data.countryCode };
         setCoordsCache((prev) => ({ ...prev, [name]: coords }));
         return coords;
       }
@@ -403,6 +445,24 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
   const travelRatio = tripMinutes > 0 ? travelMinutes / tripMinutes : 0;
   const barColor = travelRatio > 0.4 ? (travelRatio > 0.7 ? "bg-red-500" : "bg-amber-500") : "bg-primary";
 
+  // Intercontinental detection — fly required only when crossing continents
+  // (intra-EU, US↔Canada, etc. don't need a forced flight)
+  const originCountry = formData.origin ? coordsCache[formData.origin]?.countryCode : undefined;
+  const originContinent = originCountry ? COUNTRY_CONTINENT[originCountry] : undefined;
+  const isInternational = !!(originContinent && formData.destinations.some(dest => {
+    const dc = coordsCache[dest]?.countryCode;
+    const destContinent = dc ? COUNTRY_CONTINENT[dc] : undefined;
+    return destContinent && destContinent !== originContinent;
+  }));
+
+  // Auto-add fly when international trip detected
+  useEffect(() => {
+    if (isInternational && !formData.travelModes.includes("fly")) {
+      setFormData(prev => ({ ...prev, travelModes: [...prev.travelModes, "fly"] }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInternational]);
+
   // Fetch initial suggestions if origin is set and we have no suggestions yet
   useEffect(() => {
     if (formData.origin && suggestions.length === 0 && !suggestionsLoading) {
@@ -428,6 +488,14 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               flyTo={mapFlyTo}
             />
           </div>
+
+          {/* International trip notice */}
+          {isInternational && (
+            <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-xs text-primary">
+              <Plane className="h-3.5 w-3.5 shrink-0" />
+              <span>International trip — <strong>fly</strong> added to your travel modes. Cruise support coming soon.</span>
+            </div>
+          )}
 
           {/* Nearby suggestions */}
           <div>
