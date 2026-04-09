@@ -191,6 +191,31 @@ export async function geocodeLocation(
   }
 }
 
+// ── Top Attraction Lookup ─────────────────────────────────────────────────────
+
+export async function getTopAttractionForCity(
+  cityName: string,
+  center?: { lat: number; lng: number }
+): Promise<{ name: string; photoUrl: string | null }  | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const results = await runPlacesTextSearch(
+      `top tourist attraction in ${cityName}`,
+      center ?? { lat: 0, lng: 0 },
+      center ? 50_000 : 0, // 0 radius = omit bias, let text query handle geography
+      apiKey,
+      1
+    );
+    if (!results.length) return null;
+    const r = results[0];
+    return { name: r.name, photoUrl: r.photo_url ?? null };
+  } catch (err) {
+    console.error("[getTopAttraction] failed for", cityName, err);
+    return null;
+  }
+}
+
 // ── Places Autocomplete ───────────────────────────────────────────────────────
 
 export async function placesAutocomplete(

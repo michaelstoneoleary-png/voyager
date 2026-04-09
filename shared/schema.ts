@@ -251,4 +251,16 @@ export const insertVoyageSchema = createInsertSchema(voyages).omit({
 export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
 export type Voyage = typeof voyages.$inferSelect;
 
+// ── Destination Suggestions Cache ─────────────────────────────────────────────
+
+export const destinationSuggestionsCache = pgTable("destination_suggestions_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cacheKey: varchar("cache_key", { length: 512 }).notNull().unique(),
+  suggestions: jsonb("suggestions").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+export type DestinationSuggestionsCache = typeof destinationSuggestionsCache.$inferSelect;
+
 export type UserActivityFeedback = typeof userActivityFeedback.$inferSelect;

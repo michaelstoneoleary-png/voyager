@@ -27,6 +27,8 @@ interface NearbySuggestion {
   description: string;
   lat: number | null;
   lng: number | null;
+  topAttraction: string | null;
+  photoUrl: string | null;
 }
 
 interface Props {
@@ -94,14 +96,24 @@ function FitBoundsView({ points }: { points: [number, number][] }) {
 function RouteMap({
   orderedPoints,
   labels,
+  suggestions = [],
+  onAddSuggestion,
   onExpand,
   height = "100%",
 }: {
   orderedPoints: [number, number][];
   labels: string[];
+  suggestions?: NearbySuggestion[];
+  onAddSuggestion?: (name: string) => void;
   onExpand?: () => void;
   height?: string;
 }) {
+  // All geocoded points for fitting bounds (route + suggestions)
+  const suggestionPoints: [number, number][] = suggestions
+    .filter((s) => s.lat !== null && s.lng !== null)
+    .map((s) => [s.lat!, s.lng!]);
+  const allPoints = [...orderedPoints, ...suggestionPoints];
+
   return (
     <div className="relative rounded-xl overflow-hidden border border-border" style={{ height }}>
       <MapContainer
@@ -120,9 +132,10 @@ function RouteMap({
           />
         )}
 
+        {/* Route pins (added stops) */}
         {orderedPoints.map((pt, idx) => (
           <CircleMarker
-            key={`${pt[0]}-${pt[1]}-${idx}`}
+            key={`stop-${pt[0]}-${pt[1]}-${idx}`}
             center={pt}
             radius={8}
             pathOptions={{
@@ -138,7 +151,53 @@ function RouteMap({
           </CircleMarker>
         ))}
 
-        <FitBoundsView points={orderedPoints} />
+        {/* Suggestion pins (lighter, dashed outline) */}
+        {suggestions.map((s) => {
+          if (s.lat === null || s.lng === null) return null;
+          return (
+            <CircleMarker
+              key={`sug-${s.name}`}
+              center={[s.lat, s.lng]}
+              radius={7}
+              pathOptions={{
+                color: "var(--primary)",
+                fillColor: "white",
+                fillOpacity: 0.9,
+                weight: 2,
+                dashArray: "3 2",
+              }}
+            >
+              <Popup maxWidth={220} className="destination-suggestion-popup">
+                <div className="font-sans text-sm space-y-1.5 min-w-[180px]">
+                  {s.photoUrl && (
+                    <img
+                      src={s.photoUrl}
+                      alt={s.topAttraction ?? s.name}
+                      className="w-full h-28 object-cover rounded-sm"
+                      loading="lazy"
+                    />
+                  )}
+                  <p className="font-semibold text-foreground leading-tight">{s.name}</p>
+                  {s.topAttraction && (
+                    <p className="text-xs text-primary font-medium">{s.topAttraction}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground leading-snug">{s.description}</p>
+                  {onAddSuggestion && (
+                    <button
+                      type="button"
+                      onClick={() => onAddSuggestion(s.name)}
+                      className="mt-1 w-full text-xs font-medium bg-primary text-primary-foreground rounded px-2 py-1 hover:bg-primary/90 transition-colors"
+                    >
+                      + Add to route
+                    </button>
+                  )}
+                </div>
+              </Popup>
+            </CircleMarker>
+          );
+        })}
+
+        <FitBoundsView points={allPoints.length ? allPoints : orderedPoints} />
       </MapContainer>
 
       {onExpand && (
@@ -327,6 +386,8 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
             <RouteMap
               orderedPoints={orderedPoints}
               labels={orderedLabels}
+              suggestions={suggestions}
+              onAddSuggestion={addDestination}
               onExpand={() => setMapExpanded(true)}
               height="100%"
             />
@@ -356,18 +417,35 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
                 {suggestions.slice(0, 6).map((s) => (
                   <div
                     key={s.name}
-                    className="rounded-lg border border-border bg-card p-2.5 flex flex-col gap-1"
+                    className="rounded-lg border border-border bg-card overflow-hidden flex flex-col"
                   >
-                    <span className="text-xs font-semibold text-foreground leading-tight">{s.name}</span>
-                    <span className="text-[11px] text-muted-foreground leading-snug flex-1">{s.description}</span>
-                    <button
-                      type="button"
-                      onClick={() => addDestination(s.name)}
-                      disabled={formData.destinations.includes(s.name)}
-                      className="mt-1 self-start text-[11px] font-medium text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-0.5"
-                    >
-                      <Plus className="h-3 w-3" /> Add
-                    </button>
+                    {s.photoUrl ? (
+                      <img
+                        src={s.photoUrl}
+                        alt={s.topAttraction ?? s.name}
+                        className="w-full h-20 object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-20 bg-muted/40 flex items-center justify-center">
+                        <MapPin className="h-5 w-5 text-muted-foreground/40" />
+                      </div>
+                    )}
+                    <div className="p-2 flex flex-col gap-0.5 flex-1">
+                      <span className="text-xs font-semibold text-foreground leading-tight">{s.name}</span>
+                      {s.topAttraction && (
+                        <span className="text-[10px] text-primary font-medium leading-tight truncate">{s.topAttraction}</span>
+                      )}
+                      <span className="text-[10px] text-muted-foreground leading-snug flex-1 line-clamp-2">{s.description}</span>
+                      <button
+                        type="button"
+                        onClick={() => addDestination(s.name)}
+                        disabled={formData.destinations.includes(s.name)}
+                        className="mt-1.5 self-start text-[11px] font-medium text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-0.5"
+                      >
+                        <Plus className="h-3 w-3" /> Add to route
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -551,6 +629,8 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
             <RouteMap
               orderedPoints={orderedPoints}
               labels={orderedLabels}
+              suggestions={suggestions}
+              onAddSuggestion={addDestination}
               height="100%"
             />
           </div>
