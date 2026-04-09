@@ -191,6 +191,35 @@ export async function geocodeLocation(
   }
 }
 
+// ── Places Autocomplete ───────────────────────────────────────────────────────
+
+export async function placesAutocomplete(
+  input: string
+): Promise<{ description: string; placeId: string }[]> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey || input.length < 2) return [];
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey },
+      body: JSON.stringify({
+        input,
+        includedPrimaryTypes: ["locality", "administrative_area_level_3"],
+      }),
+    });
+    const data = await res.json();
+    return ((data.suggestions as any[]) || [])
+      .map((s: any) => ({
+        description: s.placePrediction?.text?.text ?? "",
+        placeId: s.placePrediction?.placeId ?? "",
+      }))
+      .filter((s) => s.description);
+  } catch (err) {
+    console.error("[autocomplete] fetch failed:", err);
+    return [];
+  }
+}
+
 // ── Day Trip Search ───────────────────────────────────────────────────────────
 
 const DAY_TRIP_FIELD_MASK = [

@@ -37,6 +37,31 @@ import { useTrips } from "@/lib/TripContext";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/lib/UserContext";
+import { DestinationDiscovery } from "./DestinationDiscovery";
+
+export interface TripFormData {
+  partyType: "solo" | "couple" | "family";
+  adults: number;
+  children: number;
+  rooms: number;
+  dateType: string;
+  startDate: string;
+  endDate: string;
+  duration: number;
+  durationType: string;
+  travelModes: string[];
+  budgetType: string;
+  budgetAmount: string | number;
+  preferences: {
+    directFlights: boolean;
+    ecoFriendly: boolean;
+    avoidStopovers: boolean;
+  };
+  origin: string;
+  finalDestination: string;
+  destinations: string[];
+  newDestination: string;
+}
 
 interface NewTripDialogProps {
   open: boolean;
@@ -61,8 +86,8 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   const { toast } = useToast();
   const { settings } = useUser();
 
-  const [formData, setFormData] = useState({
-    partyType: "solo" as "solo" | "couple" | "family",
+  const [formData, setFormData] = useState<TripFormData>({
+    partyType: "solo",
     adults: 1,
     children: 0,
     rooms: 1,
@@ -156,7 +181,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] flex flex-col max-h-[90vh]">
+      <DialogContent className={`${step === 3 ? "sm:max-w-[900px]" : "sm:max-w-[600px]"} flex flex-col max-h-[90vh]`}>
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl flex items-center gap-2">
             {step === 1 && <Users className="h-5 w-5 text-primary" />}
@@ -484,74 +509,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
           )}
 
           {step === 3 && (
-            <div className="space-y-6 py-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Starting Point</Label>
-                  <div className="relative">
-                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                     <Input 
-                       className="pl-9"
-                       placeholder="Your starting city"
-                       value={formData.origin} 
-                       onChange={(e) => setFormData({...formData, origin: e.target.value})}
-                       data-testid="input-origin"
-                     />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Final Destination</Label>
-                  <div className="relative">
-                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                     <Input 
-                       className="pl-9"
-                       placeholder="Where your trip ends"
-                       value={formData.finalDestination} 
-                       onChange={(e) => setFormData({...formData, finalDestination: e.target.value})}
-                       data-testid="input-final-destination"
-                     />
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground -mt-4">Your origin and final destination can be different if you're not returning home.</p>
-
-              <div className="space-y-3">
-                 <Label>Stops Along the Way</Label>
-                 <div className="flex gap-2">
-                   <Input 
-                     placeholder="City, Country, or Point of Interest" 
-                     value={formData.newDestination}
-                     onChange={(e) => setFormData({...formData, newDestination: e.target.value})}
-                     onKeyDown={(e) => e.key === 'Enter' && addDestination()}
-                     data-testid="input-add-stop"
-                   />
-                   <Button onClick={addDestination} size="icon" data-testid="button-add-stop">
-                     <Plus className="h-4 w-4" />
-                   </Button>
-                 </div>
-                 
-                 <div className="space-y-2 min-h-[100px] border rounded-lg p-2 bg-muted/20">
-                    {formData.destinations.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm p-4">
-                        <MapPin className="h-8 w-8 mb-2 opacity-50" />
-                        Add stops you want to visit along the way
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {formData.destinations.map((dest, idx) => (
-                          <Badge key={idx} variant="secondary" className="pl-2 pr-1 py-1 text-sm flex items-center gap-1" data-testid={`badge-stop-${idx}`}>
-                            {dest}
-                            <button onClick={() => removeDestination(idx)} className="hover:text-destructive" data-testid={`button-remove-stop-${idx}`}>
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                 </div>
-                 <p className="text-xs text-muted-foreground">Don't worry about the order yet, we'll help you organize the route later.</p>
-              </div>
-            </div>
+            <DestinationDiscovery formData={formData} setFormData={setFormData} />
           )}
         </ScrollArea>
 

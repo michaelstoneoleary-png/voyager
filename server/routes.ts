@@ -6,7 +6,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -209,6 +209,96 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error searching restaurants:", error);
       res.status(500).json({ message: "Failed to search restaurants" });
+    }
+  });
+
+  // ── Places / Destination Discovery ──────────────────────────────────────────
+
+  app.get("/api/places/autocomplete", isAuthenticated, async (req: any, res) => {
+    const q = (req.query.q as string) || "";
+    if (q.length < 2) return res.json({ predictions: [] });
+    const predictions = await placesAutocomplete(q);
+    res.json({ predictions });
+  });
+
+  app.post("/api/places/geocode", isAuthenticated, async (req: any, res) => {
+    const { address } = req.body as { address?: string };
+    if (!address) return res.json({ lat: null, lng: null });
+    const coords = await geocodeLocation(address);
+    res.json(coords ?? { lat: null, lng: null });
+  });
+
+  app.post("/api/places/nearby-suggestions", isAuthenticated, async (req: any, res) => {
+    const userId = getUserId(req)!;
+    const {
+      currentDestinations = [] as string[],
+      origin = "",
+      travelModes = [] as string[],
+      duration = 7,
+      partyType = "solo",
+      budgetType = "estimated",
+    } = req.body as {
+      currentDestinations?: string[];
+      origin?: string;
+      travelModes?: string[];
+      duration?: number;
+      partyType?: string;
+      budgetType?: string;
+    };
+
+    const lastDest = currentDestinations[currentDestinations.length - 1] || origin || "the starting point";
+    const modesStr = travelModes.length ? travelModes.join(", ") : "any transport";
+    const budgetDesc = budgetType === "later" ? "flexible" : budgetType === "fixed" ? "strict budget" : "estimated budget";
+
+    const prompt = `You are a knowledgeable travel planner. A traveler is building a multi-stop itinerary.
+
+Context:
+- Origin: ${origin || "unknown"}
+- Stops added so far: ${currentDestinations.length ? currentDestinations.join(" → ") : "none yet"}
+- Most recently added: ${lastDest}
+- Transport modes: ${modesStr}
+- Trip duration: ${duration} days
+- Party: ${partyType}
+- Budget: ${budgetDesc}
+
+Suggest exactly 6 destinations that would be excellent next stops from "${lastDest}". Focus on places that are:
+1. Geographically reachable from ${lastDest} using ${modesStr}
+2. Worth visiting given the trip duration and budget
+3. Different from each other (mix of city types, landscapes, etc.)
+4. Not already in the itinerary
+
+Reply with ONLY a valid JSON array, no markdown, no explanation:
+[{"name": "City, Country", "description": "One sentence on why it's a great next stop."}]`;
+
+    try {
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      storage.recordApiUsage({
+        userId,
+        feature: "nearby-suggestions",
+        model: "claude-sonnet-4-6",
+        inputTokens: message.usage?.input_tokens ?? 0,
+        outputTokens: message.usage?.output_tokens ?? 0,
+      }).catch(() => {});
+
+      const text = message.content.find((c) => c.type === "text")?.text ?? "[]";
+      let raw: { name: string; description: string }[] = [];
+      try { raw = JSON.parse(text); } catch { raw = []; }
+
+      const geocoded = await Promise.all(
+        raw.map(async (item) => {
+          const coords = await geocodeLocation(item.name);
+          return { ...item, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
+        })
+      );
+      res.json({ suggestions: geocoded });
+    } catch (err) {
+      console.error("[nearby-suggestions] error:", err);
+      res.json({ suggestions: [] });
     }
   });
 
