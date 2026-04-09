@@ -1241,7 +1241,8 @@ ${truncated}`,
 
       const days           = parseInt(req.query.days as string) || 7;
       const transports     = ((req.query.transport as string) || "flying").split(",").filter(Boolean);
-      const budget         = (req.query.budget as string) || "midrange";
+      const budgetRaw      = (req.query.budget as string) || "midrange";
+      const budgetDisplay  = budgetRaw.split(",").filter(Boolean).join(" or ");
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
       const homeLocation   = user?.homeLocation || "";
       const travelStyles   = (user?.travelStyles as string[] | null) || [];
@@ -1261,7 +1262,7 @@ ${truncated}`,
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you scan the world for the right destination for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budget} budget.
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you scan the world for the right destination for a traveler${homeLocation ? ` from ${homeLocation}` : ""}${stylesText}. They want ${durationText}, traveling by ${modeText}, ${travelText}, on a ${budgetDisplay} budget.
 
 Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Reference real regions, seasonal dynamics, why certain places deliver for this exact profile right now. Build toward the destinations you're about to surface. Target 300–450 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately — no intro phrase.`,
         }],
@@ -1300,8 +1301,11 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       // Qualifier params from the frontend
       const days           = parseInt(req.query.days as string) || 7;
       const transports     = ((req.query.transport as string) || "flying,driving,train").split(",").filter(Boolean);
-      const budget         = (req.query.budget    as string) || "midrange";
+      const budgets        = ((req.query.budget as string) || "midrange").split(",").filter(Boolean);
       const maxTravelHours = (req.query.maxTravelHours as string) || "any";
+      const partyAdults    = parseInt(req.query.partyAdults as string) || 1;
+      const partyChildren  = parseInt(req.query.partyChildren as string) || 0;
+      const partyRooms     = parseInt(req.query.partyRooms as string) || 1;
 
       const [pastTrips, feedbackRows] = await Promise.all([
         storage.getPastTrips(userId),
@@ -1313,7 +1317,7 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
       const homeLocation = (req.query.homeLocation as string)?.trim() || user.homeLocation || "";
       const passportCountry = user.passportCountry || "";
 
-      const cacheKey = `inspire_${userId}_${homeLocation}_${days}_${transports.sort().join("-")}_${budget}_${maxTravelHours}`;
+      const cacheKey = `inspire_${userId}_${homeLocation}_${days}_${transports.sort().join("-")}_${budgets.slice().sort().join("-")}_${maxTravelHours}_${partyAdults}a${partyChildren}c${partyRooms}r`;
 
       const likedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "liked").map(r => r.activityType).filter(Boolean))];
       const rejectedActivityTypes = [...new Set(feedbackRows.filter(r => r.signal === "hard_reject").map(r => r.activityType).filter(Boolean))];
@@ -1511,12 +1515,19 @@ Only suggest destinations you are confident fit within ${travelTimeLimit} hours 
         const railNote = hasRail ? " Where rail is a good option, prefer it." : "";
         transportDesc = `open to ${modeNames} — choose whichever makes most sense per destination given the travel time constraint.${railNote}`;
       }
-      const budgetDesc: Record<string, string> = {
-        budget:    "$50–100/day (backpacker / hostel / budget hotel style)",
-        midrange:  "$100–250/day (comfortable hotels, good restaurants)",
-        luxury:    "$300–600/day (high-end hotels, premium experiences)",
+      const budgetDescs: Record<string, string> = {
+        budget:    "$50–100/adult/day (backpacker / hostel / budget hotel style)",
+        midrange:  "$100–250/adult/day (comfortable hotels, good restaurants)",
+        luxury:    "$300–600/adult/day (high-end hotels, premium experiences)",
         unlimited: "unlimited — money is no object, recommend only the finest",
       };
+      const selectedBudgetDesc = budgets.map(b => budgetDescs[b] || budgetDescs.midrange).join(" or ");
+      const partyDesc = partyChildren > 0
+        ? `${partyAdults} adult${partyAdults > 1 ? "s" : ""} and ${partyChildren} child${partyChildren > 1 ? "ren" : ""}`
+        : `${partyAdults} adult${partyAdults > 1 ? "s" : ""}`;
+      const totalBudgetNote = partyAdults > 1 || partyChildren > 0
+        ? ` (total party approx. ${partyAdults + Math.ceil(partyChildren * 0.6)}× adult rate)`
+        : "";
 
       const candidateBlock = candidateList.length > 0
         ? `CANDIDATE DESTINATIONS — all verified to be within travel range from ${homeLocation}:\n` +
@@ -1537,7 +1548,8 @@ TRIP CONSTRAINTS (hard requirements — every suggestion MUST satisfy all of the
 - Duration: ${durationDesc}
 - Max travel time: ${travelTimeNote}
 - Transport: ${transportDesc}
-- Budget: ${budgetDesc[budget] || budgetDesc.midrange}
+- Party: ${partyDesc}${partyRooms > 1 ? `, ${partyRooms} rooms/night` : ""}
+- Budget: ${selectedBudgetDesc}${totalBudgetNote} — suggest destinations that fit any of these tiers
 
 ${homeAirportNote}
 
@@ -1546,7 +1558,7 @@ RULES:
 - Each suggestion must be a SPECIFIC destination (city, region, or unique place) — not a country
 - TRAVEL TIME IS A HARD FILTER — calculate it accurately before including any suggestion. Exclude any destination that does not fit. Do not fudge the numbers.
 - If you determine a destination does NOT fit the travel time constraint, SKIP IT ENTIRELY — do not write its prose line or its JSON line at all. Move on to the next candidate silently. Never put reconsideration or removal notes in why_for_you.
-- avg_daily_budget values must match the budget bracket (budget ≤$100, midrange $100–250, luxury $300+)
+- avg_daily_budget values must fall within one of the selected tiers per adult (budget ≤$100, midrange $100–250, luxury $300+, unlimited: any); accommodation should assume ${partyRooms} room${partyRooms > 1 ? "s" : ""}/night
 - Include a diverse mix of destinations that genuinely fit the constraints
 - 2-3 of your 10 suggestions should be off the beaten path — well-regarded but lesser-known destinations that serious travelers love but most tourists miss (solid rating, far fewer reviews than the famous choices). Mark these with "hidden_gem": true. The rest should have "hidden_gem": false.
 - All data must be REAL — real places, accurate coordinates, factual descriptions

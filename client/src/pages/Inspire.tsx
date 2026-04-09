@@ -39,6 +39,9 @@ import {
   Navigation,
   Pencil,
   Check,
+  User,
+  Users,
+  Baby,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -66,12 +69,20 @@ interface InspireData {
   generatedAt: string;
 }
 
+interface PartySize {
+  type: "solo" | "couple" | "family";
+  adults: number;
+  children: number;
+  rooms: number;
+}
+
 interface Qualifier {
   days: number;           // 1 = day trip, 2–20 = specific days, 21 = open-ended
   transport: string[];    // one or more of "flying" | "driving" | "train"
-  budget: string;         // "budget" | "midrange" | "luxury" | "unlimited"
+  budget: string[];       // one or more of "budget" | "midrange" | "luxury" | "unlimited"
   maxTravelHours: string; // "2" | "4" | "8" | "any"
   homeLocation: string;   // confirmed departure city
+  partySize: PartySize;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -98,6 +109,24 @@ const BUDGET_OPTIONS = [
   { value: "luxury",    label: "Luxury",           sub: "$300–600/day",  icon: "$$$" },
   { value: "unlimited", label: "Sky's The Limit",  sub: "No constraint", icon: "✦" },
 ];
+
+const PARTY_OPTIONS: { value: PartySize["type"]; label: string; icon: React.ReactNode }[] = [
+  { value: "solo",   label: "Solo",   icon: <User className="h-5 w-5" /> },
+  { value: "couple", label: "Couple", icon: <Users className="h-5 w-5" /> },
+  { value: "family", label: "Family", icon: <Baby className="h-5 w-5" /> },
+];
+
+function totalAdults(p: PartySize): number {
+  return p.type === "solo" ? 1 : p.type === "couple" ? 2 : p.adults;
+}
+
+function budgetSubLabel(opt: { value: string; sub: string }, n: number): string {
+  if (opt.value === "unlimited") return "No constraint";
+  if (n <= 1) return opt.sub;
+  const m = opt.sub.match(/\$(\d+)[–-](\d+)/);
+  if (!m) return opt.sub;
+  return `$${parseInt(m[1]) * n}–${parseInt(m[2]) * n}/day total`;
+}
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "Adventure":   <Mountain className="h-3.5 w-3.5" />,
@@ -137,7 +166,8 @@ function daysLabel(days: number): string {
 function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier) => void; defaultLocation: string }) {
   const [days, setDays] = useState<number>(7);
   const [transport, setTransport] = useState<string[]>([]);
-  const [budget, setBudget] = useState<string | null>(null);
+  const [budget, setBudget] = useState<string[]>([]);
+  const [partySize, setPartySize] = useState<PartySize>({ type: "solo", adults: 1, children: 0, rooms: 1 });
   const [maxTravelHours, setMaxTravelHours] = useState<string | null>(null);
   const [homeLocation, setHomeLocation] = useState<string>(defaultLocation);
 
@@ -157,11 +187,23 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
     );
   };
 
-  const ready = transport.length > 0 && budget && maxTravelHours && homeLocation.trim();
+  const toggleBudget = (value: string) => {
+    setBudget(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  };
+
+  const handlePartySelect = (type: PartySize["type"]) => {
+    if (type === "solo")   setPartySize({ type: "solo",   adults: 1, children: 0, rooms: 1 });
+    if (type === "couple") setPartySize({ type: "couple", adults: 2, children: 0, rooms: 1 });
+    if (type === "family") setPartySize({ type: "family", adults: 2, children: 0, rooms: 1 });
+  };
+
+  const ready = transport.length > 0 && budget.length > 0 && maxTravelHours && homeLocation.trim();
 
   const handleSubmit = () => {
     if (!ready) return;
-    const q: Qualifier = { days, transport, budget, maxTravelHours, homeLocation: homeLocation.trim() };
+    const q: Qualifier = { days, transport, budget, maxTravelHours, homeLocation: homeLocation.trim(), partySize };
     onSubmit(q);
   };
 
@@ -278,13 +320,88 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
           </div>
         </div>
 
-        <OptionGrid
-          title="What's the budget?"
-          options={BUDGET_OPTIONS}
-          value={budget}
-          onChange={setBudget}
-          cols={4}
-        />
+        {/* Trip type — single-select, pre-selected to Solo */}
+        <div>
+          <h3 className="font-serif text-lg font-semibold mb-3 text-foreground">Trip type</h3>
+          <div className="grid gap-3 grid-cols-3">
+            {PARTY_OPTIONS.map(opt => {
+              const selected = partySize.type === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => handlePartySelect(opt.value)}
+                  className={`
+                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
+                    transition-all duration-150 cursor-pointer
+                    ${selected
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                    }
+                  `}
+                >
+                  <span className="text-2xl leading-none">{opt.icon}</span>
+                  <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {partySize.type === "family" && (
+            <div className="mt-4 flex gap-8 justify-center">
+              {([
+                { label: "Adults",   key: "adults",   min: 1 },
+                { label: "Children", key: "children", min: 0 },
+                { label: "Rooms",    key: "rooms",    min: 1 },
+              ] as { label: string; key: keyof PartySize; min: number }[]).map(({ label, key, min }) => (
+                <div key={label} className="flex flex-col items-center gap-1">
+                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPartySize(prev => ({ ...prev, [key]: Math.max(min, (prev[key] as number) - 1) }))}
+                      className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-sm hover:bg-muted"
+                    >−</button>
+                    <span className="w-5 text-center text-sm font-medium">{partySize[key]}</span>
+                    <button
+                      onClick={() => setPartySize(prev => ({ ...prev, [key]: (prev[key] as number) + 1 }))}
+                      className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-sm hover:bg-muted"
+                    >+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Budget — multi-select */}
+        <div>
+          <h3 className="font-serif text-lg font-semibold mb-1 text-foreground">What's the budget?</h3>
+          <p className="text-[11px] text-muted-foreground mb-3">Select all that apply</p>
+          <div className="grid gap-3 grid-cols-4 sm:grid-cols-4">
+            {BUDGET_OPTIONS.map(opt => {
+              const selected = budget.includes(opt.value);
+              const n = totalAdults(partySize);
+              const sub = budgetSubLabel(opt, n);
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => toggleBudget(opt.value)}
+                  className={`
+                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
+                    transition-all duration-150 cursor-pointer
+                    ${selected
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                    }
+                  `}
+                >
+                  <span className="text-2xl leading-none">{opt.icon}</span>
+                  <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{sub}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Departure location */}
         <div>
@@ -589,7 +706,14 @@ export default function Inspire() {
   const isDayTrip = qualifier?.days === 1;
 
   const queryParams = qualifier
-    ? `?days=${qualifier.days}&transport=${qualifier.transport.join(",")}&budget=${qualifier.budget}&maxTravelHours=${qualifier.maxTravelHours}&homeLocation=${encodeURIComponent(qualifier.homeLocation)}`
+    ? `?days=${qualifier.days}`
+      + `&transport=${qualifier.transport.join(",")}`
+      + `&budget=${qualifier.budget.join(",")}`
+      + `&maxTravelHours=${qualifier.maxTravelHours}`
+      + `&homeLocation=${encodeURIComponent(qualifier.homeLocation)}`
+      + `&partyAdults=${qualifier.partySize.adults}`
+      + `&partyChildren=${qualifier.partySize.children}`
+      + `&partyRooms=${qualifier.partySize.rooms}`
     : null;
 
   // Stream suggestions from SSE endpoint whenever qualifier changes or refresh is triggered
@@ -912,7 +1036,7 @@ export default function Inspire() {
   // Friendly labels for the qualifier summary chips
   const durationLabel = daysLabel(qualifier.days);
   const transportLabel = qualifier.transport.map(v => TRANSPORT_OPTIONS.find(o => o.value === v)?.label).filter(Boolean).join(" · ");
-  const budgetLabel = BUDGET_OPTIONS.find(b => b.value === qualifier.budget)?.label ?? "";
+  const budgetLabel = qualifier.budget.map(v => BUDGET_OPTIONS.find(b => b.value === v)?.label).filter(Boolean).join(" · ");
   const travelTimeLabel = TRAVEL_TIME_OPTIONS.find(t => t.value === qualifier.maxTravelHours)?.label ?? "";
 
   return (
