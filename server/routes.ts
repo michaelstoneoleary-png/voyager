@@ -577,6 +577,8 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
 
 TRAVEL MODE: ${travelModeNote}
 
+CAR RENTAL & TRANSPORTATION LOGISTICS: If the traveler will need a rental car at any destination (e.g., flying into a hub city then driving between attractions or other cities), include a "logistics" type activity on the first day they'll need the car (e.g., "Pick up rental car at [Airport Name] — budget $40–70/day; confirm driver age requirements and whether your credit card covers CDW collision insurance to avoid upselling at the counter"). Include a corresponding drop-off logistics activity on the final driving day. For international destinations: note whether an International Driving Permit (IDP) is required alongside the local license, which side of the road is driven, any key local rules (toll systems, urban low-emission zones, drink-drive limits), and a reminder to verify insurance coverage before the trip. If no rental car is needed because all transport is by transit, taxi, or rideshare, state this clearly in a Day 1 logistics note so the traveler knows up front.
+
 Return a JSON object with this exact structure (no markdown, no code fences, just raw JSON):
 {
   "days": [
@@ -2623,9 +2625,11 @@ Rules:
     }
   });
 
-  app.get("/api/admin/usage", isAuthenticated, isAdminUser, async (_req, res) => {
+  app.get("/api/admin/usage", isAuthenticated, isAdminUser, async (req: any, res) => {
     try {
-      res.json(await storage.getApiUsageSummary());
+      const start = req.query.start ? new Date(req.query.start as string) : undefined;
+      const end   = req.query.end   ? new Date((req.query.end as string) + "T23:59:59Z") : undefined;
+      res.json(await storage.getApiUsageSummary({ startDate: start, endDate: end }));
     } catch (error) {
       console.error("Error fetching usage summary:", error);
       res.status(500).json({ error: "Failed to fetch usage summary" });

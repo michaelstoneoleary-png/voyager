@@ -21,7 +21,7 @@ export interface CachedDestinationSuggestion {
   photoUrl: string | null;
 }
 import { db } from "./db";
-import { eq, and, desc, or, ilike, gte, gt, count, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, or, ilike, gte, lte, gt, count, sql, inArray } from "drizzle-orm";
 
 function toTitleCase(str: string): string {
   return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
@@ -83,7 +83,7 @@ export interface IStorage {
   getAdminStats(): Promise<{ totalUsers: number; newUsersThisWeek: number; newUsersThisMonth: number; totalJourneys: number; totalPastTrips: number; activeUsersThisWeek: number }>;
   deleteUserAccount(id: string): Promise<boolean>;
   recordApiUsage(data: { userId: string; feature: string; model: string; inputTokens: number; outputTokens: number }): Promise<void>;
-  getApiUsageSummary(): Promise<Array<{ userId: string; firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>>;
+  getApiUsageSummary(opts?: { startDate?: Date; endDate?: Date }): Promise<Array<{ userId: string; firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>>;
   getCachedDestinationSuggestions(cacheKey: string): Promise<CachedDestinationSuggestion[] | null>;
   setCachedDestinationSuggestions(cacheKey: string, suggestions: CachedDestinationSuggestion[]): Promise<void>;
 }
@@ -399,8 +399,12 @@ export class DatabaseStorage implements IStorage {
       });
   }
 
-  async getApiUsageSummary() {
-    const rows = await db.select().from(apiUsage);
+  async getApiUsageSummary(opts?: { startDate?: Date; endDate?: Date }) {
+    const conditions = [];
+    if (opts?.startDate) conditions.push(gte(apiUsage.createdAt, opts.startDate));
+    if (opts?.endDate)   conditions.push(lte(apiUsage.createdAt, opts.endDate));
+    const rows = await db.select().from(apiUsage)
+      .where(conditions.length ? and(...conditions) : undefined);
     const userMap = new Map<string, { firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>();
 
     for (const row of rows) {

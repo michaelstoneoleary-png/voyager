@@ -154,7 +154,10 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
     const allStops = formData.destinations.map(toTitleCase);
     const finalDest = formData.finalDestination ? toTitleCase(formData.finalDestination) : undefined;
     const origin = formData.origin ? toTitleCase(formData.origin) : undefined;
-    const titleDest = finalDest || (allStops.length > 0 ? allStops[allStops.length - 1] : null);
+    // Use actual stops (not the return-home finalDest) for the title
+    const titleDest = allStops.length > 0
+      ? allStops[0]
+      : (finalDest && origin && finalDest.toLowerCase().trim() !== origin.toLowerCase().trim() ? finalDest : null);
 
     addTrip({
       title: titleDest ? `Journey to ${titleDest}` : "New Adventure",

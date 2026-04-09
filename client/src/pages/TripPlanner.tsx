@@ -52,6 +52,8 @@ import {
   BookOpen,
   Download,
   Share2,
+  Pencil,
+  CheckCircle2,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -290,6 +292,8 @@ export default function TripPlanner() {
   const preferMiles = settings.distanceUnit !== "km";
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -386,6 +390,17 @@ export default function TripPlanner() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+    },
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: async (title: string) => {
+      const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, { title });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+      setEditingTitle(false);
     },
   });
 
@@ -559,7 +574,7 @@ export default function TripPlanner() {
       queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       setMarcoParagraphs([]);
-      toast({ title: "Itinerary generated", description: "Your personalized itinerary from Marco is ready." });
+      toast({ title: "Itinerary ready!", description: "Your trip has been saved to My Journeys." });
     },
     onError: (err: any) => {
       thinkingAbortRef.current?.abort();
@@ -691,7 +706,28 @@ export default function TripPlanner() {
             <Sparkles className="h-10 w-10 text-primary" />
           </div>
           <div className="text-center">
-            <h1 className="font-serif text-3xl font-bold mb-2">{journey.title}</h1>
+            {editingTitle ? (
+              <input
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={() => { if (titleDraft.trim()) renameMutation.mutate(titleDraft.trim()); else setEditingTitle(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && titleDraft.trim()) renameMutation.mutate(titleDraft.trim());
+                  if (e.key === "Escape") setEditingTitle(false);
+                }}
+                className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none text-center mb-2 w-full max-w-sm"
+              />
+            ) : (
+              <h1
+                className="font-serif text-3xl font-bold mb-2 cursor-pointer group inline-flex items-center gap-2"
+                onClick={() => { setTitleDraft(journey.title); setEditingTitle(true); }}
+                title="Click to rename"
+              >
+                {journey.title}
+                <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-40 transition-opacity" />
+              </h1>
+            )}
             <p className="text-muted-foreground">
               {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || "No destinations set"} 
               {journey.days ? ` • ${journey.days} days` : ""}
@@ -970,14 +1006,40 @@ export default function TripPlanner() {
               </Button>
             </Link>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-serif text-3xl font-bold" data-testid="text-planner-title">{journey.title}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                {editingTitle ? (
+                  <input
+                    autoFocus
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onBlur={() => { if (titleDraft.trim()) renameMutation.mutate(titleDraft.trim()); else setEditingTitle(false); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && titleDraft.trim()) renameMutation.mutate(titleDraft.trim());
+                      if (e.key === "Escape") setEditingTitle(false);
+                    }}
+                    className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none max-w-sm"
+                    data-testid="text-planner-title"
+                  />
+                ) : (
+                  <h1
+                    className="font-serif text-3xl font-bold cursor-pointer group flex items-center gap-2"
+                    onClick={() => { setTitleDraft(journey.title); setEditingTitle(true); }}
+                    title="Click to rename"
+                    data-testid="text-planner-title"
+                  >
+                    {journey.title}
+                    <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
+                  </h1>
+                )}
                 {journey.origin && journey.finalDestination &&
                   journey.finalDestination.trim().toLowerCase() !== journey.origin.trim().toLowerCase() && (
                   <Badge variant="outline" className="text-[10px] uppercase tracking-wider border-primary/30 text-primary bg-primary/5">
                     Open-jaw
                   </Badge>
                 )}
+                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Saved to My Journeys
+                </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-muted-foreground text-sm">
