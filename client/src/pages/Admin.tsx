@@ -227,36 +227,47 @@ export default function AdminPage() {
 
   // ── Queries ──
 
-  const { data: stats } = useQuery<AdminStats>({
+  const adminFetch = (url: string) =>
+    fetch(url, { credentials: "include" }).then(r => {
+      if (!r.ok) throw new Error(`${r.status}: ${r.statusText}`);
+      return r.json();
+    });
+
+  const { data: stats, error: statsError } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
-    queryFn: () => fetch("/api/admin/stats", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => adminFetch("/api/admin/stats"),
+    retry: 1,
   });
 
   const { data: users = [], isLoading: usersLoading } = useQuery<AdminUser[]>({
     queryKey: ["/api/admin/users", debouncedSearch],
     queryFn: () => {
       const qs = debouncedSearch ? `?search=${encodeURIComponent(debouncedSearch)}` : "";
-      return fetch(`/api/admin/users${qs}`, { credentials: "include" }).then(r => r.json());
+      return adminFetch(`/api/admin/users${qs}`);
     },
+    retry: 1,
   });
 
   const { data: userDetail } = useQuery<UserDetail>({
     queryKey: ["/api/admin/users", selectedUserId],
-    queryFn: () => fetch(`/api/admin/users/${selectedUserId}`, { credentials: "include" }).then(r => r.json()),
+    queryFn: () => adminFetch(`/api/admin/users/${selectedUserId}`),
     enabled: !!selectedUserId,
+    retry: 1,
   });
 
   const { data: usageRows = [] } = useQuery<UsageSummaryRow[]>({
     queryKey: ["/api/admin/usage"],
-    queryFn: () => fetch("/api/admin/usage", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => adminFetch("/api/admin/usage"),
+    retry: 1,
   });
 
   const { data: healthReport, isLoading: healthLoading, refetch: refetchHealth } = useQuery<HealthReport>({
     queryKey: ["/api/admin/health"],
-    queryFn: () => fetch("/api/admin/health", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => adminFetch("/api/admin/health"),
     enabled: activeTab === "health",
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   // ── Mutations ──
@@ -313,7 +324,11 @@ export default function AdminPage() {
 
           {/* ── Overview ── */}
           <TabsContent value="overview">
-            {stats ? (
+            {statsError ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                Failed to load stats: {(statsError as Error).message}
+              </div>
+            ) : stats ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <StatCard label="Total users" value={stats.totalUsers} />
                 <StatCard label="New this week" value={stats.newUsersThisWeek} />

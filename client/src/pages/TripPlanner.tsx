@@ -1117,7 +1117,92 @@ export default function TripPlanner() {
                       <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
                         {isBeingModified ? <Loader2 className="h-3 w-3 animate-spin" /> : idx + 1}
                       </div>
-                      <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
+                      <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden relative ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
+                        {/* Action buttons — absolute overlay, visible on group-hover only */}
+                        <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 backdrop-blur-sm rounded-md p-0.5 shadow-sm">
+                          {/* Thumbs up */}
+                          <button
+                            className={`p-1 rounded-md transition-colors ${likedActivities.has(`${selectedDay}-${idx}`) ? "text-emerald-500 bg-emerald-50" : "hover:bg-muted text-muted-foreground"}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const key = `${selectedDay}-${idx}`;
+                              const alreadyLiked = likedActivities.has(key);
+                              setLikedActivities(prev => {
+                                const next = new Set(prev);
+                                alreadyLiked ? next.delete(key) : next.add(key);
+                                return next;
+                              });
+                              if (!alreadyLiked) {
+                                fetch(`/api/journeys/${journeyId}/activity-feedback`, {
+                                  method: "POST",
+                                  credentials: "include",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    activityTitle: activity.title,
+                                    activityType: activity.type,
+                                    location: currentDayData?.location,
+                                    signal: "liked",
+                                  }),
+                                }).catch(() => {});
+                              }
+                              setReplaceMode(null);
+                              setActivityMenu(null);
+                            }}
+                            title="Love this"
+                            data-testid={`button-thumbsup-${idx}`}
+                          >
+                            <ThumbsUp className="h-3.5 w-3.5" />
+                          </button>
+                          {/* Thumbs down → hard reject + replace flow */}
+                          <button
+                            className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isReplacing && replaceIsHardReject) {
+                                setReplaceMode(null);
+                                setReplaceIsHardReject(false);
+                              } else {
+                                fetch(`/api/journeys/${journeyId}/activity-feedback`, {
+                                  method: "POST",
+                                  credentials: "include",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    activityTitle: activity.title,
+                                    activityType: activity.type,
+                                    location: currentDayData?.location,
+                                    signal: "hard_reject",
+                                  }),
+                                }).catch(() => {});
+                                setReplaceMode({ dayIndex: selectedDay, activityIndex: idx });
+                                setReplaceIsHardReject(true);
+                              }
+                              setActivityMenu(null);
+                              setCustomReplaceText("");
+                            }}
+                            title="Not for me"
+                            data-testid={`button-thumbsdown-${idx}`}
+                          >
+                            <ThumbsDown className="h-3.5 w-3.5" />
+                          </button>
+                          {/* Overflow menu (remove / extend) */}
+                          <button
+                            className="p-1 rounded-md hover:bg-muted transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isMenuOpen) {
+                                setActivityMenu(null);
+                                setReplaceMode(null);
+                              } else {
+                                setActivityMenu({ dayIndex: selectedDay, activityIndex: idx });
+                                setReplaceMode(null);
+                              }
+                            }}
+                            data-testid={`button-activity-menu-${idx}`}
+                          >
+                            <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        </div>
+
                         <div className="flex">
                           {activity.image_url && (
                             <div className="w-20 h-20 flex-shrink-0">
@@ -1132,103 +1217,22 @@ export default function TripPlanner() {
                             </div>
                           )}
                           <CardContent className="p-3 flex-1 min-w-0">
-                            <div className="flex justify-between items-start mb-1">
-                              <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            <div className="flex items-center gap-2 mb-1 pr-6">
+                              <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
                                 {activity.time}
                               </span>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border ${TYPE_COLORS[activity.type] || ""}`}>
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Badge variant="outline" className={`text-[10px] uppercase tracking-wider border flex-shrink-0 ${TYPE_COLORS[activity.type] || ""}`}>
                                   {activity.type}
                                 </Badge>
                                 {activity.hidden_gem && (
-                                  <Badge className="text-[10px] bg-emerald-600/90 text-white border-0 gap-1">
+                                  <Badge className="text-[10px] bg-emerald-600/90 text-white border-0 gap-1 flex-shrink-0 hidden sm:inline-flex">
                                     🌿 Off the Beaten Path
                                   </Badge>
                                 )}
-                                {/* Thumbs up */}
-                                <button
-                                  className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md ${likedActivities.has(`${selectedDay}-${idx}`) ? "opacity-100 text-emerald-500" : "hover:bg-muted text-muted-foreground"}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const key = `${selectedDay}-${idx}`;
-                                    const alreadyLiked = likedActivities.has(key);
-                                    setLikedActivities(prev => {
-                                      const next = new Set(prev);
-                                      alreadyLiked ? next.delete(key) : next.add(key);
-                                      return next;
-                                    });
-                                    if (!alreadyLiked) {
-                                      fetch(`/api/journeys/${journeyId}/activity-feedback`, {
-                                        method: "POST",
-                                        credentials: "include",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          activityTitle: activity.title,
-                                          activityType: activity.type,
-                                          location: currentDayData?.location,
-                                          signal: "liked",
-                                        }),
-                                      }).catch(() => {});
-                                    }
-                                    setReplaceMode(null);
-                                    setActivityMenu(null);
-                                  }}
-                                  title="Love this"
-                                  data-testid={`button-thumbsup-${idx}`}
-                                >
-                                  <ThumbsUp className="h-3.5 w-3.5" />
-                                </button>
-                                {/* Thumbs down → hard reject + replace flow */}
-                                <button
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted text-muted-foreground"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isReplacing && replaceIsHardReject) {
-                                      setReplaceMode(null);
-                                      setReplaceIsHardReject(false);
-                                    } else {
-                                      fetch(`/api/journeys/${journeyId}/activity-feedback`, {
-                                        method: "POST",
-                                        credentials: "include",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          activityTitle: activity.title,
-                                          activityType: activity.type,
-                                          location: currentDayData?.location,
-                                          signal: "hard_reject",
-                                        }),
-                                      }).catch(() => {});
-                                      setReplaceMode({ dayIndex: selectedDay, activityIndex: idx });
-                                      setReplaceIsHardReject(true);
-                                    }
-                                    setActivityMenu(null);
-                                    setCustomReplaceText("");
-                                  }}
-                                  title="Not for me"
-                                  data-testid={`button-thumbsdown-${idx}`}
-                                >
-                                  <ThumbsDown className="h-3.5 w-3.5" />
-                                </button>
-                                {/* Overflow menu (remove / extend) */}
-                                <button
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isMenuOpen) {
-                                      setActivityMenu(null);
-                                      setReplaceMode(null);
-                                    } else {
-                                      setActivityMenu({ dayIndex: selectedDay, activityIndex: idx });
-                                      setReplaceMode(null);
-                                    }
-                                  }}
-                                  data-testid={`button-activity-menu-${idx}`}
-                                >
-                                  <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-                                </button>
                               </div>
                             </div>
-                            <h4 className="font-serif font-medium text-base leading-tight mb-1">{activity.title}</h4>
+                            <h4 className="font-serif font-medium text-base leading-tight mb-1 line-clamp-2">{activity.title}</h4>
                             <p className="text-xs text-muted-foreground line-clamp-1">
                               {activity.duration && `${activity.duration}`}
                               {activity.cost && activity.cost !== "Free" && ` • ${activity.cost}`}
