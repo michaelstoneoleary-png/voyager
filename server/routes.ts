@@ -6,7 +6,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -247,6 +247,15 @@ export async function registerRoutes(
     };
 
     const lastDest = currentDestinations[currentDestinations.length - 1] || origin || "the starting point";
+    // Cache key is based only on the "from" destination — maximises cache hits across trips
+    const cacheKey = `nearby:${lastDest.toLowerCase().trim()}`;
+
+    // Check cache first (12-month TTL)
+    const cached = await storage.getCachedDestinationSuggestions(cacheKey);
+    if (cached) {
+      return res.json({ suggestions: cached, fromCache: true });
+    }
+
     const modesStr = travelModes.length ? travelModes.join(", ") : "any transport";
     const budgetDesc = budgetType === "later" ? "flexible" : budgetType === "fixed" ? "strict budget" : "estimated budget";
 
@@ -289,13 +298,29 @@ Reply with ONLY a valid JSON array, no markdown, no explanation:
       let raw: { name: string; description: string }[] = [];
       try { raw = JSON.parse(text); } catch { raw = []; }
 
-      const geocoded = await Promise.all(
+      // Geocode + fetch top attraction in parallel
+      const enriched = await Promise.all(
         raw.map(async (item) => {
           const coords = await geocodeLocation(item.name);
-          return { ...item, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
+          const attraction = await getTopAttractionForCity(
+            item.name,
+            coords ?? undefined
+          );
+          return {
+            name: item.name,
+            description: item.description,
+            lat: coords?.lat ?? null,
+            lng: coords?.lng ?? null,
+            topAttraction: attraction?.name ?? null,
+            photoUrl: attraction?.photoUrl ?? null,
+          };
         })
       );
-      res.json({ suggestions: geocoded });
+
+      // Store in cache (fire-and-forget)
+      storage.setCachedDestinationSuggestions(cacheKey, enriched).catch(() => {});
+
+      res.json({ suggestions: enriched });
     } catch (err) {
       console.error("[nearby-suggestions] error:", err);
       res.json({ suggestions: [] });

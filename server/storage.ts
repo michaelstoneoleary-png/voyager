@@ -9,9 +9,19 @@ import {
   journeyPhotos, type JourneyPhoto, type InsertJourneyPhoto,
   voyages, type Voyage, type InsertVoyage,
   userActivityFeedback,
+  destinationSuggestionsCache,
 } from "@shared/schema";
+
+export interface CachedDestinationSuggestion {
+  name: string;
+  description: string;
+  lat: number | null;
+  lng: number | null;
+  topAttraction: string | null;
+  photoUrl: string | null;
+}
 import { db } from "./db";
-import { eq, and, desc, or, ilike, gte, count, sql } from "drizzle-orm";
+import { eq, and, desc, or, ilike, gte, gt, count, sql } from "drizzle-orm";
 
 function toTitleCase(str: string): string {
   return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
@@ -74,6 +84,8 @@ export interface IStorage {
   deleteUserAccount(id: string): Promise<boolean>;
   recordApiUsage(data: { userId: string; feature: string; model: string; inputTokens: number; outputTokens: number }): Promise<void>;
   getApiUsageSummary(): Promise<Array<{ userId: string; firstName: string | null; lastName: string | null; email: string | null; totalInputTokens: number; totalOutputTokens: number; byFeature: Record<string, { input: number; output: number }> }>>;
+  getCachedDestinationSuggestions(cacheKey: string): Promise<CachedDestinationSuggestion[] | null>;
+  setCachedDestinationSuggestions(cacheKey: string, suggestions: CachedDestinationSuggestion[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -358,6 +370,33 @@ export class DatabaseStorage implements IStorage {
 
   async recordApiUsage(data: { userId: string; feature: string; model: string; inputTokens: number; outputTokens: number }): Promise<void> {
     await db.insert(apiUsage).values(data);
+  }
+
+  async getCachedDestinationSuggestions(cacheKey: string): Promise<CachedDestinationSuggestion[] | null> {
+    const [row] = await db
+      .select()
+      .from(destinationSuggestionsCache)
+      .where(
+        and(
+          eq(destinationSuggestionsCache.cacheKey, cacheKey),
+          gt(destinationSuggestionsCache.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+    if (!row) return null;
+    return row.suggestions as CachedDestinationSuggestion[];
+  }
+
+  async setCachedDestinationSuggestions(cacheKey: string, suggestions: CachedDestinationSuggestion[]): Promise<void> {
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    await db
+      .insert(destinationSuggestionsCache)
+      .values({ cacheKey, suggestions, expiresAt })
+      .onConflictDoUpdate({
+        target: destinationSuggestionsCache.cacheKey,
+        set: { suggestions, expiresAt, createdAt: new Date() },
+      });
   }
 
   async getApiUsageSummary() {
