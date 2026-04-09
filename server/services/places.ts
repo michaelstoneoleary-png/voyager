@@ -194,6 +194,54 @@ export async function geocodeLocation(
   }
 }
 
+// ── Directions (road routing) ─────────────────────────────────────────────────
+
+function decodePolyline(encoded: string): [number, number][] {
+  const points: [number, number][] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : result >> 1;
+    shift = result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : result >> 1;
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
+}
+
+export async function getDirectionsRoute(
+  waypoints: { lat: number; lng: number }[]
+): Promise<{ points: [number, number][]; distance: string; duration: string } | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey || waypoints.length < 2) return null;
+  try {
+    const origin = `${waypoints[0].lat},${waypoints[0].lng}`;
+    const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`;
+    const waypointStr = waypoints.slice(1, -1).map(p => `${p.lat},${p.lng}`).join("|");
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypointStr ? `&waypoints=${encodeURIComponent(waypointStr)}` : ""}&mode=driving&key=${apiKey}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.status !== "OK" || !data.routes?.[0]) {
+      console.warn("[directions] API status:", data.status);
+      return null;
+    }
+    const route = data.routes[0];
+    const points = decodePolyline(route.overview_polyline.points);
+    const legs = route.legs as { distance: { text: string }; duration: { text: string } }[];
+    const totalDist = legs.reduce((s, l) => s + (l.distance?.text ? parseFloat(l.distance.text) : 0), 0);
+    const totalSecs = legs.reduce((s, l) => s + (l.duration?.text ? 0 : 0), 0);
+    const distance = legs.map(l => l.distance?.text).filter(Boolean).join(" + ") || "";
+    const duration = legs.map(l => l.duration?.text).filter(Boolean).join(" + ") || "";
+    void totalDist; void totalSecs;
+    return { points, distance, duration };
+  } catch (err) {
+    console.error("[directions] fetch threw:", err);
+    return null;
+  }
+}
+
 // ── Top Attraction Lookup ─────────────────────────────────────────────────────
 
 export async function getTopAttractionForCity(

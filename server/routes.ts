@@ -6,7 +6,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./rep
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, type PlaceResult } from "./services/places";
+import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, getDirectionsRoute, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import { sendInviteEmail } from "./lib/email";
 import Papa from "papaparse";
@@ -227,6 +227,13 @@ export async function registerRoutes(
     if (!address) return res.json({ lat: null, lng: null });
     const coords = await geocodeLocation(address);
     res.json(coords ?? { lat: null, lng: null });
+  });
+
+  app.post("/api/places/directions", isAuthenticated, async (req: any, res) => {
+    const { waypoints } = req.body as { waypoints?: { lat: number; lng: number }[] };
+    if (!waypoints || waypoints.length < 2) return res.json({ points: [] });
+    const result = await getDirectionsRoute(waypoints);
+    res.json(result ?? { points: [] });
   });
 
   app.post("/api/places/nearby-suggestions", isAuthenticated, async (req: any, res) => {
@@ -516,7 +523,7 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
 
       const travelMode = (journey as any).travelMode || "mixed";
       const travelModeLabels: Record<string, string> = {
-        drive: "ROAD TRIP — the traveler is DRIVING the entire trip. All travel between stops must be by car/driving. Include realistic driving times and distances between cities. Suggest scenic routes, interesting roadside stops, and rest breaks for long drives. No flights. Plan logistics activities as 'drive' mode only.",
+        drive: "ROAD TRIP — the traveler is DRIVING the entire trip. All city-to-city travel is by car. Do NOT invent specific driving distances, journey times, or highway numbers — routing is handled by Google Maps. For travel between cities, include a 'logistics' type activity titled 'Drive to [City]' with a note to check Google Maps for current routing and drive time. Focus on experiences at each destination: scenic areas, interesting stops, and rest break suggestions (without inventing specific road names or durations). No flights.",
         fly: "The traveler will FLY between distant cities. Use flights for long-distance travel and local transport (taxi/transit/walk) within cities.",
         train: "The traveler prefers TRAIN travel between cities. Plan rail journeys between destinations with station names and estimated journey times. Use local transport within cities.",
         bus: "The traveler will use BUS/COACH between cities. Plan bus routes between destinations with realistic journey times. Use local transport within cities.",
@@ -630,7 +637,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
 Include 3-5 activities per day with realistic times, real places, accurate coordinates (lat/lng), cost estimates, and insider tips. Cover a mix of culture, food, logistics (arrival/departure), nature, shopping, and local experiences. Use the actual correct coordinates for each place.
 HIDDEN GEMS: For each day, mark exactly 1 activity as a hidden gem — a well-regarded but lesser-known spot that most tourists skip, with a solid rating but far fewer reviews than the famous sights. Set "hidden_gem": true on that activity. All other activities should have "hidden_gem": false.
 SHOPPING ACTIVITIES: Include at least one shopping activity per destination that highlights products ENDEMIC to the region — local artisan crafts, specialty goods, and cultural products unique to the area. Examples: silverwork and turquoise jewelry in Santa Fe, saffron in Spain, hand-painted azulejo tiles in Portugal, Murano blown glass in Venice, silk in Thailand, leather goods in Florence, ceramics in Oaxaca. For each shopping activity, the description MUST name the specific local product(s) and explain their cultural significance. The tip should include where to find authentic (non-tourist-trap) sources and what to look for when buying. Title should reference the specific local product, not just "Shopping" or "Market visit".
-TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode, estimated duration, distance (always in km — the app handles unit conversion for the user), and an optional practical note (e.g. which metro line, bus number, or if walking is scenic). Be realistic about travel times based on actual distances.
+TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode and an optional practical note. For driving legs between cities, set duration and distance to null and use the note field to say "See Google Maps for routing and current drive time." For walking, transit, or short local trips within a city, provide realistic duration and distance estimates (distance always in km).
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
 ${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.` : "NO HOTELS: This is a day trip. Do not include any hotels array in the JSON. The traveler is not staying overnight."}`
