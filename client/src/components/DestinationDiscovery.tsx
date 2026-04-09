@@ -76,18 +76,45 @@ function formatMinutes(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
-// ── FitBoundsView ─────────────────────────────────────────────────────────────
+// ── MapViewController ────────────────────────────────────────────────────────
+// Controls map position. flyTo fires when a new stop is selected (zooms to it).
+// Initial fit runs once when the first route points appear — suggestions never
+// trigger a re-fit so they can't zoom the map back out.
 
-function FitBoundsView({ points }: { points: [number, number][] }) {
+function MapViewController({
+  routePoints,
+  flyTo,
+}: {
+  routePoints: [number, number][];
+  flyTo: [number, number] | null;
+}) {
   const map = useMap();
+  const flyToKey = useRef<string>("");
+  const initialized = useRef(false);
+
+  // Fly to a newly added point (triggered by user selecting a stop)
   useEffect(() => {
-    if (points.length > 1) {
-      map.fitBounds(points as [number, number][], { padding: [48, 48], maxZoom: 10 });
-    } else if (points.length === 1) {
-      map.setView(points[0], 8);
+    if (!flyTo) return;
+    const key = `${flyTo[0]},${flyTo[1]}`;
+    if (key === flyToKey.current) return;
+    flyToKey.current = key;
+    initialized.current = true;
+    map.flyTo(flyTo, 9, { animate: true, duration: 0.8 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flyTo?.[0], flyTo?.[1]]);
+
+  // One-time initial fit to route points (only before any flyTo has fired)
+  useEffect(() => {
+    if (initialized.current || routePoints.length === 0) return;
+    initialized.current = true;
+    if (routePoints.length > 1) {
+      map.fitBounds(routePoints, { padding: [48, 48], maxZoom: 10 });
+    } else {
+      map.setView(routePoints[0], 8);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points.map((p) => `${p[0]},${p[1]}`).join("|")]);
+  }, [routePoints.length]);
+
   return null;
 }
 
@@ -100,6 +127,7 @@ function RouteMap({
   onAddSuggestion,
   onExpand,
   height = "100%",
+  flyTo = null,
 }: {
   orderedPoints: [number, number][];
   labels: string[];
@@ -107,13 +135,8 @@ function RouteMap({
   onAddSuggestion?: (name: string) => void;
   onExpand?: () => void;
   height?: string;
+  flyTo?: [number, number] | null;
 }) {
-  // All geocoded points for fitting bounds (route + suggestions)
-  const suggestionPoints: [number, number][] = suggestions
-    .filter((s) => s.lat !== null && s.lng !== null)
-    .map((s) => [s.lat!, s.lng!]);
-  const allPoints = [...orderedPoints, ...suggestionPoints];
-
   return (
     <div className="relative rounded-xl overflow-hidden border border-border" style={{ height }}>
       <MapContainer
@@ -197,7 +220,7 @@ function RouteMap({
           );
         })}
 
-        <FitBoundsView points={allPoints.length ? allPoints : orderedPoints} />
+        <MapViewController routePoints={orderedPoints} flyTo={flyTo} />
       </MapContainer>
 
       {onExpand && (
@@ -225,6 +248,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
   const [suggestions, setSuggestions] = useState<NearbySuggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapFlyTo, setMapFlyTo] = useState<[number, number] | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -278,9 +302,18 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
     }
   }, [formData.origin, formData.travelModes, formData.duration, formData.partyType, formData.budgetType]);
 
-  // Geocode origin on mount
+  // Geocode origin and fly to it; also auto-fill finalDestination as round-trip default
+  const prevOriginRef = useRef<string>("");
   useEffect(() => {
-    if (formData.origin) geocode(formData.origin);
+    if (!formData.origin) return;
+    // Auto-fill finalDestination with origin (round trip) if it's empty or still the old origin
+    if (!formData.finalDestination || formData.finalDestination === prevOriginRef.current) {
+      setFormData((prev) => ({ ...prev, finalDestination: formData.origin }));
+    }
+    prevOriginRef.current = formData.origin;
+    geocode(formData.origin).then((coords) => {
+      if (coords) setMapFlyTo([coords.lat, coords.lng]);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.origin]);
 
@@ -324,7 +357,8 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
     setQuery("");
     setPredictions([]);
     setShowDropdown(false);
-    await geocode(name);
+    const coords = await geocode(name);
+    if (coords) setMapFlyTo([coords.lat, coords.lng]);
     fetchSuggestions(newDests);
   };
 
@@ -390,6 +424,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               onAddSuggestion={addDestination}
               onExpand={() => setMapExpanded(true)}
               height="100%"
+              flyTo={mapFlyTo}
             />
           </div>
 
@@ -475,22 +510,32 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Final Destination</Label>
+              <Label className="text-xs">Return to</Label>
               <div className="relative">
                 <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   className="pl-8 h-8 text-sm"
                   placeholder="Where your trip ends"
                   value={formData.finalDestination}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, finalDestination: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, finalDestination: e.target.value }));
+                  }}
                   onBlur={() => { if (formData.finalDestination) geocode(formData.finalDestination); }}
                   data-testid="input-final-destination"
                 />
               </div>
+              {/* Open-jaw warning */}
+              {formData.finalDestination && formData.origin &&
+               formData.finalDestination.trim().toLowerCase() !== formData.origin.trim().toLowerCase() ? (
+                <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                  ⚠️ Open-jaw trip — return to {formData.origin} not included in travel time.
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  Defaults to your starting point (round trip).
+                </p>
+              )}
             </div>
-            <p className="text-[11px] text-muted-foreground -mt-1">
-              Can be different if you're not returning home.
-            </p>
           </div>
 
           {/* Add a stop — autocomplete */}
@@ -583,12 +628,26 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
                 </div>
               ))}
 
+              {/* Return-flight indicator (shown when it's a round trip with stops) */}
+              {formData.finalDestination &&
+               formData.destinations.length > 0 &&
+               formData.finalDestination.trim().toLowerCase() === formData.origin?.trim().toLowerCase() && (
+                <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-muted-foreground border border-dashed border-border/60 rounded-lg bg-background/60">
+                  <span className="shrink-0">✈️</span>
+                  <span>Return from {formData.destinations[formData.destinations.length - 1]}</span>
+                </div>
+              )}
+
               {/* Final destination row */}
               {formData.finalDestination && (
                 <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-muted/40 text-xs text-muted-foreground">
                   <span className="w-5 h-5 rounded-full bg-foreground/80 text-white flex items-center justify-center text-[10px] font-bold shrink-0">E</span>
                   <span className="truncate">{formData.finalDestination}</span>
-                  <Badge variant="outline" className="ml-auto text-[10px] py-0 px-1.5">End</Badge>
+                  <Badge variant="outline" className="ml-auto text-[10px] py-0 px-1.5">
+                    {formData.finalDestination.trim().toLowerCase() === formData.origin?.trim().toLowerCase()
+                      ? "Home"
+                      : "End"}
+                  </Badge>
                 </div>
               )}
 
@@ -632,6 +691,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
               suggestions={suggestions}
               onAddSuggestion={addDestination}
               height="100%"
+              flyTo={mapFlyTo}
             />
           </div>
         </DialogContent>
