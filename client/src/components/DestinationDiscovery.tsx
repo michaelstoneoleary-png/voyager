@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   MapPin,
   Plus,
+  Check,
   ChevronUp,
   ChevronDown,
   X,
@@ -448,41 +449,50 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
                 ))}
               </div>
             ) : suggestions.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {suggestions.slice(0, 6).map((s) => (
-                  <div
-                    key={s.name}
-                    className="rounded-lg border border-border bg-card overflow-hidden flex flex-col"
-                  >
-                    {s.photoUrl ? (
-                      <img
-                        src={s.photoUrl}
-                        alt={s.topAttraction ?? s.name}
-                        className="w-full h-20 object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-20 bg-muted/40 flex items-center justify-center">
-                        <MapPin className="h-5 w-5 text-muted-foreground/40" />
-                      </div>
-                    )}
-                    <div className="p-2 flex flex-col gap-0.5 flex-1">
-                      <span className="text-xs font-semibold text-foreground leading-tight">{s.name}</span>
-                      {s.topAttraction && (
-                        <span className="text-[10px] text-primary font-medium leading-tight truncate">{s.topAttraction}</span>
-                      )}
-                      <span className="text-[10px] text-muted-foreground leading-snug flex-1 line-clamp-2">{s.description}</span>
-                      <button
-                        type="button"
-                        onClick={() => addDestination(s.name)}
-                        disabled={formData.destinations.includes(s.name)}
-                        className="mt-1.5 self-start text-[11px] font-medium text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-0.5"
+              <div className="max-h-[260px] overflow-y-auto pr-1 -mr-1">
+                <div className="grid grid-cols-2 gap-2">
+                  {suggestions.slice(0, 8).map((s) => {
+                    const alreadyAdded = formData.destinations.includes(s.name);
+                    return (
+                      <div
+                        key={s.name}
+                        onClick={() => { if (s.lat !== null && s.lng !== null) setMapFlyTo([s.lat!, s.lng!]); }}
+                        className="rounded-lg border border-border bg-card overflow-hidden flex flex-col cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
                       >
-                        <Plus className="h-3 w-3" /> Add to route
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                        {s.photoUrl ? (
+                          <img
+                            src={s.photoUrl}
+                            alt={s.topAttraction ?? s.name}
+                            className="w-full h-20 object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-20 bg-muted/40 flex items-center justify-center">
+                            <MapPin className="h-5 w-5 text-muted-foreground/40" />
+                          </div>
+                        )}
+                        <div className="p-2 flex flex-col gap-0.5 flex-1">
+                          <span className="text-xs font-semibold text-foreground leading-tight">{s.name}</span>
+                          {s.topAttraction && (
+                            <span className="text-[10px] text-primary font-medium leading-tight truncate">{s.topAttraction}</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground leading-snug flex-1 line-clamp-2">{s.description}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); addDestination(s.name); }}
+                            disabled={alreadyAdded}
+                            className="mt-1.5 w-full text-[11px] font-medium bg-primary text-primary-foreground rounded px-2 py-1 hover:bg-primary/90 disabled:opacity-60 flex items-center justify-center gap-1 transition-colors"
+                          >
+                            {alreadyAdded
+                              ? <><Check className="h-3 w-3" /> Added</>
+                              : <><Plus className="h-3 w-3" /> Add to route</>
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : formData.origin ? (
               <p className="text-xs text-muted-foreground italic">No suggestions yet — add a stop to get ideas.</p>
