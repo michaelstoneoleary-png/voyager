@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -218,6 +218,22 @@ export default function AdminPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "usage" | "health">("overview");
 
+  // Usage date filter
+  type UsagePeriod = "7d" | "30d" | "90d" | "all" | "custom";
+  const [usagePeriod, setUsagePeriod] = useState<UsagePeriod>("30d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd,   setCustomEnd]   = useState("");
+
+  const usageDateRange = useMemo(() => {
+    const now = new Date();
+    const toISO = (d: Date) => d.toISOString().split("T")[0];
+    if (usagePeriod === "7d")  return { start: toISO(new Date(now.getTime() - 7  * 86400000)), end: toISO(now) };
+    if (usagePeriod === "30d") return { start: toISO(new Date(now.getTime() - 30 * 86400000)), end: toISO(now) };
+    if (usagePeriod === "90d") return { start: toISO(new Date(now.getTime() - 90 * 86400000)), end: toISO(now) };
+    if (usagePeriod === "custom") return { start: customStart, end: customEnd };
+    return { start: "", end: "" }; // "all"
+  }, [usagePeriod, customStart, customEnd]);
+
   // Debounce search
   const handleSearch = (value: string) => {
     setSearch(value);
@@ -256,8 +272,13 @@ export default function AdminPage() {
   });
 
   const { data: usageRows = [] } = useQuery<UsageSummaryRow[]>({
-    queryKey: ["/api/admin/usage"],
-    queryFn: () => adminFetch("/api/admin/usage"),
+    queryKey: ["/api/admin/usage", usageDateRange.start, usageDateRange.end],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (usageDateRange.start) qs.set("start", usageDateRange.start);
+      if (usageDateRange.end)   qs.set("end",   usageDateRange.end);
+      return adminFetch(`/api/admin/usage${qs.toString() ? "?" + qs : ""}`);
+    },
     retry: 1,
   });
 
@@ -455,8 +476,61 @@ export default function AdminPage() {
             <p className="text-sm text-muted-foreground">
               Token usage per user. Cost estimates use Haiku ($0.25/$1.25 per M) and Sonnet ($3/$15 per M) rates.
             </p>
+
+            {/* Date filter strip */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1">
+                {(["7d", "30d", "90d", "all", "custom"] as const).map((p) => (
+                  <Button
+                    key={p}
+                    size="sm"
+                    variant={usagePeriod === p ? "default" : "outline"}
+                    onClick={() => setUsagePeriod(p)}
+                    className="text-xs h-7 px-3"
+                  >
+                    {p === "7d" ? "7 days" : p === "30d" ? "30 days" : p === "90d" ? "90 days" : p === "all" ? "All time" : "Custom"}
+                  </Button>
+                ))}
+              </div>
+
+              {usagePeriod === "custom" && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="text-xs border rounded px-2 py-1 bg-background h-7"
+                  />
+                  <span className="text-xs text-muted-foreground">→</span>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="text-xs border rounded px-2 py-1 bg-background h-7"
+                  />
+                </div>
+              )}
+
+              {/* Summary line */}
+              {usageRows.length > 0 && (() => {
+                const totalTokens = usageRows.reduce((s, r) => s + r.totalInputTokens + r.totalOutputTokens, 0);
+                const totalCost   = usageRows.reduce((s, r) => s + estimateCost(r.byFeature), 0);
+                const periodLabel =
+                  usagePeriod === "7d"  ? "Last 7 days" :
+                  usagePeriod === "30d" ? "Last 30 days" :
+                  usagePeriod === "90d" ? "Last 90 days" :
+                  usagePeriod === "all" ? "All time" :
+                  customStart && customEnd ? `${customStart} – ${customEnd}` : "Custom range";
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    {periodLabel} · {usageRows.length} {usageRows.length === 1 ? "user" : "users"} · {totalTokens.toLocaleString()} tokens · ≈ ${totalCost.toFixed(2)}
+                  </p>
+                );
+              })()}
+            </div>
+
             {usageRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No usage data yet.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No usage data for this period.</p>
             ) : (
               <div className="space-y-3">
                 {usageRows.map((row) => {

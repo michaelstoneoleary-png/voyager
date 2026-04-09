@@ -2623,9 +2623,11 @@ Rules:
     }
   });
 
-  app.get("/api/admin/usage", isAuthenticated, isAdminUser, async (_req, res) => {
+  app.get("/api/admin/usage", isAuthenticated, isAdminUser, async (req: any, res) => {
     try {
-      res.json(await storage.getApiUsageSummary());
+      const start = req.query.start ? new Date(req.query.start as string) : undefined;
+      const end   = req.query.end   ? new Date((req.query.end as string) + "T23:59:59Z") : undefined;
+      res.json(await storage.getApiUsageSummary({ startDate: start, endDate: end }));
     } catch (error) {
       console.error("Error fetching usage summary:", error);
       res.status(500).json({ error: "Failed to fetch usage summary" });
