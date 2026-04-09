@@ -72,7 +72,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
     duration: 7,
     durationType: "estimated",
 
-    travelMode: "mixed",
+    travelModes: [] as string[],
     budgetType: "estimated",
     budgetAmount: "" as string | number,
     preferences: {
@@ -140,7 +140,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
       cost: formData.budgetType === "later" || formData.budgetAmount === "" ? "TBD" : `$${formData.budgetAmount}`,
       status: "Planning",
       destinations: allStops,
-      travelMode: formData.travelMode,
+      travelMode: formData.travelModes.join(",") || "mixed",
     }, (journey) => {
       onOpenChange(false);
       toast({
@@ -332,69 +332,93 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
 
           {step === 2 && (
             <div className="space-y-6 py-2">
-              <div className="space-y-3">
-                <Label>How are you getting there?</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: "drive", label: "Road Trip", icon: Car, desc: "Driving the whole way" },
-                    { value: "fly", label: "Fly", icon: Plane, desc: "Air travel between cities" },
-                    { value: "train", label: "Train", icon: Train, desc: "Rail journeys" },
-                    { value: "bus", label: "Bus", icon: Bus, desc: "Coach or bus routes" },
-                    { value: "ferry", label: "Ferry / Boat", icon: Ship, desc: "Water crossings" },
-                    { value: "mixed", label: "Mix of Modes", icon: Shuffle, desc: "Whatever works best" },
-                  ].map((mode) => (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-all cursor-pointer text-center ${
-                        formData.travelMode === mode.value
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-muted hover:border-primary/30 hover:bg-muted/30"
-                      }`}
-                      onClick={() => setFormData({ ...formData, travelMode: mode.value })}
-                      data-testid={`button-mode-${mode.value}`}
-                    >
-                      <mode.icon className={`h-5 w-5 ${formData.travelMode === mode.value ? "text-primary" : "text-muted-foreground"}`} />
-                      <span className="text-xs font-medium leading-tight">{mode.label}</span>
-                    </button>
-                  ))}
+              {/* Transport — multi-select */}
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-1">How are you getting there?</p>
+                <p className="text-[11px] text-muted-foreground mb-3">Select all that apply</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { value: "drive", label: "Drive",  sub: "Automobile",        Icon: Car   },
+                    { value: "fly",   label: "Fly",    sub: "Air travel",         Icon: Plane },
+                    { value: "train", label: "Train",  sub: "Rail journeys",      Icon: Train },
+                    { value: "other", label: "Other",  sub: "Ferry, bus & more",  Icon: Shuffle },
+                  ] as const).map(({ value, label, sub, Icon }) => {
+                    const selected = formData.travelModes.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        data-testid={`button-mode-${value}`}
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          travelModes: selected
+                            ? prev.travelModes.filter(m => m !== value)
+                            : [...prev.travelModes, value],
+                        }))}
+                        className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-center
+                          transition-all duration-150 cursor-pointer
+                          ${selected
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                          }`}
+                      >
+                        <Icon className={`h-5 w-5 ${selected ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className="font-semibold text-xs text-foreground">{label}</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight">{sub}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {formData.travelMode === "drive" && (
-                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-md p-2.5">
-                    Marco will plan driving routes with scenic stops, rest breaks, and realistic drive times between destinations.
+
+                {/* Drive note */}
+                {formData.travelModes.includes("drive") && (
+                  <p className="mt-2 text-xs text-muted-foreground bg-muted/30 rounded-lg p-2.5">
+                    Marco will plan driving routes with scenic stops, rest breaks, and realistic drive times.
                   </p>
                 )}
+
+                {/* Cruise Planner — coming soon */}
+                <button
+                  disabled
+                  className="mt-2 w-full flex items-center gap-3 rounded-xl border-2 border-dashed border-border/40 px-4 py-3 text-left opacity-50 cursor-not-allowed"
+                >
+                  <Ship className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-semibold text-muted-foreground">Cruise Planner</span>
+                    <span className="block text-[11px] text-muted-foreground">Plan around ports, shore excursions & embarkation</span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] py-0 shrink-0">Coming soon</Badge>
+                </button>
               </div>
 
-              <div className="space-y-3 pt-4 border-t">
-                <Label>Budget Preferences</Label>
-                <RadioGroup 
-                  value={formData.budgetType} 
-                  onValueChange={(val) => setFormData({...formData, budgetType: val})}
-                  className="space-y-2"
-                >
-                  <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/30 cursor-pointer">
-                    <RadioGroupItem value="estimated" id="bud-est" />
-                    <Label htmlFor="bud-est" className="flex-1 cursor-pointer">
-                      Estimated Budget
-                      <span className="block text-xs text-muted-foreground">Soft target to guide planning</span>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/30 cursor-pointer">
-                    <RadioGroupItem value="fixed" id="bud-fix" />
-                    <Label htmlFor="bud-fix" className="flex-1 cursor-pointer">
-                      Fixed Cap
-                      <span className="block text-xs text-muted-foreground">Strict limit, do not exceed</span>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/30 cursor-pointer">
-                    <RadioGroupItem value="later" id="bud-lat" />
-                    <Label htmlFor="bud-lat" className="flex-1 cursor-pointer">
-                      Decide Later
-                      <span className="block text-xs text-muted-foreground">Focus on experience first</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
+              {/* Budget Preferences — tile row */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-semibold text-foreground mb-3">Budget</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: "estimated", label: "Estimated",    sub: "Soft target"       },
+                    { value: "fixed",     label: "Fixed Cap",    sub: "Strict limit"      },
+                    { value: "later",     label: "Decide Later", sub: "Experience first"  },
+                  ] as const).map(({ value, label, sub }) => {
+                    const selected = formData.budgetType === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, budgetType: value })}
+                        className={`flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-3 text-center
+                          transition-all duration-150 cursor-pointer
+                          ${selected
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                          }`}
+                      >
+                        <span className="font-semibold text-sm text-foreground">{label}</span>
+                        <span className="text-[11px] text-muted-foreground">{sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {formData.budgetType !== "later" && (
@@ -416,7 +440,7 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
               <div className="space-y-4 pt-4 border-t">
                 <Label>Travel Preferences</Label>
 
-                {(formData.travelMode === "fly" || formData.travelMode === "mixed") && (
+                {formData.travelModes.includes("fly") && (
                   <>
                     <div className="flex items-center justify-between space-x-2">
                       <Label htmlFor="pref-direct" className="flex flex-col">
