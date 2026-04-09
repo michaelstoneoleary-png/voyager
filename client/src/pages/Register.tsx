@@ -129,11 +129,9 @@ export default function Register() {
                 <GoogleIcon /> Sign up with Google
               </Button>
             </a>
-            <a href="/api/auth/apple" className="block">
-              <Button variant="outline" className="w-full gap-2" type="button">
-                <AppleIcon /> Sign up with Apple
-              </Button>
-            </a>
+            <Button variant="outline" className="w-full gap-2 opacity-40 cursor-not-allowed" type="button" disabled>
+              <AppleIcon /> Sign up with Apple
+            </Button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

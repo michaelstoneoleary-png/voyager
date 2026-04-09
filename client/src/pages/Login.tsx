@@ -113,11 +113,9 @@ export default function Login() {
                 <GoogleIcon /> Continue with Google
               </Button>
             </a>
-            <a href="/api/auth/apple" className="block">
-              <Button variant="outline" className="w-full gap-2" type="button">
-                <AppleIcon /> Continue with Apple
-              </Button>
-            </a>
+            <Button variant="outline" className="w-full gap-2 opacity-40 cursor-not-allowed" type="button" disabled>
+              <AppleIcon /> Continue with Apple
+            </Button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
