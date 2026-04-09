@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -13,22 +12,17 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  Users, 
-  Calendar, 
-  MapPin, 
-  DollarSign, 
-  Plane, 
-  ArrowRight, 
+import {
+  User,
+  Users,
+  Baby,
+  Calendar,
+  MapPin,
+  DollarSign,
+  Plane,
+  ArrowRight,
   ArrowLeft,
   Plus,
   X,
@@ -53,6 +47,13 @@ function toTitleCase(str: string): string {
   return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
 }
 
+function durationLabel(days: number): string {
+  if (days === 1) return "Day Trip";
+  if (days === 7) return "1 week";
+  if (days === 14) return "2 weeks";
+  return `${days} days`;
+}
+
 export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   const [step, setStep] = useState(1);
   const { addTrip } = useTrips();
@@ -61,9 +62,10 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
   const { settings } = useUser();
 
   const [formData, setFormData] = useState({
-    travelers: 2,
-    shareAccommodation: true,
-    genderGroup: "mixed",
+    partyType: "solo" as "solo" | "couple" | "family",
+    adults: 1,
+    children: 0,
+    rooms: 1,
     dateType: "estimated",
     startDate: "",
     endDate: "",
@@ -173,119 +175,155 @@ export function NewTripDialog({ open, onOpenChange }: NewTripDialogProps) {
         <ScrollArea className="flex-1 pr-4 -mr-4 py-2">
           {step === 1 && (
             <div className="space-y-6 py-2">
-              {/* Travelers */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Number of Travelers</Label>
-                  <Input 
-                    type="number" 
-                    min={1} 
-                    value={formData.travelers} 
-                    onChange={(e) => setFormData({...formData, travelers: parseInt(e.target.value) || 1})} 
-                  />
+              {/* Trip type */}
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-2">Trip type</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { value: "solo",   label: "Solo",   sub: "Just me",       icon: <User  className="h-5 w-5" /> },
+                    { value: "couple", label: "Couple", sub: "Two of us",     icon: <Users className="h-5 w-5" /> },
+                    { value: "family", label: "Family", sub: "With children", icon: <Baby  className="h-5 w-5" /> },
+                  ] as const).map(opt => {
+                    const selected = formData.partyType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          const updates: Partial<typeof formData> = { partyType: opt.value };
+                          if (opt.value === "solo")   { updates.adults = 1; updates.children = 0; updates.rooms = 1; }
+                          if (opt.value === "couple") { updates.adults = 2; updates.children = 0; updates.rooms = 1; }
+                          if (opt.value === "family") { updates.adults = 2; updates.children = 0; updates.rooms = 1; }
+                          setFormData({ ...formData, ...updates });
+                        }}
+                        className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
+                          transition-all duration-150 cursor-pointer
+                          ${selected
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                          }`}
+                      >
+                        <span className={selected ? "text-primary" : "text-muted-foreground"}>{opt.icon}</span>
+                        <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                        <span className="text-[11px] text-muted-foreground">{opt.sub}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="space-y-2">
-                  <Label>Group Dynamic</Label>
-                  <Select 
-                    value={formData.genderGroup} 
-                    onValueChange={(val) => setFormData({...formData, genderGroup: val})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select group type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mixed">Mixed Group</SelectItem>
-                      <SelectItem value="female">Female Only</SelectItem>
-                      <SelectItem value="male">Male Only</SelectItem>
-                      <SelectItem value="family">Family</SelectItem>
-                      <SelectItem value="couple">Couple</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                {formData.partyType === "family" && (
+                  <div className="mt-4 flex gap-8 justify-center">
+                    {([
+                      { label: "Adults",   key: "adults",   min: 1 },
+                      { label: "Children", key: "children", min: 0 },
+                      { label: "Rooms",    key: "rooms",    min: 1 },
+                    ] as { label: string; key: "adults" | "children" | "rooms"; min: number }[]).map(({ label, key, min }) => (
+                      <div key={label} className="flex flex-col items-center gap-1">
+                        <span className="text-xs text-muted-foreground">{label}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, [key]: Math.max(min, prev[key] - 1) }))}
+                            className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-sm hover:bg-muted"
+                          >−</button>
+                          <span className="w-5 text-center text-sm font-medium">{formData[key]}</span>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, [key]: prev[key] + 1 }))}
+                            className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-sm hover:bg-muted"
+                          >+</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* When */}
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-2">When do you want to go?</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { value: "estimated", label: "Flexible Dates", sub: "I have a rough idea" },
+                    { value: "fixed",     label: "Fixed Dates",    sub: "I have exact dates"  },
+                  ] as const).map(opt => {
+                    const selected = formData.dateType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, dateType: opt.value })}
+                        className={`flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-4 text-center
+                          transition-all duration-150 cursor-pointer
+                          ${selected
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
+                          }`}
+                      >
+                        <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                        <span className="text-[11px] text-muted-foreground">{opt.sub}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 border p-3 rounded-lg bg-muted/30">
-                <Switch 
-                  id="share-acc" 
-                  checked={formData.shareAccommodation}
-                  onCheckedChange={(checked) => setFormData({...formData, shareAccommodation: checked})}
-                />
-                <Label htmlFor="share-acc" className="flex-1 cursor-pointer">
-                  Travelers will share accommodations
-                  <span className="block text-xs text-muted-foreground font-normal">
-                    (e.g., Double/Twin rooms instead of singles)
-                  </span>
-                </Label>
-              </div>
-
-              {/* Dates */}
-              <div className="space-y-3">
-                <Label>When do you want to go?</Label>
-                <RadioGroup 
-                  value={formData.dateType} 
-                  onValueChange={(val) => setFormData({...formData, dateType: val})}
-                  className="grid grid-cols-2 gap-4"
-                >
-                  <div>
-                    <RadioGroupItem value="estimated" id="date-est" className="peer sr-only" />
-                    <Label
-                      htmlFor="date-est"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <span className="font-semibold">Flexible Dates</span>
-                      <span className="text-xs text-muted-foreground">I have a rough idea</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="fixed" id="date-fixed" className="peer sr-only" />
-                    <Label
-                      htmlFor="date-fixed"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <span className="font-semibold">Fixed Dates</span>
-                      <span className="text-xs text-muted-foreground">I have exact dates</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {formData.dateType === "fixed" ? (
+              {/* Fixed date pickers */}
+              {formData.dateType === "fixed" && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Start Date</Label>
-                    <Input type="date" />
+                    <Input type="date" value={formData.startDate}
+                      onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                     <Label>End Date</Label>
-                    <Input type="date" />
+                    <Input type="date" value={formData.endDate}
+                      onChange={e => setFormData({ ...formData, endDate: e.target.value })} />
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Estimated Duration (Days)</Label>
-                    <div className="flex items-center gap-4">
-                       <Input 
-                         type="number" 
-                         className="w-24"
-                         value={formData.duration}
-                         onChange={(e) => setFormData({...formData, duration: parseInt(e.target.value) || 1})}
-                       />
-                       <RadioGroup 
-                         value={formData.durationType}
-                         onValueChange={(val) => setFormData({...formData, durationType: val})}
-                         className="flex gap-4"
-                       >
-                         <div className="flex items-center space-x-2">
-                           <RadioGroupItem value="estimated" id="dur-est" />
-                           <Label htmlFor="dur-est">Approximate</Label>
-                         </div>
-                         <div className="flex items-center space-x-2">
-                           <RadioGroupItem value="max" id="dur-max" />
-                           <Label htmlFor="dur-max">Maximum</Label>
-                         </div>
-                       </RadioGroup>
-                    </div>
+              )}
+
+              {/* Flexible duration slider */}
+              {formData.dateType === "estimated" && (
+                <div>
+                  <p className="text-sm font-semibold text-foreground mb-1">How long?</p>
+                  <div className="text-center mb-3">
+                    <span className="text-primary font-semibold text-sm">{durationLabel(formData.duration)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={21}
+                    value={formData.duration}
+                    onChange={e => setFormData({ ...formData, duration: Number(e.target.value) })}
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="relative h-5 mt-1">
+                    <span className="absolute left-0 text-[11px] text-muted-foreground">Day trip</span>
+                    <span className="absolute text-[11px] text-muted-foreground -translate-x-1/2" style={{ left: "10%" }}>3 days</span>
+                    <span className="absolute text-[11px] text-muted-foreground -translate-x-1/2" style={{ left: "30%" }}>1 week</span>
+                    <span className="absolute text-[11px] text-muted-foreground -translate-x-1/2" style={{ left: "65%" }}>2 weeks</span>
+                    <span className="absolute right-0 text-[11px] text-muted-foreground">3+ weeks</span>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    {([
+                      { value: "estimated", label: "Approximate" },
+                      { value: "max",       label: "Maximum" },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, durationType: opt.value })}
+                        className={`text-xs px-3 py-1 rounded-full border transition-all
+                          ${formData.durationType === opt.value
+                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            : "border-border text-muted-foreground hover:border-primary/40"
+                          }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
