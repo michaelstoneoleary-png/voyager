@@ -568,123 +568,34 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
           </div>
         </div>
 
-        {/* ── Right: inputs + chain + travel time ─────────────────── */}
-        <div className="sm:col-span-2 flex flex-col gap-4">
+        {/* ── Right: unified journey chain ────────────────────── */}
+        <div className="sm:col-span-2 flex flex-col gap-3">
 
-          {/* Origin / Final destination */}
-          <div className="grid grid-cols-1 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Starting Point</Label>
-              <div className="relative">
-                <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  className="pl-8 h-8 text-sm"
-                  placeholder="Your starting city"
-                  value={formData.origin}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value }))}
-                  onBlur={() => { if (formData.origin) geocode(formData.origin); }}
-                  data-testid="input-origin"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Return to</Label>
-              <div className="relative">
-                <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  className="pl-8 h-8 text-sm"
-                  placeholder="Where your trip ends"
-                  value={formData.finalDestination}
-                  onChange={(e) => {
-                    setFormData((prev) => ({ ...prev, finalDestination: e.target.value }));
-                  }}
-                  onBlur={() => { if (formData.finalDestination) geocode(formData.finalDestination); }}
-                  data-testid="input-final-destination"
-                />
-              </div>
-              {/* Open-jaw warning */}
-              {formData.finalDestination && formData.origin &&
-               formData.finalDestination.trim().toLowerCase() !== formData.origin.trim().toLowerCase() ? (
-                <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                  ⚠️ Open-jaw trip — return to {formData.origin} not included in travel time.
-                </p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">
-                  Defaults to your starting point (round trip).
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Add a stop — autocomplete */}
-          <div className="space-y-1" ref={dropdownRef}>
-            <Label className="text-xs">Add a Stop</Label>
+          {/* Starting Point */}
+          <div className="space-y-1">
+            <Label className="text-xs">Starting Point</Label>
             <div className="relative">
-              <div className="flex gap-1.5">
-                <div className="relative flex-1">
-                  <Input
-                    className="h-8 text-sm pr-8"
-                    placeholder="City, country or region"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && query.trim()) {
-                        addDestination(predictions[0]?.description ?? query.trim());
-                      }
-                      if (e.key === "Escape") { setShowDropdown(false); }
-                    }}
-                    onFocus={() => predictions.length > 0 && setShowDropdown(true)}
-                    data-testid="input-add-stop"
-                  />
-                  {autocompleteLoading && (
-                    <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  )}
-                </div>
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-8 w-8 shrink-0"
-                  onClick={() => addDestination(predictions[0]?.description ?? query.trim())}
-                  data-testid="button-add-stop"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Autocomplete dropdown */}
-              {showDropdown && predictions.length > 0 && (
-                <div className="absolute z-50 top-full mt-1 w-full rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
-                  {predictions.map((p) => (
-                    <button
-                      key={p.placeId}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => addDestination(p.description)}
-                    >
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      {p.description}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                className="pl-8 h-8 text-sm"
+                placeholder="Your starting city"
+                value={formData.origin}
+                onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value }))}
+                onBlur={() => { if (formData.origin) geocode(formData.origin); }}
+                data-testid="input-origin"
+              />
             </div>
           </div>
 
-          {/* Destination chain */}
-          <div className="flex-1 space-y-1 min-h-0">
-            <Label className="text-xs">Route</Label>
-            <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
-              {/* Origin row */}
-              {formData.origin && (
-                <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-muted/40 text-xs text-muted-foreground">
-                  <span className="w-5 h-5 rounded-full bg-foreground/80 text-white flex items-center justify-center text-[10px] font-bold shrink-0">S</span>
-                  <span className="truncate">{formData.origin}</span>
-                  <Badge variant="outline" className="ml-auto text-[10px] py-0 px-1.5">Start</Badge>
-                </div>
-              )}
+          {/* Stops + Add Stop — sandwiched between start and return */}
+          <div className="flex gap-2 min-h-0">
+            {/* Vertical connector line */}
+            <div className="flex flex-col items-center mt-1 mb-1 ml-[13px] shrink-0">
+              <div className="w-px flex-1 bg-border" />
+            </div>
 
-              {/* Movable stops */}
+            <div className="flex-1 space-y-1 min-h-0">
+              {/* Existing stops */}
               {formData.destinations.map((dest, idx) => (
                 <div
                   key={dest + idx}
@@ -706,7 +617,61 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
                 </div>
               ))}
 
-              {/* Return-flight indicator (shown when it's a round trip with stops) */}
+              {/* Add a Stop input */}
+              <div className="space-y-0.5" ref={dropdownRef}>
+                <div className="relative">
+                  <div className="flex gap-1.5">
+                    <div className="relative flex-1">
+                      <Input
+                        className="h-8 text-sm pr-8"
+                        placeholder="Add a stop…"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && query.trim()) {
+                            addDestination(predictions[0]?.description ?? query.trim());
+                          }
+                          if (e.key === "Escape") { setShowDropdown(false); }
+                        }}
+                        onFocus={() => predictions.length > 0 && setShowDropdown(true)}
+                        data-testid="input-add-stop"
+                      />
+                      {autocompleteLoading && (
+                        <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => addDestination(predictions[0]?.description ?? query.trim())}
+                      data-testid="button-add-stop"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Autocomplete dropdown */}
+                  {showDropdown && predictions.length > 0 && (
+                    <div className="absolute z-50 top-full mt-1 w-full rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
+                      {predictions.map((p) => (
+                        <button
+                          key={p.placeId}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => addDestination(p.description)}
+                        >
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          {p.description}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Return-flight indicator (round trip with stops) */}
               {formData.finalDestination &&
                formData.destinations.length > 0 &&
                formData.finalDestination.trim().toLowerCase() === formData.origin?.trim().toLowerCase() && (
@@ -715,27 +680,36 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
                   <span>Return from {formData.destinations[formData.destinations.length - 1]}</span>
                 </div>
               )}
-
-              {/* Final destination row */}
-              {formData.finalDestination && (
-                <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-muted/40 text-xs text-muted-foreground">
-                  <span className="w-5 h-5 rounded-full bg-foreground/80 text-white flex items-center justify-center text-[10px] font-bold shrink-0">E</span>
-                  <span className="truncate">{formData.finalDestination}</span>
-                  <Badge variant="outline" className="ml-auto text-[10px] py-0 px-1.5">
-                    {formData.finalDestination.trim().toLowerCase() === formData.origin?.trim().toLowerCase()
-                      ? "Home"
-                      : "End"}
-                  </Badge>
-                </div>
-              )}
-
-              {!formData.origin && formData.destinations.length === 0 && !formData.finalDestination && (
-                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground text-xs">
-                  <MapPin className="h-6 w-6 mb-1 opacity-40" />
-                  Add stops to build your route
-                </div>
-              )}
             </div>
+          </div>
+
+          {/* Return to */}
+          <div className="space-y-1">
+            <Label className="text-xs">Return to</Label>
+            <div className="relative">
+              <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                className="pl-8 h-8 text-sm"
+                placeholder="Where your trip ends"
+                value={formData.finalDestination}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, finalDestination: e.target.value }));
+                }}
+                onBlur={() => { if (formData.finalDestination) geocode(formData.finalDestination); }}
+                data-testid="input-final-destination"
+              />
+            </div>
+            {/* Open-jaw warning */}
+            {formData.finalDestination && formData.origin &&
+             formData.finalDestination.trim().toLowerCase() !== formData.origin.trim().toLowerCase() ? (
+              <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                ⚠️ Open-jaw trip — return to {formData.origin} not included in travel time.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Defaults to your starting point (round trip).
+              </p>
+            )}
           </div>
 
           {/* Travel time bar */}
