@@ -502,7 +502,22 @@ Write in your own voice — specific, excited, self-correcting ("actually wait �
         journey.finalDestination,
       ].filter(Boolean);
       const destinations = allStops.join(", ") || "unspecified destination";
-      const days = journey.days || 7;
+
+      // Recompute days from dates string if it's a specific range (e.g. "Apr 24 - Apr 28, 2026")
+      // so the prompt is always internally consistent with the travel dates.
+      let days = journey.days || 7;
+      if (journey.dates && !String(journey.dates).startsWith("Flexible") && String(journey.dates) !== "TBD") {
+        const rangeMatch = String(journey.dates).match(/^([A-Za-z]+ \d{1,2})\s*[-–]\s*([A-Za-z]+ \d{1,2}),?\s*(\d{4})/);
+        if (rangeMatch) {
+          const start = new Date(`${rangeMatch[1]}, ${rangeMatch[3]}`);
+          const end = new Date(`${rangeMatch[2]}, ${rangeMatch[3]}`);
+          if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            const computed = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+            if (computed > 0) days = computed;
+          }
+        }
+      }
+
       const budget = journey.cost || "flexible";
       const currency = user?.currency || "USD";
       const originNote = journey.origin
