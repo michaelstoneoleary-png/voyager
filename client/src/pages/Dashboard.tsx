@@ -216,18 +216,6 @@ export default function Dashboard() {
               </Card>
             )}
 
-            <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-              <CardHeader>
-                <CardTitle className="font-serif text-lg text-primary">Inspire</CardTitle>
-                <CardDescription>Discover the voyage of your dreams</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">Get AI-powered destination suggestions tailored to your travel style and places you haven't been yet.</p>
-                <Link href="/inspire">
-                  <Button size="sm" className="w-full">Browse Destinations</Button>
-                </Link>
-              </CardContent>
-            </Card>
           </div>
 
         </div>
