@@ -435,6 +435,13 @@ Reply with ONLY a valid JSON array, no markdown, no explanation:
       const homeLocation = user?.homeLocation || journey.origin || "";
       const travelStyles = (user?.travelStyles as string[] | null) || [];
       const stylesNote = travelStyles.length ? `Their travel style leans ${travelStyles.join(", ").toLowerCase()}.` : "";
+      const isRoundTrip = !journey.finalDestination ||
+        journey.finalDestination.toLowerCase().trim() === (journey.origin || "").toLowerCase().trim();
+      const returnNote = homeLocation
+        ? isRoundTrip
+          ? ` IMPORTANT: ${homeLocation} is only the departure and return point — do NOT plan sightseeing or activities there. The last day ends at the destination; the traveler simply returns home and that travel time is not part of the itinerary.`
+          : ` IMPORTANT: ${homeLocation} is only the departure city — do NOT plan activities there.`
+        : "";
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -446,7 +453,7 @@ Reply with ONLY a valid JSON array, no markdown, no explanation:
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you plan this ${days}-day trip to ${destination}${homeLocation ? ` for someone from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you plan this ${days}-day trip to ${destination}${homeLocation ? ` for someone from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}${returnNote}
 
 Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Name real neighborhoods, dishes, streets, cultural details. Build the case for why this itinerary makes sense in the order it unfolds. Target 350–500 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately with your first thought — no intro phrase.`,
         }],
