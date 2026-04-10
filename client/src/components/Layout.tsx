@@ -165,6 +165,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
                 {recentJourneys.length > 0 && (
                   <div className="pt-2 mt-2 border-t border-sidebar-border">
+                    <span className="px-4 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Journey to</span>
                     {recentJourneys.map((j) => (
                       <Link key={j.id} href={`/planner/${j.id}`}>
                         <div
