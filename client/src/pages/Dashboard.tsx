@@ -6,9 +6,9 @@ import { Progress } from "@/components/ui/progress";
 import {
   Calendar,
   MapPin,
-  CheckCircle2,
   Plus,
   Wallet,
+  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useTrips } from "@/lib/TripContext";
@@ -19,6 +19,21 @@ import { TravelCheckInDialog } from "@/components/TravelCheckInDialog";
 import { useState } from "react";
 import { Link } from "wouter";
 
+function parseDaysUntil(dates: string): number | null {
+  if (!dates) return null;
+  const yearMatch = dates.match(/\b(20\d{2})\b/);
+  const year = yearMatch ? yearMatch[1] : null;
+  const raw = dates.split(/[–—]|(?<!\d)-(?!\d)|\bto\b/i)[0].trim();
+  const candidate = year && !raw.includes(year) ? `${raw}, ${year}` : raw;
+  const parsed = new Date(candidate);
+  if (isNaN(parsed.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  parsed.setHours(0, 0, 0, 0);
+  const days = Math.round((parsed.getTime() - today.getTime()) / 86_400_000);
+  return days > 0 ? days : null;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
@@ -28,6 +43,7 @@ export default function Dashboard() {
   const firstName = user?.firstName || "Traveler";
   const planningTrip = trips.find(t => t.status === "Upcoming" || t.status === "Planning");
   const activeTrip = planningTrip || trips[0];
+  const daysUntil = activeTrip ? parseDaysUntil(activeTrip.dates) : null;
 
   return (
     <>
@@ -50,7 +66,7 @@ export default function Dashboard() {
       )}
       <Layout>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          
+
           {/* Header with Start New Trip */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -69,7 +85,7 @@ export default function Dashboard() {
 
         {/* Main Content Area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           {/* Active Trip Hero (2/3 width) */}
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between">
@@ -77,20 +93,20 @@ export default function Dashboard() {
                  <MapPin className="h-5 w-5 text-primary" /> {planningTrip ? "Current Focus" : "Recent Journey"}
                </h3>
             </div>
-            
+
             {activeTrip ? (
               <Card className="overflow-hidden border-sidebar-border shadow-md group relative">
                 <div className="absolute top-0 right-0 w-1/2 h-full hidden md:block">
-                   <img 
-                     src={activeTrip.image || heroTravel} 
-                     alt="Travel" 
-                     className="w-full h-full object-cover opacity-60 mask-image-linear-to-l" 
+                   <img
+                     src={activeTrip.image || heroTravel}
+                     alt="Travel"
+                     className="w-full h-full object-cover opacity-60 mask-image-linear-to-l"
                    />
                    <div className="absolute inset-0 bg-gradient-to-l from-transparent to-background" />
                 </div>
 
                 <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row gap-8">
-                  <div className="flex-1 space-y-6">
+                  <div className="flex-1 space-y-5">
                      <div>
                        <Badge className={`mb-2 border-0 ${activeTrip.status === "Completed" ? "bg-emerald-100 text-emerald-800" : "bg-accent text-accent-foreground"}`}>
                          {activeTrip.status === "Completed" ? "Completed Journey" : activeTrip.status === "Upcoming" ? "Upcoming Trip" : "In Planning Phase"}
@@ -104,22 +120,23 @@ export default function Dashboard() {
                        </div>
                      </div>
 
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Duration</span>
-                          <div className="font-medium flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-primary" /> {activeTrip.days} days
-                          </div>
-                        </div>
-                        <div className="bg-muted/30 p-3 rounded-lg border border-border">
-                          <span className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</span>
-                          <div className="font-medium flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-primary" /> {activeTrip.status === "Completed" ? "Completed" : `${activeTrip.progress}% Ready`}
-                          </div>
-                        </div>
-                     </div>
+                     {/* Compact progress bar + optional countdown */}
+                     {activeTrip.status !== "Completed" && (
+                       <div className="space-y-1.5">
+                         <div className="flex items-center justify-between text-xs text-muted-foreground">
+                           <span>Planning progress</span>
+                           <span className="font-semibold text-foreground">{activeTrip.progress}% ready</span>
+                         </div>
+                         <Progress value={activeTrip.progress} className="h-1.5" />
+                         {daysUntil !== null && (
+                           <p className="text-xs text-primary font-medium pt-0.5 flex items-center gap-1">
+                             <MapPin className="h-3 w-3" />{daysUntil} days until departure
+                           </p>
+                         )}
+                       </div>
+                     )}
 
-                     <div className="flex gap-3 pt-2">
+                     <div className="flex gap-3">
                        <Link href={`/planner/${activeTrip.id}`}><Button className="shadow-sm" data-testid="button-open-itinerary">{activeTrip.status === "Completed" ? "View Itinerary" : "Open Itinerary"}</Button></Link>
                        {activeTrip.status === "Completed" ? (
                          <Button variant="outline" onClick={() => setIsNewTripOpen(true)} data-testid="button-plan-new">Plan New Trip</Button>
@@ -144,41 +161,6 @@ export default function Dashboard() {
                 </div>
               </Card>
             )}
-
-            {activeTrip && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Planning Progress</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                     <div className="flex items-end justify-between mb-2">
-                       <span className="text-2xl font-bold">{activeTrip.progress}%</span>
-                       <span className="text-xs text-muted-foreground">{activeTrip.status}</span>
-                     </div>
-                     <Progress value={activeTrip.progress} className="h-2" />
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Trip Details</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Duration</span>
-                        <span className="font-medium">{activeTrip.days} days</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Budget</span>
-                        <span className="font-medium">{activeTrip.cost}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
           </div>
 
           {/* Right Column: Mini Widgets (1/3 width) */}
@@ -190,16 +172,25 @@ export default function Dashboard() {
                   <CardDescription>Quick overview of your plans</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {trips.filter(t => t.status !== "Archived").slice(0, 3).map(trip => (
-                    <div key={trip.id} className="p-3 bg-background rounded-lg border border-border">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-primary">{trip.title}</span>
-                        <Badge variant="outline" className="text-[10px]">{trip.status}</Badge>
+                  {trips.filter(t => t.status !== "Archived").slice(0, 5).map(trip => (
+                    <Link key={trip.id} href={`/planner/${trip.id}`}>
+                      <div className="p-3 bg-background rounded-lg border border-border hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-primary leading-tight">{trip.title}</span>
+                          <Badge variant="outline" className="text-[10px] shrink-0 ml-2">{trip.status}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{trip.dates} &middot; {trip.days} days</p>
                       </div>
-                      <p className="text-sm text-muted-foreground">{trip.dates} &middot; {trip.days} days</p>
-                    </div>
+                    </Link>
                   ))}
                 </CardContent>
+                <div className="px-6 pb-4">
+                  <Link href="/journeys">
+                    <span className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors cursor-pointer">
+                      View All Journeys <ArrowRight className="h-3.5 w-3.5" />
+                    </span>
+                  </Link>
+                </div>
               </Card>
             ) : (
               <Card className="bg-sidebar border-sidebar-border">
