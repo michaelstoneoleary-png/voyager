@@ -550,7 +550,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
                 ))}
               </div>
             ) : suggestions.length > 0 ? (
-              <div className="max-h-[260px] overflow-y-auto pr-1 -mr-1">
+              <div className="overflow-y-auto pr-1 -mr-1">
                 <div className="grid grid-cols-2 gap-2">
                   {suggestions.slice(0, 8).map((s) => {
                     const alreadyAdded = formData.destinations.includes(s.name);
