@@ -77,7 +77,7 @@ export default function SharedJourney() {
           <h2 className="font-serif text-2xl font-bold mb-2">Journey not found</h2>
           <p className="text-muted-foreground mb-6">This itinerary link may be invalid or the journey may have been removed.</p>
           <Link href="/">
-            <Button variant="outline"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Voyager</Button>
+            <Button variant="outline"><ArrowLeft className="h-4 w-4 mr-2" /> Back to bon VOYAGER</Button>
           </Link>
         </div>
       </div>
@@ -91,7 +91,7 @@ export default function SharedJourney() {
       {/* Header */}
       <header className="border-b border-border bg-sidebar/60 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <span className="font-serif text-xl font-bold tracking-tight text-primary">VOYAGER</span>
+          <span className="font-serif text-xl font-bold tracking-tight text-primary">bon VOYAGER</span>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -217,7 +217,7 @@ export default function SharedJourney() {
         <div className="border-t border-border pt-8 text-center">
           <p className="text-muted-foreground mb-4 font-serif">Want to plan your own adventure?</p>
           <Link href="/register">
-            <Button size="lg">Start your journey with Voyager →</Button>
+            <Button size="lg">Start your journey with bon VOYAGER →</Button>
           </Link>
         </div>
       </main>

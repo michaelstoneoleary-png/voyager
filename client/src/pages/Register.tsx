@@ -93,7 +93,7 @@ export default function Register() {
       <header className="border-b border-border bg-background/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/">
-            <span className="font-serif text-2xl font-bold tracking-tight text-primary cursor-pointer" data-testid="text-brand-register">VOYAGER</span>
+            <span className="font-serif text-2xl font-bold tracking-tight text-primary cursor-pointer" data-testid="text-brand-register">bon VOYAGER</span>
           </Link>
           <Link href="/login">
             <Button variant="outline" size="sm" data-testid="link-login-header">Sign In</Button>
@@ -105,7 +105,7 @@ export default function Register() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="font-serif text-2xl">Create Your Account</CardTitle>
-            <CardDescription>Join Voyager and start planning your journeys</CardDescription>
+            <CardDescription>Join bon VOYAGER and start planning your journeys</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {inviteInfo && (

@@ -35,7 +35,7 @@ export default function VerifyEmail() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
       <div className="max-w-md w-full text-center space-y-4">
         <Link href="/">
-          <span className="font-serif text-2xl font-bold tracking-tight text-primary cursor-pointer">VOYAGER</span>
+          <span className="font-serif text-2xl font-bold tracking-tight text-primary cursor-pointer">bon VOYAGER</span>
         </Link>
 
         {status === "loading" && (
@@ -49,7 +49,7 @@ export default function VerifyEmail() {
           <div className="space-y-3 pt-4">
             <CheckCircle className="h-10 w-10 text-green-500 mx-auto" />
             <h2 className="font-serif text-xl font-bold">Email verified!</h2>
-            <p className="text-muted-foreground">Redirecting you to Voyager…</p>
+            <p className="text-muted-foreground">Redirecting you to bon VOYAGER…</p>
           </div>
         )}
 

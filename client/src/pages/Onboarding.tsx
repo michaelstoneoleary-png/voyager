@@ -63,7 +63,7 @@ export default function Onboarding() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="font-serif text-4xl font-bold text-primary tracking-tight">VOYAGER</h1>
+          <h1 className="font-serif text-4xl font-bold text-primary tracking-tight">bon VOYAGER</h1>
           <p className="text-xs text-muted-foreground uppercase tracking-widest">Travel Without Limits</p>
         </div>
 

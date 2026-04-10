@@ -2,8 +2,8 @@ import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM_ADDRESS = process.env.RESEND_FROM || "Voyager <onboarding@resend.dev>";
-const APP_URL = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+const FROM_ADDRESS = process.env.RESEND_FROM || "bon VOYAGER <onboarding@resend.dev>";
+const APP_URL = process.env.APP_URL || "https://bonvoyager.ai";
 
 export async function sendInviteEmail(
   to: string,
@@ -20,7 +20,7 @@ export async function sendInviteEmail(
   await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: `${fromName} invited you to Voyager`,
+    subject: `${fromName} invited you to bon VOYAGER`,
     html: `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -31,7 +31,7 @@ export async function sendInviteEmail(
 
         <!-- Header -->
         <tr><td style="padding-bottom:24px;text-align:center">
-          <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:0.15em;color:#1a1a1a;text-transform:uppercase">VOYAGER</p>
+          <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:0.15em;color:#1a1a1a">bon VOYAGER</p>
           <p style="margin:4px 0 0;font-size:11px;letter-spacing:0.2em;color:#888;text-transform:uppercase;font-family:sans-serif">Travel Without Limits</p>
         </td></tr>
 
@@ -48,7 +48,7 @@ export async function sendInviteEmail(
 
             <!-- Invite message -->
             <p style="margin:0 0 ${note ? "0" : "28px"};font-size:16px;color:#444;line-height:1.6;font-family:sans-serif">
-              <strong style="color:#1a1a1a">${fromName}</strong> thinks you'd love Voyager — the travel planning app that builds personalised day-by-day itineraries, suggests hidden gems, and takes care of all the logistics so you can focus on the journey.
+              <strong style="color:#1a1a1a">${fromName}</strong> thinks you'd love bon VOYAGER — the travel planning app that builds personalised day-by-day itineraries, suggests hidden gems, and takes care of all the logistics so you can focus on the journey.
             </p>
 
             ${note ? `
@@ -101,7 +101,7 @@ export async function sendInviteEmail(
         <!-- Email footer -->
         <tr><td style="padding-top:24px;text-align:center">
           <p style="margin:0;font-size:11px;color:#bbb;font-family:sans-serif;letter-spacing:0.05em">
-            © Voyager · Travel Without Limits
+            © bon VOYAGER · Travel Without Limits
           </p>
         </td></tr>
 
@@ -133,17 +133,17 @@ export async function sendVerificationEmail(
     await resend.emails.send({
       from: FROM_ADDRESS,
       to,
-      subject: "Verify your Voyager account",
+      subject: "Verify your bon VOYAGER account",
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-          <h2 style="font-size:22px;font-weight:700;margin-bottom:8px">Welcome to Voyager${firstName ? `, ${firstName}` : ""}!</h2>
+          <h2 style="font-size:22px;font-weight:700;margin-bottom:8px">Welcome to bon VOYAGER${firstName ? `, ${firstName}` : ""}!</h2>
           <p style="color:#555;margin-bottom:24px">Please verify your email address to complete your account setup.</p>
           <a href="${url}"
              style="background:#2563eb;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
             Verify my email
           </a>
           <p style="color:#999;font-size:13px;margin-top:24px">
-            This link expires in 24 hours. If you didn't create a Voyager account, you can safely ignore this email.
+            This link expires in 24 hours. If you didn't create a bon VOYAGER account, you can safely ignore this email.
           </p>
         </div>
       `,

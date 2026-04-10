@@ -102,7 +102,7 @@ async function fetchDestinationImage(destinationName: string, fallbackType: stri
 
     const resp = await fetch(
       `https://en.wikipedia.org/w/api.php?action=query&titles=${encoded}&prop=pageimages&piprop=original|thumbnail&pithumbsize=1200&redirects=1&format=json&origin=*`,
-      { headers: { "User-Agent": "Voyager-Travel-App/1.0" }, signal: controller.signal }
+      { headers: { "User-Agent": "BonVoyager-App/1.0" }, signal: controller.signal }
     );
     clearTimeout(timeout);
 
@@ -2387,7 +2387,7 @@ Rules:
 
       smsRateLimit.set(userId, now);
 
-      const body = `📋 Your Voyager Packing List is ready!\n\nOpen it on your phone to check off items as you pack:\n${packingUrl}\n\n— Voyager: Travel Without Limits`;
+      const body = `📋 Your bon VOYAGER Packing List is ready!\n\nOpen it on your phone to check off items as you pack:\n${packingUrl}\n\n— bon VOYAGER: Travel Without Limits`;
 
       await sendSms(cleaned, body);
       res.json({ success: true, message: "SMS sent successfully" });
@@ -2786,11 +2786,11 @@ Rules:
 
       if (email) {
         const inviter = await storage.getUser(userId);
-        const fromName = inviter ? (inviter.firstName || inviter.displayName || "A Voyager user") : "A Voyager user";
+        const fromName = inviter ? (inviter.firstName || inviter.displayName || "A bon VOYAGER user") : "A bon VOYAGER user";
         await sendInviteEmail(email, fromName, invite.token, note || undefined);
       }
 
-      const appUrl = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+      const appUrl = process.env.APP_URL || "https://bonvoyager.ai";
       res.json({ token: invite.token, link: `${appUrl}/register?invite=${invite.token}` });
     } catch (err) {
       console.error("Error creating invite:", err);
@@ -2803,7 +2803,7 @@ Rules:
     try {
       const userId = getUserId(req);
       const userInvites = await storage.getInvitesByUser(userId);
-      const appUrl = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+      const appUrl = process.env.APP_URL || "https://bonvoyager.ai";
       res.json(userInvites.map(inv => ({
         ...inv,
         link: `${appUrl}/register?invite=${inv.token}`,
@@ -2823,11 +2823,11 @@ Rules:
 
       if (email) {
         const inviter = await storage.getUser(userId);
-        const fromName = inviter ? (inviter.firstName || inviter.displayName || "The Voyager team") : "The Voyager team";
+        const fromName = inviter ? (inviter.firstName || inviter.displayName || "The bon VOYAGER team") : "The bon VOYAGER team";
         await sendInviteEmail(email, fromName, invite.token, note || undefined);
       }
 
-      const appUrl = process.env.APP_URL || "https://voyager-7eka.onrender.com";
+      const appUrl = process.env.APP_URL || "https://bonvoyager.ai";
       res.json({ token: invite.token, link: `${appUrl}/register?invite=${invite.token}` });
     } catch (err) {
       console.error("Error creating admin invite:", err);

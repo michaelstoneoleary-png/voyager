@@ -94,7 +94,7 @@ async function checkWikipedia(): Promise<ServiceHealth> {
     const res = await withTimeout((signal) =>
       fetch(
         "https://en.wikipedia.org/w/api.php?action=query&titles=Paris&prop=pageimages&piprop=original&format=json&origin=*",
-        { signal, headers: { "User-Agent": "Voyager-Travel-App/1.0" } },
+        { signal, headers: { "User-Agent": "BonVoyager-App/1.0" } },
       ),
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

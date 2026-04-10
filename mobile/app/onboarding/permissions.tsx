@@ -10,15 +10,15 @@ import * as Location from "expo-location";
 import { requestNotificationPermissions, registerPushToken } from "@/lib/notifications";
 import { colors, spacing, radius, typography } from "@/constants/theme";
 
-export const ONBOARDING_KEY = "voyager_onboarding_complete";
+export const ONBOARDING_KEY = "bonvoyager_onboarding_complete";
 
 const STEPS = [
   {
     icon: "map" as const,
     color: colors.primary,
-    title: "Welcome to Voyager",
+    title: "Welcome to bon VOYAGER",
     subtitle: "Your intelligent travel companion",
-    body: "Voyager tracks your journeys, helps you plan, and remembers every adventure — automatically.",
+    body: "bon VOYAGER tracks your journeys, helps you plan, and remembers every adventure — automatically.",
     features: [
       { icon: "airplane-outline" as const, text: "Auto-detect when you travel" },
       { icon: "journal-outline" as const, text: "Capture daily travel memories" },
@@ -32,7 +32,7 @@ const STEPS = [
     color: "#3B82F6",
     title: "Always-On Location",
     subtitle: "Required for Voyage detection",
-    body: "Voyager needs \"Always\" location access to know when you leave home and automatically start logging a Voyage — even when the app is closed.",
+    body: "bon VOYAGER needs \"Always\" location access to know when you leave home and automatically start logging a Voyage — even when the app is closed.",
     features: [
       { icon: "home-outline" as const, text: "Detects departure from your home address" },
       { icon: "navigate-outline" as const, text: "Tracks your current city while traveling" },
@@ -136,7 +136,7 @@ export default function PermissionsOnboarding() {
           <TouchableOpacity style={styles.settingsHint} onPress={openSettings}>
             <Ionicons name="settings-outline" size={13} color={colors.textMuted} />
             <Text style={styles.settingsHintText}>
-              Already denied? Open Settings → Privacy → Location Services → Voyager → Always
+              Already denied? Open Settings → Privacy → Location Services → bon VOYAGER → Always
             </Text>
           </TouchableOpacity>
         )}

@@ -7,7 +7,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="font-serif text-2xl font-bold tracking-tight text-primary" data-testid="text-brand">VOYAGER</h1>
+          <h1 className="font-serif text-2xl font-bold tracking-tight text-primary" data-testid="text-brand">bon VOYAGER</h1>
           <a href="/login" data-testid="link-login-header">
             <Button variant="outline" size="sm">Sign In</Button>
           </a>
@@ -118,8 +118,8 @@ export default function LandingPage() {
 
       <footer className="border-t border-border py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-sm text-muted-foreground">
-          <span className="font-serif font-bold text-foreground">VOYAGER <span className="font-sans font-normal text-xs text-muted-foreground ml-1.5">Travel Without Limits</span></span>
-          <span>© {new Date().getFullYear()} Voyager. All rights reserved.</span>
+          <span className="font-serif font-bold text-foreground">bon VOYAGER <span className="font-sans font-normal text-xs text-muted-foreground ml-1.5">Travel Without Limits</span></span>
+          <span>© {new Date().getFullYear()} bon VOYAGER. All rights reserved.</span>
         </div>
       </footer>
     </div>

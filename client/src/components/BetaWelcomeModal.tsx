@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-const STORAGE_KEY = "voyager_beta_v1";
+const STORAGE_KEY = "bonvoyager_beta_v1";
 
 export function BetaWelcomeModal() {
   const [open, setOpen] = useState(false);
@@ -36,7 +36,7 @@ export function BetaWelcomeModal() {
             You made it in.<br />Now break things.
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Voyager is still finding its wings — and that's exactly why you're here.
+            bon VOYAGER is still finding its wings — and that's exactly why you're here.
             Plan a trip, push every button, find the rough edges. We want you to explore
             it like you own the place.
           </p>

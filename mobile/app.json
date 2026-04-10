@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Voyager",
-    "slug": "voyager",
+    "name": "bon VOYAGER",
+    "slug": "bonvoyager",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "voyager",
+    "scheme": "bonvoyager",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
@@ -13,18 +13,18 @@
       "backgroundColor": "#F5F0E8"
     },
     "ios": {
-      "bundleIdentifier": "com.moleary.voyagertravel",
+      "bundleIdentifier": "ai.bonvoyager.app",
       "appleTeamId": "TUHBB6AB6Z",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Voyager uses your location in the background to automatically detect when you leave home and begin a Voyage, log your current city, and close your Voyage when you return.",
-        "NSLocationWhenInUseUsageDescription": "Voyager uses your location to detect when you're traveling and log your journey.",
-        "NSLocationAlwaysUsageDescription": "Voyager needs background location access to detect when you leave and return home, even when the app is closed.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "bon VOYAGER uses your location in the background to automatically detect when you leave home and begin a Voyage, log your current city, and close your Voyage when you return.",
+        "NSLocationWhenInUseUsageDescription": "bon VOYAGER uses your location to detect when you're traveling and log your journey.",
+        "NSLocationAlwaysUsageDescription": "bon VOYAGER needs background location access to detect when you leave and return home, even when the app is closed.",
         "UIBackgroundModes": ["location", "fetch", "remote-notification"]
       }
     },
     "android": {
-      "package": "com.voyager.travel",
+      "package": "ai.bonvoyager",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2D6A4F"
@@ -40,7 +40,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Voyager detects when you leave home to automatically start a Voyage journal.",
+          "locationAlwaysAndWhenInUsePermission": "bon VOYAGER detects when you leave home to automatically start a Voyage journal.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
         }
