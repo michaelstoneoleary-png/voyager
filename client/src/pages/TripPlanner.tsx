@@ -315,6 +315,7 @@ export default function TripPlanner() {
   const [inspireContext, setInspireContext] = useState<{ destination: string } | null>(null);
   // Marco briefing state
   const [briefStep, setBriefStep] = useState<"intro" | 1 | 2 | 3 | 4>("intro");
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [anythingElse, setAnythingElse] = useState("");
   const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
@@ -938,26 +939,44 @@ export default function TripPlanner() {
                     <MarcoAvatar />
                     <StepDots current={3} />
                     <div>
-                      <h2 className="font-serif text-xl font-semibold mb-1">Which month are you thinking?</h2>
+                      <h2 className="font-serif text-xl font-semibold mb-1">Which months are you thinking?</h2>
                       <p className="text-xs text-muted-foreground">
-                        This helps me factor in weather, events, and seasonal highlights.
+                        Pick one or more — this helps me factor in weather, events, and seasonal highlights.
                       </p>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      {months.map((m) => (
-                        <button
-                          key={m.label}
-                          onClick={() => monthSaveMutation.mutate(m.label)}
-                          disabled={monthSaveMutation.isPending}
-                          className="rounded-xl border-2 border-border bg-background px-2 py-3 text-center hover:border-primary/50 transition-all disabled:opacity-50"
-                        >
-                          <div className="text-sm font-semibold">{m.short}</div>
-                          <div className="text-xs text-muted-foreground">{m.year}</div>
-                        </button>
-                      ))}
+                      {months.map((m) => {
+                        const selected = selectedMonths.includes(m.label);
+                        return (
+                          <button
+                            key={m.label}
+                            onClick={() => setSelectedMonths(prev =>
+                              prev.includes(m.label) ? prev.filter(x => x !== m.label) : [...prev, m.label]
+                            )}
+                            disabled={monthSaveMutation.isPending}
+                            className={`rounded-xl border-2 px-2 py-3 text-center transition-all disabled:opacity-50 ${
+                              selected
+                                ? "border-primary bg-primary/5 text-primary"
+                                : "border-border bg-background hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="text-sm font-semibold">{m.short}</div>
+                            <div className={`text-xs ${selected ? "text-primary/70" : "text-muted-foreground"}`}>{m.year}</div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex justify-end pt-1">
+                    <div className="flex justify-between pt-1">
                       <Button variant="ghost" size="sm" onClick={() => setBriefStep(4)}>Not sure yet →</Button>
+                      <Button
+                        size="sm"
+                        disabled={selectedMonths.length === 0 || monthSaveMutation.isPending}
+                        onClick={() => {
+                          if (selectedMonths.length > 0) monthSaveMutation.mutate(selectedMonths.join(", "));
+                        }}
+                      >
+                        Next →
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
