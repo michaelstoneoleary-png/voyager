@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTrips } from "@/lib/TripContext";
 import heroTravel from "@/assets/hero-travel.png";
 import { NewTripDialog } from "@/components/NewTripDialog";
+import { MarcoEntryDialog } from "@/components/MarcoEntryDialog";
 import { TravelCheckInDialog } from "@/components/TravelCheckInDialog";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -21,6 +22,7 @@ import { Link } from "wouter";
 export default function Dashboard() {
   const { user } = useAuth();
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
+  const [isMarcoEntryOpen, setIsMarcoEntryOpen] = useState(false);
   const { trips } = useTrips();
 
   const firstName = user?.firstName || "Traveler";
@@ -32,6 +34,11 @@ export default function Dashboard() {
       <NewTripDialog
         open={isNewTripOpen}
         onOpenChange={setIsNewTripOpen}
+      />
+      <MarcoEntryDialog
+        open={isMarcoEntryOpen}
+        onOpenChange={setIsMarcoEntryOpen}
+        onJourneyBuilder={() => setIsNewTripOpen(true)}
       />
       {user && (
         <TravelCheckInDialog
@@ -50,13 +57,13 @@ export default function Dashboard() {
               <h1 className="font-serif text-3xl font-bold" data-testid="text-welcome">Welcome back, {firstName}</h1>
               <p className="text-muted-foreground text-sm">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-              onClick={() => setIsNewTripOpen(true)}
+              onClick={() => setIsMarcoEntryOpen(true)}
               data-testid="button-new-journey"
             >
-               <Plus className="mr-2 h-5 w-5" /> Start New Journey
+               <Plus className="mr-2 h-5 w-5" /> Plan a Journey
             </Button>
           </div>
 

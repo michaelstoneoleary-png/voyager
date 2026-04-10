@@ -1358,6 +1358,28 @@ ${truncated}`,
     return html.replace(/<[^>]*>/g, "").replace(/&[^;]+;/g, " ").replace(/\s+/g, " ").trim();
   }
 
+  // Marco entry intent classification — routes "I have a destination" vs "help me find one"
+  app.post("/api/marco/classify-intent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { message } = req.body;
+      if (!message?.trim()) return res.json({ intent: "destination" });
+
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 20,
+        messages: [{
+          role: "user",
+          content: `Classify this travel planning message as either "destination" (user has a specific place in mind) or "inspire" (user is open, undecided, or wants suggestions). Reply with ONLY the single word: destination or inspire.\n\nMessage: "${message.trim()}"`,
+        }],
+      });
+      const text = ((response.content[0] as any).text as string).toLowerCase().trim();
+      const intent = text.includes("inspire") ? "inspire" : "destination";
+      res.json({ intent });
+    } catch {
+      res.json({ intent: "destination" });
+    }
+  });
+
   app.get("/api/community/feed", isAuthenticated, async (_req, res) => {
     try {
       const cacheKey = "community_feed";
