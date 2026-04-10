@@ -1736,9 +1736,9 @@ export default function TripPlanner() {
             </ScrollArea>
           </div>
 
-          <div className="lg:col-span-3 flex flex-col gap-6">
+          <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
              <>
-                 <div className={`bg-muted rounded-xl border border-border relative overflow-hidden group transition-all duration-300 ${(selectedActivity || selectedHotel) ? "h-[160px]" : "h-[210px]"}`}>
+                 <div className={`bg-muted rounded-xl border border-border relative overflow-hidden group transition-all duration-300 flex-shrink-0 ${(selectedActivity || selectedHotel) ? "h-[200px]" : "h-[260px]"}`}>
                    <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
                       {(selectedActivity?.lat || selectedHotel?.lat)
                         ? <ChangeView center={mapCenter} zoom={mapZoom} />
@@ -1788,8 +1788,9 @@ export default function TripPlanner() {
                    </div>
                  </div>
 
+                 <div className="flex-1 min-h-0 overflow-y-auto">
                  {selectedHotel ? (
-                   <Card className="min-h-[200px] overflow-hidden" data-testid="hotel-detail-panel">
+                   <Card className="overflow-hidden" data-testid="hotel-detail-panel">
                      <div className="flex flex-col md:flex-row">
                        {selectedHotel.image_url && (
                          <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
@@ -1853,7 +1854,7 @@ export default function TripPlanner() {
                      </div>
                    </Card>
                  ) : selectedActivity ? (
-                   <Card className="min-h-[200px] overflow-hidden" data-testid="activity-detail-panel">
+                   <Card className="overflow-hidden" data-testid="activity-detail-panel">
                      <div className="flex flex-col md:flex-row">
                        {selectedActivity.image_url && (
                          <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
@@ -1883,7 +1884,7 @@ export default function TripPlanner() {
                            </div>
                          </CardHeader>
                          <CardContent>
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                           <div className="grid grid-cols-2 gap-4 text-sm">
                               <div className="space-y-1">
                                 <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Clock className="h-3 w-3" /> Time</span>
                                 <p className="font-medium">{selectedActivity.time}{selectedActivity.duration ? ` (${selectedActivity.duration})` : ""}</p>
@@ -1892,13 +1893,13 @@ export default function TripPlanner() {
                                 <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><DollarSign className="h-3 w-3" /> Cost</span>
                                 <p className="font-medium">{selectedActivity.cost || "Free"}</p>
                               </div>
-                              {selectedActivity.tip && (
-                                <div className="space-y-1">
-                                  <span className="text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Insider Tip</span>
-                                  <p className="font-medium text-primary">{selectedActivity.tip}</p>
-                                </div>
-                              )}
                            </div>
+                           {selectedActivity.tip && (
+                             <div className="flex items-start gap-2 mt-3 pt-3 border-t border-border">
+                               <Lightbulb className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
+                               <p className="text-xs text-primary leading-relaxed">{selectedActivity.tip}</p>
+                             </div>
+                           )}
                            {selectedActivity.place_url && (
                              <div className="mt-4 pt-3 border-t flex items-center justify-between">
                                <div className="flex items-center gap-2 text-sm">
@@ -1931,6 +1932,7 @@ export default function TripPlanner() {
                      </div>
                    </Card>
                  )}
+                 </div>
                </>
           </div>
         </div>
