@@ -2144,6 +2144,23 @@ Return ONLY the JSON object, no other text.`,
     }
   });
 
+  app.get("/api/journeys/:id/packing-summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const lists = await storage.getPackingLists(userId);
+      const list = lists.find((l: any) => l.journeyId === req.params.id);
+      if (!list) return res.json({ totalItems: 0, packedItems: 0, percentComplete: 0, exists: false });
+      const cats = (list.categories as any[]) || [];
+      const allItems = cats.flatMap((c: any) => (Array.isArray(c.items) ? c.items : []));
+      const total = allItems.length;
+      const packed = allItems.filter((i: any) => i.packed).length;
+      res.json({ totalItems: total, packedItems: packed, percentComplete: total > 0 ? Math.round((packed / total) * 100) : 0, exists: true });
+    } catch (error) {
+      console.error("Error fetching packing summary:", error);
+      res.status(500).json({ message: "Failed to fetch packing summary" });
+    }
+  });
+
   app.get("/api/packing-lists", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
