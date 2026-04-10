@@ -55,7 +55,7 @@ export function MarcoEntryDialog({ open, onOpenChange, onJourneyBuilder }: Props
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="font-semibold text-sm">Find somewhere for me</p>
+              <p className="font-semibold text-sm">Inspire Me</p>
               <p className="text-xs text-muted-foreground mt-0.5">Inspire my next adventure</p>
             </div>
           </button>
