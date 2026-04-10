@@ -508,8 +508,8 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 h-full">
 
         {/* ── Left: Map + suggestions ─────────────────────────────── */}
-        <div className="sm:col-span-3 flex flex-col gap-3">
-          <div className="h-[300px] sm:h-[340px]">
+        <div className="sm:col-span-2 flex flex-col gap-3">
+          <div className={`transition-all duration-300 ${formData.origin ? "h-[180px] sm:h-[200px]" : "h-[210px] sm:h-[240px]"}`}>
             <RouteMap
               orderedPoints={orderedPoints}
               labels={orderedLabels}
@@ -602,7 +602,7 @@ export function DestinationDiscovery({ formData, setFormData }: Props) {
         </div>
 
         {/* ── Right: unified journey chain ────────────────────── */}
-        <div className="sm:col-span-2 flex flex-col gap-3">
+        <div className="sm:col-span-3 flex flex-col gap-3">
 
           {/* Starting Point */}
           <div className="space-y-1">
