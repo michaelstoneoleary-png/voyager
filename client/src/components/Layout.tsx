@@ -25,6 +25,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { Journey } from "@shared/schema";
 import { ChatBubble } from "./ChatBubble";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
+import { BetaWelcomeModal } from "./BetaWelcomeModal";
+import { FeedbackWidget } from "./FeedbackWidget";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -210,20 +212,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           })}
 
           {(user as any)?.isAdmin && (
-            <Link href="/admin">
-              <div
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
-                  location === "/admin"
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <Shield className={cn("h-5 w-5", location === "/admin" ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
-                Admin
-              </div>
-            </Link>
+            <AdminNavLink location={location} onClose={() => setIsMobileMenuOpen(false)} />
           )}
 
         </nav>
@@ -263,6 +252,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-background/50 relative md:ml-64">
+        {/* Top bar */}
+        <div className="sticky top-0 z-30 flex items-center justify-end px-4 md:px-8 h-10 bg-background/95 backdrop-blur-sm border-b border-border/40">
+          <FeedbackWidget />
+        </div>
         <EmailVerificationBanner user={user} />
         <div className="max-w-7xl mx-auto p-4 md:p-8 pb-20">
           {children}
@@ -270,6 +263,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <ChatBubble />
+      <BetaWelcomeModal />
     </div>
+  );
+}
+
+function AdminNavLink({ location, onClose }: { location: string; onClose: () => void }) {
+  const { data } = useQuery<{ count: number }>({
+    queryKey: ["/api/admin/feedback/count"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/feedback/count", { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    refetchInterval: 60_000,
+  });
+  const count = data?.count ?? 0;
+
+  return (
+    <Link href="/admin">
+      <div
+        className={cn(
+          "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer",
+          location === "/admin"
+            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        )}
+        onClick={onClose}
+      >
+        <Shield className={cn("h-5 w-5", location === "/admin" ? "text-sidebar-primary-foreground" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
+        Admin
+        {count > 0 && (
+          <span className="ml-auto inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </div>
+    </Link>
   );
 }

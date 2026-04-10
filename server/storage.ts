@@ -9,6 +9,7 @@ import {
   journeyPhotos, type JourneyPhoto, type InsertJourneyPhoto,
   voyages, type Voyage, type InsertVoyage,
   userActivityFeedback,
+  betaFeedback,
   destinationSuggestionsCache,
   invites, type Invite,
 } from "@shared/schema";
@@ -254,6 +255,40 @@ export class DatabaseStorage implements IStorage {
     if (!existing) return false;
     await db.delete(packingLists).where(eq(packingLists.id, id));
     return true;
+  }
+
+  async createBetaFeedback(data: {
+    userId: string;
+    message: string;
+    screenshot?: string | null;
+    pageUrl?: string | null;
+    userAgent?: string | null;
+  }) {
+    const [created] = await db.insert(betaFeedback).values(data).returning();
+    return created;
+  }
+
+  async getAllBetaFeedback() {
+    return db
+      .select({
+        id: betaFeedback.id,
+        message: betaFeedback.message,
+        pageUrl: betaFeedback.pageUrl,
+        screenshot: betaFeedback.screenshot,
+        createdAt: betaFeedback.createdAt,
+        userId: betaFeedback.userId,
+        userEmail: users.email,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+      })
+      .from(betaFeedback)
+      .leftJoin(users, eq(betaFeedback.userId, users.id))
+      .orderBy(desc(betaFeedback.createdAt));
+  }
+
+  async getBetaFeedbackCount(): Promise<number> {
+    const rows = await db.select({ id: betaFeedback.id }).from(betaFeedback);
+    return rows.length;
   }
 
   async getJourneyPhotos(journeyId: string): Promise<JourneyPhoto[]> {

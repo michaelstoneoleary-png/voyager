@@ -2144,6 +2144,44 @@ Return ONLY the JSON object, no other text.`,
     }
   });
 
+  // ── Beta Feedback ──────────────────────────────────────────────────────────
+  app.post("/api/feedback", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { message, screenshot, pageUrl } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "Message required" });
+      const fb = await storage.createBetaFeedback({
+        userId,
+        message: message.trim(),
+        screenshot: screenshot || null,
+        pageUrl: pageUrl || null,
+        userAgent: req.headers["user-agent"] || null,
+      });
+      res.json({ success: true, id: fb.id });
+    } catch (err) {
+      console.error("Feedback error:", err);
+      res.status(500).json({ message: "Failed to save feedback" });
+    }
+  });
+
+  app.get("/api/admin/feedback", isAuthenticated, isAdminUser, async (_req, res) => {
+    try {
+      const items = await storage.getAllBetaFeedback();
+      res.json(items);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch feedback" });
+    }
+  });
+
+  app.get("/api/admin/feedback/count", isAuthenticated, isAdminUser, async (_req, res) => {
+    try {
+      const count = await storage.getBetaFeedbackCount();
+      res.json({ count });
+    } catch (err) {
+      res.status(500).json({ count: 0 });
+    }
+  });
+
   app.get("/api/journeys/:id/packing-summary", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req)!;
