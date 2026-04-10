@@ -54,6 +54,8 @@ import {
   Share2,
   Pencil,
   CheckCircle2,
+  Shuffle,
+  ArrowLeftRight,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -315,6 +317,11 @@ export default function TripPlanner() {
   const [inspireContext, setInspireContext] = useState<{ destination: string } | null>(null);
   // Marco briefing state
   const [briefStep, setBriefStep] = useState<"intro" | 1 | 2 | 3 | 4>("intro");
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [previewMode, setPreviewMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
+  const [previewOptions, setPreviewOptions] = useState<any[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [moveMode, setMoveMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [anythingElse, setAnythingElse] = useState("");
   const [marcoParagraphs, setMarcoParagraphs] = useState<string[]>([]);
@@ -938,26 +945,44 @@ export default function TripPlanner() {
                     <MarcoAvatar />
                     <StepDots current={3} />
                     <div>
-                      <h2 className="font-serif text-xl font-semibold mb-1">Which month are you thinking?</h2>
+                      <h2 className="font-serif text-xl font-semibold mb-1">Which months are you thinking?</h2>
                       <p className="text-xs text-muted-foreground">
-                        This helps me factor in weather, events, and seasonal highlights.
+                        Pick one or more — this helps me factor in weather, events, and seasonal highlights.
                       </p>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      {months.map((m) => (
-                        <button
-                          key={m.label}
-                          onClick={() => monthSaveMutation.mutate(m.label)}
-                          disabled={monthSaveMutation.isPending}
-                          className="rounded-xl border-2 border-border bg-background px-2 py-3 text-center hover:border-primary/50 transition-all disabled:opacity-50"
-                        >
-                          <div className="text-sm font-semibold">{m.short}</div>
-                          <div className="text-xs text-muted-foreground">{m.year}</div>
-                        </button>
-                      ))}
+                      {months.map((m) => {
+                        const selected = selectedMonths.includes(m.label);
+                        return (
+                          <button
+                            key={m.label}
+                            onClick={() => setSelectedMonths(prev =>
+                              prev.includes(m.label) ? prev.filter(x => x !== m.label) : [...prev, m.label]
+                            )}
+                            disabled={monthSaveMutation.isPending}
+                            className={`rounded-xl border-2 px-2 py-3 text-center transition-all disabled:opacity-50 ${
+                              selected
+                                ? "border-primary bg-primary/5 text-primary"
+                                : "border-border bg-background hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="text-sm font-semibold">{m.short}</div>
+                            <div className={`text-xs ${selected ? "text-primary/70" : "text-muted-foreground"}`}>{m.year}</div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex justify-end pt-1">
+                    <div className="flex justify-between pt-1">
                       <Button variant="ghost" size="sm" onClick={() => setBriefStep(4)}>Not sure yet →</Button>
+                      <Button
+                        size="sm"
+                        disabled={selectedMonths.length === 0 || monthSaveMutation.isPending}
+                        onClick={() => {
+                          if (selectedMonths.length > 0) monthSaveMutation.mutate(selectedMonths.join(", "));
+                        }}
+                      >
+                        Next →
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -1164,8 +1189,8 @@ export default function TripPlanner() {
         )}
 
         {viewMode === "itinerary" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-          <div className="lg:col-span-1 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 min-h-0">
+          <div className="lg:col-span-2 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
               <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); setActivityMenu(null); setReplaceMode(null); }} className="w-full">
                 <TabsList className="w-full justify-start overflow-x-auto gap-1 flex-nowrap h-auto pb-0.5">
@@ -1364,6 +1389,47 @@ export default function TripPlanner() {
                             </div>
                           </button>
                           <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewMode({ dayIndex: selectedDay, activityIndex: idx });
+                              setPreviewOptions(null);
+                              setPreviewLoading(true);
+                              setActivityMenu(null);
+                              fetch(`/api/journeys/${journeyId}/preview-alternatives`, {
+                                method: "POST",
+                                credentials: "include",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ dayIndex: selectedDay, activityIndex: idx }),
+                              })
+                                .then(r => r.json())
+                                .then(data => { setPreviewOptions(data.alternatives || []); setPreviewLoading(false); })
+                                .catch(() => setPreviewLoading(false));
+                            }}
+                            data-testid={`button-preview-alternatives-${idx}`}
+                          >
+                            <Shuffle className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">Preview alternatives</p>
+                              <p className="text-[11px] text-muted-foreground">Browse 3 options before committing to a swap</p>
+                            </div>
+                          </button>
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMoveMode({ dayIndex: selectedDay, activityIndex: idx });
+                              setActivityMenu(null);
+                            }}
+                            data-testid={`button-move-activity-${idx}`}
+                          >
+                            <ArrowLeftRight className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                            <div>
+                              <p className="font-medium">Move to another day</p>
+                              <p className="text-[11px] text-muted-foreground">Keep this activity but shift it to a different day</p>
+                            </div>
+                          </button>
+                          <button
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-red-50 text-red-600 transition-colors text-left"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1476,6 +1542,108 @@ export default function TripPlanner() {
                         </div>
                       </div>
                     )}
+                    {/* Preview alternatives panel */}
+                    {previewMode?.dayIndex === selectedDay && previewMode?.activityIndex === idx && (
+                      <div className="relative z-20 ml-12 mt-1 mb-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="bg-background border rounded-xl shadow-lg p-4 space-y-3">
+                          <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <Shuffle className="h-3 w-3 text-muted-foreground" /> 3 alternatives for this slot:
+                          </p>
+                          {previewLoading ? (
+                            <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Finding alternatives…
+                            </div>
+                          ) : previewOptions && previewOptions.length > 0 ? (
+                            <div className="space-y-2">
+                              {previewOptions.map((opt: any, oi: number) => (
+                                <div key={oi} className="flex items-start gap-3 p-2.5 rounded-lg border border-border bg-muted/30">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold leading-tight">{opt.title}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                      {opt.duration}{opt.cost ? ` · ${opt.cost}` : ""}
+                                    </p>
+                                    {opt.description && (
+                                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{opt.description}</p>
+                                    )}
+                                  </div>
+                                  <button
+                                    className="flex-shrink-0 px-2.5 py-1 text-[11px] font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors whitespace-nowrap"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!itinerary) return;
+                                      const newDays = itinerary.days.map((d: any, di: number) => {
+                                        if (di !== selectedDay) return d;
+                                        return { ...d, activities: d.activities.map((a: any, ai: number) => ai === idx ? { ...a, ...opt } : a) };
+                                      });
+                                      const newItinerary = { ...itinerary, days: newDays };
+                                      apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: newItinerary })
+                                        .then(r => r.json())
+                                        .then(data => queryClient.setQueryData([`/api/journeys/${journeyId}`], data));
+                                      setPreviewMode(null);
+                                      setPreviewOptions(null);
+                                      setSelectedActivity(null);
+                                    }}
+                                  >
+                                    Use this
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">No alternatives found.</p>
+                          )}
+                          <button
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setPreviewMode(null); setPreviewOptions(null); }}
+                          >
+                            <X className="h-3 w-3" /> Keep original
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Move to day picker */}
+                    {moveMode?.dayIndex === selectedDay && moveMode?.activityIndex === idx && (
+                      <div className="relative z-20 ml-12 mt-1 mb-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="bg-background border rounded-xl shadow-lg p-4 space-y-3">
+                          <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                            <ArrowLeftRight className="h-3 w-3 text-muted-foreground" /> Move to which day?
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {itinerary?.days.map((d: any, di: number) => di !== selectedDay && (
+                              <button
+                                key={di}
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-muted/40 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!itinerary) return;
+                                  const activity = itinerary.days[selectedDay].activities[idx];
+                                  const newDays = itinerary.days.map((d2: any, di2: number) => {
+                                    if (di2 === selectedDay) return { ...d2, activities: d2.activities.filter((_: any, ai: number) => ai !== idx) };
+                                    if (di2 === di) return { ...d2, activities: [...d2.activities, activity] };
+                                    return d2;
+                                  });
+                                  apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: { ...itinerary, days: newDays } })
+                                    .then(r => r.json())
+                                    .then(data => queryClient.setQueryData([`/api/journeys/${journeyId}`], data));
+                                  setMoveMode(null);
+                                  setSelectedActivity(null);
+                                }}
+                              >
+                                {d.date_label && d.date_label !== `Day ${d.day}` ? d.date_label : `Day ${d.day}`}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setMoveMode(null); }}
+                          >
+                            <X className="h-3 w-3" /> Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {activity.travel_to_next && idx < (currentDayData?.activities.length || 0) - 1 && (
                       <div className="relative z-10 flex gap-4 my-1" data-testid={`travel-connector-${idx}`}>
                         <div className="flex-shrink-0 w-8 flex items-center justify-center">
@@ -1568,9 +1736,9 @@ export default function TripPlanner() {
             </ScrollArea>
           </div>
 
-          <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="lg:col-span-3 flex flex-col gap-6">
              <>
-                 <div className="flex-1 bg-muted rounded-xl border border-border relative overflow-hidden group min-h-[300px]">
+                 <div className={`bg-muted rounded-xl border border-border relative overflow-hidden group transition-all duration-300 ${(selectedActivity || selectedHotel) ? "h-[160px]" : "h-[210px]"}`}>
                    <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
                       {(selectedActivity?.lat || selectedHotel?.lat)
                         ? <ChangeView center={mapCenter} zoom={mapZoom} />

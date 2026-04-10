@@ -435,6 +435,13 @@ Reply with ONLY a valid JSON array, no markdown, no explanation:
       const homeLocation = user?.homeLocation || journey.origin || "";
       const travelStyles = (user?.travelStyles as string[] | null) || [];
       const stylesNote = travelStyles.length ? `Their travel style leans ${travelStyles.join(", ").toLowerCase()}.` : "";
+      const isRoundTrip = !journey.finalDestination ||
+        journey.finalDestination.toLowerCase().trim() === (journey.origin || "").toLowerCase().trim();
+      const returnNote = homeLocation
+        ? isRoundTrip
+          ? ` IMPORTANT: ${homeLocation} is only the departure and return point — do NOT plan sightseeing or activities there. The last day ends at the destination; the traveler simply returns home and that travel time is not part of the itinerary.`
+          : ` IMPORTANT: ${homeLocation} is only the departure city — do NOT plan activities there.`
+        : "";
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -446,7 +453,7 @@ Reply with ONLY a valid JSON array, no markdown, no explanation:
         max_tokens: 1024,
         messages: [{
           role: "user",
-          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you plan this ${days}-day trip to ${destination}${homeLocation ? ` for someone from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}
+          content: `You are Marco, a passionate and opinionated travel expert. Think out loud as you plan this ${days}-day trip to ${destination}${homeLocation ? ` for someone from ${homeLocation}` : ""}. Budget: ${budget}. ${stylesNote}${returnNote}
 
 Write in your own voice — specific, excited, self-correcting ("actually wait —"), insider-knowledgeable. Name real neighborhoods, dishes, streets, cultural details. Build the case for why this itinerary makes sense in the order it unfolds. Target 350–500 words. Separate each thought with a blank line between paragraphs. No headers, no bullets, no markdown. Begin immediately with your first thought — no intro phrase.`,
         }],
@@ -892,6 +899,40 @@ Rules:
     } catch (error) {
       console.error("Error recording activity feedback:", error);
       res.status(500).json({ message: "Failed to record feedback" });
+    }
+  });
+
+  // Preview 3 alternative activities before committing a swap
+  app.post("/api/journeys/:id/preview-alternatives", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+      const { dayIndex, activityIndex } = req.body;
+      const itinerary = (journey as any).itinerary;
+      const day = itinerary?.days?.[dayIndex];
+      const activity = day?.activities?.[activityIndex];
+      if (!activity) return res.status(400).json({ message: "Activity not found" });
+
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 900,
+        messages: [{
+          role: "user",
+          content: `You are a travel expert. Give exactly 3 alternative activities for this time slot in ${day.location}.
+Current activity: "${activity.title}" (type: ${activity.type}, time: ${activity.time}, duration: ${activity.duration || "varies"})
+
+Return ONLY a valid JSON array of exactly 3 objects, no other text:
+[{"title":"...","type":"sightseeing|food|adventure|culture|leisure|logistics","time":"${activity.time}","duration":"X hours","cost":"Free|$10–20|$20–40|$40+","description":"One vivid sentence about what makes this special."}]`,
+        }],
+      });
+      const text = (response.content[0] as any).text as string;
+      const match = text.match(/\[[\s\S]*\]/);
+      const alternatives = match ? JSON.parse(match[0]) : [];
+      res.json({ alternatives });
+    } catch (err: any) {
+      console.error("[preview-alternatives] error:", err.message);
+      res.status(500).json({ message: "Failed to generate alternatives" });
     }
   });
 
