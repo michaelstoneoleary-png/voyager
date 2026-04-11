@@ -87,6 +87,18 @@ interface HealthReport {
   generatedAt: string;
 }
 
+interface FeedbackItem {
+  id: string;
+  message: string;
+  pageUrl: string | null;
+  screenshot: string | null;
+  createdAt: string | null;
+  userId: string;
+  userEmail: string | null;
+  userFirstName: string | null;
+  userLastName: string | null;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 // Cost rates per million tokens [input, output]
@@ -220,7 +232,8 @@ export default function AdminPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "usage" | "health">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "usage" | "health" | "feedback">("overview");
+  const [expandedScreenshot, setExpandedScreenshot] = useState<string | null>(null);
   const [adminInviteOpen, setAdminInviteOpen] = useState(false);
   const [adminInviteEmail, setAdminInviteEmail] = useState("");
   const [adminInviteNote, setAdminInviteNote] = useState("");
@@ -299,6 +312,13 @@ export default function AdminPage() {
     retry: 1,
   });
 
+  const { data: feedbackItems = [], isLoading: feedbackLoading } = useQuery<FeedbackItem[]>({
+    queryKey: ["/api/admin/feedback"],
+    queryFn: () => adminFetch("/api/admin/feedback"),
+    enabled: activeTab === "feedback",
+    retry: 1,
+  });
+
   // ── Mutations ──
 
   const patchUser = useMutation({
@@ -336,7 +356,7 @@ export default function AdminPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
-          <TabsList className="grid w-full max-w-xl grid-cols-4 mb-8">
+          <TabsList className="grid w-full max-w-2xl grid-cols-5 mb-8">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
@@ -348,6 +368,9 @@ export default function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="health" className="gap-2">
               <Activity className="h-4 w-4" /> Health
+            </TabsTrigger>
+            <TabsTrigger value="feedback" className="gap-2">
+              <MessageSquare className="h-4 w-4" /> Feedback
             </TabsTrigger>
           </TabsList>
 
@@ -412,7 +435,7 @@ export default function AdminPage() {
                     <input
                       value={adminInviteNote}
                       onChange={e => setAdminInviteNote(e.target.value)}
-                      placeholder="Looking forward to having you on Voyager!"
+                      placeholder="Looking forward to having you on bon VOYAGER!"
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
@@ -692,8 +715,100 @@ export default function AdminPage() {
               </p>
             )}
           </TabsContent>
+
+          {/* ── Feedback ── */}
+          <TabsContent value="feedback" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Beta feedback submitted by users. Click any screenshot to expand.
+            </p>
+            {feedbackLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                        <div className="space-y-1 flex-1">
+                          <Skeleton className="h-3 w-32" />
+                          <Skeleton className="h-3 w-48" />
+                        </div>
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                      <Skeleton className="h-16 w-full rounded" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : feedbackItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No feedback yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {feedbackItems.map((item) => {
+                  const name = [item.userFirstName, item.userLastName].filter(Boolean).join(" ") || item.userEmail || "Unknown";
+                  const initials2 = `${(item.userFirstName || "")[0] || ""}${(item.userLastName || "")[0] || ""}`.toUpperCase() || "?";
+                  const relativeUrl = item.pageUrl
+                    ? item.pageUrl.replace(/^https?:\/\/[^/]+/, "")
+                    : null;
+                  return (
+                    <Card key={item.id}>
+                      <CardContent className="p-4 space-y-3">
+                        {/* Header row */}
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">
+                            {initials2}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium leading-tight">{name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{item.userEmail}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs text-muted-foreground">
+                              {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
+                            </p>
+                            {relativeUrl && (
+                              <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[160px]">{relativeUrl}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Message */}
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.message}</p>
+
+                        {/* Screenshot thumbnail */}
+                        {item.screenshot && (
+                          <button
+                            onClick={() => setExpandedScreenshot(item.screenshot)}
+                            className="block w-full rounded-lg overflow-hidden border border-border bg-muted/20 hover:opacity-80 transition-opacity"
+                            title="Click to expand screenshot"
+                          >
+                            <img
+                              src={item.screenshot}
+                              alt="Screenshot"
+                              className="w-full h-28 object-cover object-top"
+                            />
+                          </button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Screenshot expand dialog ── */}
+      <Dialog open={!!expandedScreenshot} onOpenChange={(v) => { if (!v) setExpandedScreenshot(null); }}>
+        <DialogContent className="sm:max-w-3xl p-2">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Screenshot</DialogTitle>
+          </DialogHeader>
+          {expandedScreenshot && (
+            <img src={expandedScreenshot} alt="Expanded screenshot" className="w-full rounded-lg" />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── User detail dialog ── */}
       <Dialog open={!!selectedUserId} onOpenChange={(v) => { if (!v) setSelectedUserId(null); }}>

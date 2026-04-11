@@ -128,6 +128,16 @@ export const userActivityFeedback = pgTable("user_activity_feedback", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const betaFeedback = pgTable("beta_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  screenshot: text("screenshot"),   // base64 JPEG dataURL
+  pageUrl: text("page_url"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
   journeyMemberships: many(journeyMembers),

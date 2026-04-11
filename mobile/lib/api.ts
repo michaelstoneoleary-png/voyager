@@ -2,9 +2,9 @@ import * as SecureStore from "expo-secure-store";
 
 // Switch between prod and local dev
 export const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL ?? "https://voyager-7eka.onrender.com";
+  process.env.EXPO_PUBLIC_API_URL ?? "https://bonvoyager.ai";
 
-const SESSION_KEY = "voyager_session";
+const SESSION_KEY = "bonvoyager_session";
 
 export async function getSessionCookie(): Promise<string | null> {
   return SecureStore.getItemAsync(SESSION_KEY);

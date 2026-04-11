@@ -203,7 +203,7 @@ export default function Settings() {
         <Card>
           <CardHeader>
             <CardTitle className="font-serif text-xl">Preferences</CardTitle>
-            <CardDescription>Customize your Voyager experience</CardDescription>
+            <CardDescription>Customize your bon VOYAGER experience</CardDescription>
           </CardHeader>
           <CardContent>
             <SettingsForm data={formData} onChange={handleChange} />
@@ -322,7 +322,7 @@ export default function Settings() {
             <CardTitle className="font-serif text-xl flex items-center gap-2">
               <Gift className="h-5 w-5 text-primary" /> Invite Friends
             </CardTitle>
-            <CardDescription>Invite friends to join Voyager. They'll get a personalised link to sign up.</CardDescription>
+            <CardDescription>Invite friends to join bon VOYAGER. They'll get a personalised link to sign up.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Email invite */}

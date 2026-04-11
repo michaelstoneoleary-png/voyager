@@ -34,7 +34,7 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.logo}>VOYAGER</Text>
+          <Text style={styles.logo}>bon VOYAGER</Text>
           <Text style={styles.tagline}>TRAVEL WITHOUT LIMITS</Text>
         </View>
 

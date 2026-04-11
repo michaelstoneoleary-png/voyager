@@ -83,7 +83,7 @@ export default function Login() {
       <header className="border-b border-border bg-background/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/">
-            <span className="font-serif text-2xl font-bold tracking-tight text-primary cursor-pointer" data-testid="text-brand-login">VOYAGER</span>
+            <span className="font-serif text-2xl font-bold tracking-tight text-primary cursor-pointer" data-testid="text-brand-login">bon VOYAGER</span>
           </Link>
           <Link href="/register">
             <Button variant="outline" size="sm" data-testid="link-register-header">Create Account</Button>
@@ -95,7 +95,7 @@ export default function Login() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="font-serif text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to your Voyager account</CardDescription>
+            <CardDescription>Sign in to your bon VOYAGER account</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {verifiedParam && (
