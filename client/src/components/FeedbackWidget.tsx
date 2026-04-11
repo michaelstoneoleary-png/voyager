@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 async function takeScreenshot(): Promise<string | null> {
   try {
-    const html2canvas = (await import("html2canvas")).default;
+    const html2canvas = (await import("html2canvas-pro")).default;
     const canvas = await html2canvas(document.body, {
       scale: 0.5,
       useCORS: true,
