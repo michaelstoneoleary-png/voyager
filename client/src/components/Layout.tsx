@@ -27,10 +27,12 @@ import { ChatBubble } from "./ChatBubble";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
 import { BetaWelcomeModal } from "./BetaWelcomeModal";
 import { FeedbackWidget } from "./FeedbackWidget";
+import { InviteFriendsModal } from "./InviteFriendsModal";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [isJourneysOpen, setIsJourneysOpen] = useState(
     location === "/journeys" || location === "/history"
   );
@@ -72,7 +74,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/inspire", label: "Inspire", icon: Sparkles },
     { href: "/intel", label: "Intel", icon: Globe },
     { href: "/community", label: "Community", icon: Users },
-    { href: "/settings#invite", label: "Invite Friends", icon: Gift },
   ];
 
   const isJourneyActive = location === "/journeys" || location === "/history";
@@ -211,6 +212,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
+          <button
+            className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer w-full text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => { setInviteModalOpen(true); setIsMobileMenuOpen(false); }}
+          >
+            <Gift className="h-5 w-5 text-muted-foreground group-hover:text-sidebar-accent-foreground" />
+            Invite Friends
+          </button>
+
           {(user as any)?.isAdmin && (
             <AdminNavLink location={location} onClose={() => setIsMobileMenuOpen(false)} />
           )}
@@ -252,10 +261,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-background/50 relative md:ml-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center justify-end px-4 md:px-8 h-10 bg-background/95 backdrop-blur-sm border-b border-border/40">
-          <FeedbackWidget />
-        </div>
         <EmailVerificationBanner user={user} />
         <div className="max-w-7xl mx-auto p-4 md:p-8 pb-20">
           {children}
@@ -263,7 +268,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <ChatBubble />
+      <FeedbackWidget />
       <BetaWelcomeModal />
+      <InviteFriendsModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
     </div>
   );
 }
