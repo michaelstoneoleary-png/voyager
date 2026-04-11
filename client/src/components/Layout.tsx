@@ -27,10 +27,12 @@ import { ChatBubble } from "./ChatBubble";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
 import { BetaWelcomeModal } from "./BetaWelcomeModal";
 import { FeedbackWidget } from "./FeedbackWidget";
+import { InviteFriendsModal } from "./InviteFriendsModal";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [isJourneysOpen, setIsJourneysOpen] = useState(
     location === "/journeys" || location === "/history"
   );
@@ -72,7 +74,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/inspire", label: "Inspire", icon: Sparkles },
     { href: "/intel", label: "Intel", icon: Globe },
     { href: "/community", label: "Community", icon: Users },
-    { href: "/settings#invite", label: "Invite Friends", icon: Gift },
   ];
 
   const isJourneyActive = location === "/journeys" || location === "/history";
@@ -211,6 +212,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
+          <button
+            className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer w-full text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => { setInviteModalOpen(true); setIsMobileMenuOpen(false); }}
+          >
+            <Gift className="h-5 w-5 text-muted-foreground group-hover:text-sidebar-accent-foreground" />
+            Invite Friends
+          </button>
+
           {(user as any)?.isAdmin && (
             <AdminNavLink location={location} onClose={() => setIsMobileMenuOpen(false)} />
           )}
@@ -264,6 +273,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       <ChatBubble />
       <BetaWelcomeModal />
+      <InviteFriendsModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
     </div>
   );
 }
