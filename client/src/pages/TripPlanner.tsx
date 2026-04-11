@@ -56,7 +56,18 @@ import {
   CheckCircle2,
   Shuffle,
   ArrowLeftRight,
+  MoreHorizontal,
+  ShieldAlert,
+  TriangleAlert,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { JourneyIntelPanel } from "@/components/JourneyIntelPanel";
+import type { TravelAdvisory } from "@/components/JourneyIntelPanel";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Link } from "wouter";
@@ -309,8 +320,19 @@ export default function TripPlanner() {
     enabled: !!journeyId,
   });
 
-  const [viewMode, setViewMode] = useState<"itinerary" | "photos">("itinerary");
+  const [viewMode, setViewMode] = useState<"itinerary" | "photos" | "intel">("itinerary");
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+
+  const { data: advisory = null } = useQuery<TravelAdvisory | null>({
+    queryKey: [`/api/journeys/${journeyId}/travel-advisory`],
+    queryFn: async () => {
+      const res = await fetch(`/api/journeys/${journeyId}/travel-advisory`, { credentials: "include" });
+      return res.ok ? res.json() : null;
+    },
+    enabled: !!journeyId,
+    staleTime: 4 * 60 * 60 * 1000,
+    retry: false,
+  });
 
   const [showNarrative, setShowNarrative] = useState(false);
   const [wishlist, setWishlist] = useState("");
@@ -1112,23 +1134,30 @@ export default function TripPlanner() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Link href={`/packing?journeyId=${journeyId}`}>
-              <Button variant="outline" size="sm">
-                <Luggage className="mr-2 h-4 w-4" />
-                Pack
-              </Button>
-            </Link>
-            {(journey as any)?.itinerary?.summary && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowNarrative(true)}
-              >
-                <BookOpen className="mr-2 h-4 w-4" />
-                Story
-              </Button>
-            )}
+          <div className="flex items-center gap-2">
+            {/* More dropdown — Pack + Story */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="ml-1.5 hidden sm:inline">More</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/packing?journeyId=${journeyId}`}>
+                    <Luggage className="mr-2 h-4 w-4" /> Smart Pack
+                  </Link>
+                </DropdownMenuItem>
+                {(journey as any)?.itinerary?.summary && (
+                  <DropdownMenuItem onClick={() => setShowNarrative(true)}>
+                    <BookOpen className="mr-2 h-4 w-4" /> Story
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Share — primary CTA */}
             <Button
               variant="default"
               size="sm"
@@ -1149,6 +1178,8 @@ export default function TripPlanner() {
               <Share2 className="mr-2 h-4 w-4" />
               Share
             </Button>
+
+            {/* Photos toggle */}
             <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
@@ -1157,6 +1188,22 @@ export default function TripPlanner() {
               <Camera className="mr-2 h-4 w-4" />
               Photos
             </Button>
+
+            {/* Intel toggle — red badge when advisory level ≥ 3 */}
+            <Button
+              variant={viewMode === "intel" ? "default" : "outline"}
+              size="sm"
+              className="relative"
+              onClick={() => setViewMode((m) => m === "intel" ? "itinerary" : "intel")}
+            >
+              <ShieldAlert className="mr-2 h-4 w-4" />
+              Intel
+              {advisory && advisory.level >= 3 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
+                  !
+                </span>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -1164,6 +1211,18 @@ export default function TripPlanner() {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto py-2">
               <PhotoGallery journeyId={journeyId!} />
+            </div>
+          </div>
+        )}
+
+        {viewMode === "intel" && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto py-4">
+              <JourneyIntelPanel
+                journeyId={journeyId!}
+                journeyTitle={journey.title}
+                advisory={advisory}
+              />
             </div>
           </div>
         )}
