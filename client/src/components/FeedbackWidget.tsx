@@ -33,8 +33,22 @@ export function FeedbackWidget() {
   }
 
   async function handleOpen() {
-    setOpen(true);
-    await captureScreenshot();
+    setCapturing(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(document.documentElement, {
+        scale: 0.5,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      });
+      setScreenshot(canvas.toDataURL("image/jpeg", 0.8));
+    } catch {
+      setScreenshot(null);
+    } finally {
+      setCapturing(false);
+      setOpen(true);
+    }
   }
 
   const submitMutation = useMutation({
