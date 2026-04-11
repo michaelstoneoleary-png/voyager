@@ -2355,6 +2355,59 @@ Rules:
     }
   });
 
+  // Travel Advisory — State Dept RSS feed, cached 4 hours
+  let advisoryFeedCache: { map: Map<string, { level: number; title: string; url: string }>; expiresAt: number } | null = null;
+
+  async function getAdvisoryMap() {
+    if (advisoryFeedCache && Date.now() < advisoryFeedCache.expiresAt) {
+      return advisoryFeedCache.map;
+    }
+    const parser = new Parser();
+    const feed = await parser.parseURL("https://travel.state.gov/_res/rss/TAsTWs.xml");
+    const map = new Map<string, { level: number; title: string; url: string }>();
+    for (const item of feed.items) {
+      // Title format: "Ireland - Level 1: Exercise Normal Precautions"
+      const match = item.title?.match(/^(.+?)\s+-\s+Level\s+(\d)/i);
+      if (match) {
+        map.set(match[1].trim().toLowerCase(), {
+          level: parseInt(match[2]),
+          title: item.title ?? "",
+          url: item.link ?? "https://travel.state.gov",
+        });
+      }
+    }
+    advisoryFeedCache = { map, expiresAt: Date.now() + 4 * 60 * 60 * 1000 };
+    return map;
+  }
+
+  app.get("/api/journeys/:id/travel-advisory", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const destinations = [journey.origin, ...(journey.destinations || []), journey.finalDestination]
+        .filter(Boolean) as string[];
+
+      const map = await getAdvisoryMap();
+
+      let worst: { level: number; title: string; url: string } | null = null;
+      for (const dest of destinations) {
+        const words = dest.split(/[\s,]+/).filter(w => w.length > 2);
+        for (const [country, advisory] of map.entries()) {
+          const countryWords = country.split(/\s+/);
+          if (words.some(w => countryWords.some(cw => cw === w.toLowerCase()))) {
+            if (!worst || advisory.level > worst.level) worst = advisory;
+          }
+        }
+      }
+      res.json(worst ?? null);
+    } catch (err) {
+      console.error("[travel-advisory]", err);
+      res.json(null); // fail silently — don't block the page
+    }
+  });
+
   const smsRateLimit = new Map<string, number>();
 
   app.post("/api/send-packing-sms", isAuthenticated, async (req: any, res) => {
