@@ -29,7 +29,7 @@ async function takeScreenshot(): Promise<string | null> {
       canvas.width = Math.round(video.videoWidth * scale);
       canvas.height = Math.round(video.videoHeight * scale);
       canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
-      stream.getTracks().forEach((t) => t.stop());
+      (stream as MediaStream).getTracks().forEach((t) => t.stop());
       return canvas.toDataURL("image/jpeg", 0.75);
     } catch {
       // User denied permission or browser doesn't support — fall through to html2canvas

@@ -56,16 +56,10 @@ import {
   CheckCircle2,
   Shuffle,
   ArrowLeftRight,
-  MoreHorizontal,
   ShieldAlert,
   TriangleAlert,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { JourneyIntelPanel } from "@/components/JourneyIntelPanel";
 import type { TravelAdvisory } from "@/components/JourneyIntelPanel";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
@@ -390,6 +384,7 @@ export default function TripPlanner() {
   }, [(journey as any)?.dates]);
 
   const [startDate, setStartDate] = useState<string>("");
+  const [dateModalOpen, setDateModalOpen] = useState(false);
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
 
   // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
@@ -1067,7 +1062,7 @@ export default function TripPlanner() {
   return (
     <Layout>
       <div className="flex flex-col h-[calc(100vh-8rem)]">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <Link href="/journeys">
               <Button variant="ghost" size="sm">
@@ -1075,7 +1070,8 @@ export default function TripPlanner() {
               </Button>
             </Link>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
+              {/* Line 1: editable title */}
+              <div className="flex items-center gap-2">
                 {editingTitle ? (
                   <input
                     autoFocus
@@ -1100,62 +1096,50 @@ export default function TripPlanner() {
                     <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
                   </h1>
                 )}
-                {journey.origin && journey.finalDestination &&
-                  journey.finalDestination.trim().toLowerCase() !== journey.origin.trim().toLowerCase() && (
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider border-primary/30 text-primary bg-primary/5">
-                    Open-jaw
-                  </Badge>
-                )}
-                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Saved to My Journeys
-                </span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-muted-foreground text-sm">
-                  {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
-                  {journey.days ? ` • ${journey.days} days` : ""}
-                </p>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="date"
-                    value={startDate}
-                    min={new Date().toISOString().split("T")[0]}
-                    title="Set travel start date"
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      if (e.target.value) dateSaveMutation.mutate(e.target.value);
-                    }}
-                    className="h-6 text-xs rounded border border-dashed border-primary/40 bg-transparent px-2 text-primary cursor-pointer hover:border-primary transition-colors focus:outline-none focus:border-primary"
-                  />
-                  {formattedDateRange && (
-                    <span className="text-xs text-primary/70">{formattedDateRange}</span>
-                  )}
-                </div>
+              {/* Line 2: route + days */}
+              <p className="text-muted-foreground text-sm mt-0.5">
+                {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
+                {journey.days ? ` • ${journey.days} days` : ""}
+              </p>
+              {/* Line 3: saved badge + date */}
+              <div className="flex items-center gap-3 mt-1">
+                <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                  <CheckCircle2 className="h-3 w-3" /> Saved to My Journeys
+                </span>
+                {startDate ? (
+                  <button
+                    onClick={() => setDateModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] text-primary/80 hover:text-primary transition-colors"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    {formattedDateRange || startDate}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setDateModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground border border-dashed border-primary/30 rounded px-1.5 py-0.5 hover:border-primary hover:text-primary transition-colors"
+                  >
+                    <Calendar className="h-3 w-3" /> Select your dates
+                  </button>
+                )}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* More dropdown — Pack + Story */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="ml-1.5 hidden sm:inline">More</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href={`/packing?journeyId=${journeyId}`}>
-                    <Luggage className="mr-2 h-4 w-4" /> Smart Pack
-                  </Link>
-                </DropdownMenuItem>
-                {(journey as any)?.itinerary?.summary && (
-                  <DropdownMenuItem onClick={() => setShowNarrative(true)}>
-                    <BookOpen className="mr-2 h-4 w-4" /> Story
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Pack */}
+            <Link href={`/packing?journeyId=${journeyId}`}>
+              <Button variant="outline" size="sm">
+                <Luggage className="mr-2 h-4 w-4" /> Pack
+              </Button>
+            </Link>
+
+            {/* Story — only when itinerary has a summary */}
+            {(journey as any)?.itinerary?.summary && (
+              <Button variant="outline" size="sm" onClick={() => setShowNarrative(true)}>
+                <BookOpen className="mr-2 h-4 w-4" /> Story
+              </Button>
+            )}
 
             {/* Share — primary CTA */}
             <Button
@@ -2059,6 +2043,35 @@ export default function TripPlanner() {
           </div>
         );
       })()}
+
+      {/* Date picker dialog */}
+      <Dialog open={dateModalOpen} onOpenChange={setDateModalOpen}>
+        <DialogContent className="sm:max-w-[300px]">
+          <DialogHeader>
+            <DialogTitle className="text-base">Set travel dates</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <label className="text-sm font-medium text-foreground">Start date</label>
+            <input
+              type="date"
+              value={startDate}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (e.target.value) dateSaveMutation.mutate(e.target.value);
+              }}
+              className="w-full h-9 rounded border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              autoFocus
+            />
+            {formattedDateRange && (
+              <p className="text-xs text-muted-foreground">{formattedDateRange}</p>
+            )}
+            <Button className="w-full" size="sm" onClick={() => setDateModalOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Narrative write-up sheet */}
       <Sheet open={showNarrative} onOpenChange={setShowNarrative}>
