@@ -7,6 +7,31 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+async function takeScreenshot(): Promise<string | null> {
+  try {
+    const html2canvas = (await import("html2canvas")).default;
+    const canvas = await html2canvas(document.body, {
+      scale: 0.5,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      // Skip iframes (maps, embeds) — html2canvas can't capture cross-origin frames
+      ignoreElements: (el) => el.tagName === "IFRAME",
+      onclone: (clonedDoc) => {
+        // backdrop-filter crashes html2canvas — strip it from the clone
+        clonedDoc.querySelectorAll<HTMLElement>("*").forEach((el) => {
+          el.style.backdropFilter = "none";
+          (el.style as any).webkitBackdropFilter = "none";
+        });
+      },
+    });
+    return canvas.toDataURL("image/jpeg", 0.8);
+  } catch (err) {
+    console.warn("[FeedbackWidget] Screenshot failed:", err);
+    return null;
+  }
+}
+
 export function FeedbackWidget() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -14,40 +39,24 @@ export function FeedbackWidget() {
   const [capturing, setCapturing] = useState(false);
   const { toast } = useToast();
 
-  async function captureScreenshot() {
-    setCapturing(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(document.documentElement, {
-        scale: 0.5,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-      });
-      setScreenshot(canvas.toDataURL("image/jpeg", 0.8));
-    } catch {
-      setScreenshot(null);
-    } finally {
-      setCapturing(false);
-    }
-  }
-
   async function handleOpen() {
     setCapturing(true);
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(document.documentElement, {
-        scale: 0.5,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-      });
-      setScreenshot(canvas.toDataURL("image/jpeg", 0.8));
-    } catch {
-      setScreenshot(null);
+      const img = await takeScreenshot();
+      setScreenshot(img);
     } finally {
       setCapturing(false);
       setOpen(true);
+    }
+  }
+
+  async function retake() {
+    setCapturing(true);
+    try {
+      const img = await takeScreenshot();
+      setScreenshot(img);
+    } finally {
+      setCapturing(false);
     }
   }
 
@@ -77,17 +86,22 @@ export function FeedbackWidget() {
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
+      {/* Floating pill button */}
+      <button
         onClick={handleOpen}
-        className="gap-1.5 text-xs text-muted-foreground hover:text-foreground h-8"
+        disabled={capturing}
+        className="fixed bottom-6 right-[5.5rem] z-40 flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-full shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all duration-200 text-sm font-semibold disabled:opacity-70"
+        title="Send feedback"
       >
-        <MessageSquarePlus className="h-3.5 w-3.5" />
-        Feedback
-      </Button>
+        {capturing ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <MessageSquarePlus className="h-4 w-4" />
+        )}
+        <span>{capturing ? "Capturing…" : "Feedback"}</span>
+      </button>
 
-      <Dialog open={open} onOpenChange={(o) => { if (!o) { setOpen(false); } }}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) setOpen(false); }}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle className="text-base">Send Feedback</DialogTitle>
@@ -105,7 +119,7 @@ export function FeedbackWidget() {
                 <>
                   <img src={screenshot} alt="Screenshot" className="w-full h-full object-cover" />
                   <button
-                    onClick={captureScreenshot}
+                    onClick={retake}
                     className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm border border-border rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                   >
                     <Camera className="h-3 w-3" /> Retake
@@ -114,7 +128,7 @@ export function FeedbackWidget() {
               ) : (
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <Camera className="h-5 w-5" />
-                  <span className="text-xs">No screenshot</span>
+                  <span className="text-xs">No screenshot captured</span>
                 </div>
               )}
             </div>
