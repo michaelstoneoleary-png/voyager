@@ -8,14 +8,43 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 async function takeScreenshot(): Promise<string | null> {
+  // Primary: native screen capture — accurate rendering of CSS variables, transforms, etc.
+  // getDisplayMedia is called from a click handler so the user-gesture requirement is met.
+  if ("getDisplayMedia" in ((navigator as any).mediaDevices || {})) {
+    try {
+      const stream = await (navigator.mediaDevices as any).getDisplayMedia({
+        video: true,
+        audio: false,
+        // Chrome 107+: auto-selects the current tab, skipping the full screen picker
+        preferCurrentTab: true,
+      });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => video.play().then(() => resolve()).catch(reject);
+        video.onerror = reject;
+      });
+      const canvas = document.createElement("canvas");
+      const scale = 0.5;
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+      stream.getTracks().forEach((t) => t.stop());
+      return canvas.toDataURL("image/jpeg", 0.75);
+    } catch {
+      // User denied permission or browser doesn't support — fall through to html2canvas
+    }
+  }
+
+  // Fallback: html2canvas DOM render (less accurate on CSS-variable-heavy apps)
   try {
     const html2canvas = (await import("html2canvas-pro")).default;
     const canvas = await html2canvas(document.body, {
       scale: 0.5,
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       logging: false,
-      // Skip iframes (maps, embeds) — html2canvas can't capture cross-origin frames
+      backgroundColor: "#ffffff",
       ignoreElements: (el) => el.tagName === "IFRAME",
       onclone: (clonedDoc) => {
         // backdrop-filter crashes html2canvas — strip it from the clone
@@ -109,7 +138,7 @@ export function FeedbackWidget() {
 
           <div className="space-y-3">
             {/* Screenshot preview */}
-            <div className="rounded-lg overflow-hidden border border-border bg-muted/30 h-32 flex items-center justify-center relative">
+            <div className="rounded-lg overflow-hidden border border-border bg-muted/30 h-44 flex items-center justify-center relative">
               {capturing ? (
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -117,7 +146,7 @@ export function FeedbackWidget() {
                 </div>
               ) : screenshot ? (
                 <>
-                  <img src={screenshot} alt="Screenshot" className="w-full h-full object-cover" />
+                  <img src={screenshot} alt="Screenshot" className="w-full h-full object-contain bg-muted/20" />
                   <button
                     onClick={retake}
                     className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm border border-border rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
