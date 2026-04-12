@@ -108,7 +108,7 @@ export default function PackingScreen() {
             </TouchableOpacity>
           </>
         ) : (
-          <Text style={styles.emptySubtext}>Generate one from the Smart Pack page on web</Text>
+          <Text style={styles.emptySubtext}>Open a journey on bonvoyager.ai to generate one</Text>
         )}
       </View>
     );

@@ -32,7 +32,7 @@ export default function VoyagesScreen() {
     try {
       if (value) {
         if (!user?.homeLocation) {
-          Alert.alert("Home location required", "Set your home location in Settings on the web app first.");
+          Alert.alert("Home location required", "Tap your profile icon on the Journeys tab to set your home location.");
           return;
         }
         const coords = await geocodeHomeLocation(user.homeLocation);
@@ -74,7 +74,7 @@ export default function VoyagesScreen() {
             <Text style={styles.toggleDesc}>
               {user?.homeLocation
                 ? `Tracking from ${user.homeLocation}`
-                : "Set home location in Settings first"}
+                : "Set home location in your Profile first"}
             </Text>
           </View>
         </View>

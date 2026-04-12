@@ -1,0 +1,71 @@
+name: EAS Build & Submit iOS
+
+on:
+  # Manually triggered — choose profile and whether to submit
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Build profile"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - preview
+          - production
+      submit:
+        description: "Submit to App Store after build?"
+        required: true
+        default: "false"
+        type: boolean
+
+  # Auto-build production on every push to main that touches mobile/
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/eas-build-ios.yml"
+
+jobs:
+  build:
+    name: iOS EAS Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build iOS
+        working-directory: mobile
+        run: |
+          PROFILE="${{ github.event_name == 'workflow_dispatch' && inputs.profile || 'production' }}"
+          eas build --platform ios --profile "$PROFILE" --non-interactive
+
+      - name: Submit to App Store
+        if: >
+          github.event_name == 'workflow_dispatch' &&
+          inputs.submit == 'true'
+        working-directory: mobile
+        run: eas submit --platform ios --latest --non-interactive
+        env:
+          # App Store Connect API key — store these in GitHub repository secrets
+          # Generate at: appstoreconnect.apple.com → Users & Access → Integrations → App Store Connect API
+          EXPO_ASC_KEY_ID: ${{ secrets.EXPO_ASC_KEY_ID }}
+          EXPO_ASC_ISSUER_ID: ${{ secrets.EXPO_ASC_ISSUER_ID }}
+          EXPO_ASC_KEY_CONTENT: ${{ secrets.EXPO_ASC_KEY_CONTENT }}

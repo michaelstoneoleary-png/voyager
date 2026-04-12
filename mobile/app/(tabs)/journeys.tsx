@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { apiGet } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { colors, spacing, radius, typography } from "@/constants/theme";
@@ -52,6 +53,9 @@ export default function JourneysScreen() {
           <Text style={styles.greeting}>Hello, {user?.firstName ?? "Traveler"}</Text>
           <Text style={styles.subtitle}>Your journeys</Text>
         </View>
+        <TouchableOpacity onPress={() => router.push("/profile")} style={styles.profileBtn} accessibilityLabel="Profile">
+          <Ionicons name="person-circle-outline" size={30} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -62,7 +66,7 @@ export default function JourneysScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No journeys yet</Text>
-            <Text style={styles.emptySubtext}>Plan your first trip on voyager-7eka.onrender.com</Text>
+            <Text style={styles.emptySubtext}>Plan your first trip at bonvoyager.ai</Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -96,7 +100,8 @@ export default function JourneysScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.lg, paddingTop: 60, paddingBottom: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { paddingHorizontal: spacing.lg, paddingTop: 60, paddingBottom: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  profileBtn: { padding: 4 },
   greeting: { fontSize: 22, fontFamily: typography.serif, fontWeight: "600", color: colors.text },
   subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
   list: { padding: spacing.md, gap: spacing.md },

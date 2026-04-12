@@ -79,6 +79,10 @@ export default function RootLayout() {
             name="journey/[id]"
             options={{ headerShown: true, headerTitle: "", headerBackTitle: "Back", headerTintColor: "#2D6A4F" }}
           />
+          <Stack.Screen
+            name="profile"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>
