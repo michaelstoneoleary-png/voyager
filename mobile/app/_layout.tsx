@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Alert } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -6,6 +7,20 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ONBOARDING_KEY } from "./onboarding/permissions";
+
+// Catch unhandled JS errors in release builds and show them instead of crashing
+// Remove this block once the startup crash is resolved
+if (!__DEV__) {
+  const utils = (global as any).ErrorUtils;
+  if (utils) {
+    utils.setGlobalHandler((error: Error, isFatal: boolean) => {
+      Alert.alert(
+        isFatal ? "Fatal JS Error" : "JS Error",
+        (error?.message ?? "Unknown error") + "\n\n" + (error?.stack ?? "").slice(0, 600),
+      );
+    });
+  }
+}
 
 const queryClient = new QueryClient();
 
