@@ -20,7 +20,7 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "bon VOYAGER uses your location in the background to automatically detect when you leave home and begin a Voyage, log your current city, and close your Voyage when you return.",
         "NSLocationWhenInUseUsageDescription": "bon VOYAGER uses your location to detect when you're traveling and log your journey.",
         "NSLocationAlwaysUsageDescription": "bon VOYAGER needs background location access to detect when you leave and return home, even when the app is closed.",
-        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -41,7 +41,7 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "bon VOYAGER detects when you leave home to automatically start a Voyage journal.",
-          "isIosBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
