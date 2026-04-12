@@ -7,6 +7,7 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ONBOARDING_KEY } from "./onboarding/permissions";
+import { setupNotificationHandler } from "@/lib/notifications";
 
 // Catch unhandled JS errors in release builds and show them instead of crashing
 // Remove this block once the startup crash is resolved
@@ -81,6 +82,7 @@ function RootGuard() {
 }
 
 export default function RootLayout() {
+  setupNotificationHandler();
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

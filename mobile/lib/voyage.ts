@@ -23,8 +23,10 @@ export interface Voyage {
   status: "active" | "completed";
 }
 
-// Register the background geofencing task
-TaskManager.defineTask(VOYAGE_TASK, async ({ data, error }: any) => {
+// Register the background geofencing task — must run at module level so it is
+// available before any background task fires, but wrap to avoid a startup crash
+// if the native module isn't ready yet.
+try { TaskManager.defineTask(VOYAGE_TASK, async ({ data, error }: any) => {
   if (error) {
     console.error("Voyage geofence error:", error);
     return;
@@ -75,7 +77,7 @@ TaskManager.defineTask(VOYAGE_TASK, async ({ data, error }: any) => {
       console.error("Failed to close voyage:", err);
     }
   }
-});
+}); } catch (taskErr) { console.warn("TaskManager.defineTask failed:", taskErr); }
 
 export async function requestLocationPermissions(): Promise<boolean> {
   const { status: foreground } = await Location.requestForegroundPermissionsAsync();
