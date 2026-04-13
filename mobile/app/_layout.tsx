@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Alert } from "react-native";
+import { useEffect, useRef, Component, type ReactNode } from "react";
+import { Alert, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -24,6 +24,21 @@ if (!__DEV__) {
 }
 
 const queryClient = new QueryClient();
+
+class RenderErrorBoundary extends Component<{ children: ReactNode }, { caught: boolean }> {
+  state = { caught: false };
+  static getDerivedStateFromError() { return { caught: true }; }
+  componentDidCatch(error: Error) {
+    Alert.alert(
+      "Render Error",
+      (error?.message ?? "Unknown") + "\n\n" + (error?.stack ?? "").slice(0, 600),
+    );
+  }
+  render() {
+    if (this.state.caught) return <View style={{ flex: 1 }} />;
+    return this.props.children;
+  }
+}
 
 function RootGuard() {
   const { user, isLoading } = useAuth();
@@ -84,6 +99,7 @@ function RootGuard() {
 export default function RootLayout() {
   setupNotificationHandler();
   return (
+    <RenderErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RootGuard />
@@ -103,5 +119,6 @@ export default function RootLayout() {
         </Stack>
       </AuthProvider>
     </QueryClientProvider>
+    </RenderErrorBoundary>
   );
 }
