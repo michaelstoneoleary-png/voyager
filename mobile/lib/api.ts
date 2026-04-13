@@ -1,4 +1,6 @@
 import * as SecureStore from "expo-secure-store";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 
 // Switch between prod and local dev
 export const API_BASE =
@@ -106,4 +108,42 @@ export async function checkAuth() {
   const res = await fetch(`${API_BASE}/api/user-settings`, { headers });
   if (!res.ok) throw new Error("Not authenticated");
   return res.json();
+}
+
+export async function signInWithGoogleMobile(): Promise<unknown> {
+  // Open the server's mobile Google OAuth route in an in-app browser.
+  // The server will redirect back to bonvoyager://auth-callback?code=XXX,
+  // which closes the browser and returns the URL here.
+  const result = await WebBrowser.openAuthSessionAsync(
+    `${API_BASE}/api/auth/google/mobile`,
+    "bonvoyager://auth-callback",
+  );
+
+  if (result.type !== "success") {
+    throw new Error("Google sign-in was cancelled");
+  }
+
+  // Parse the one-time code from the redirect URL
+  const parsed = Linking.parse(result.url);
+  const code = parsed.queryParams?.code;
+  if (!code || typeof code !== "string") {
+    throw new Error("Missing code in redirect URL");
+  }
+
+  // Exchange the code for a signed session cookie
+  const exchangeRes = await fetch(
+    `${API_BASE}/api/auth/mobile/exchange?code=${encodeURIComponent(code)}`,
+  );
+  if (!exchangeRes.ok) {
+    const err = await exchangeRes.json().catch(() => ({ message: "Exchange failed" }));
+    throw new Error(err.message ?? "Failed to exchange code");
+  }
+  const { cookie } = await exchangeRes.json();
+  await setSessionCookie(cookie);
+
+  // Fetch the authenticated user
+  const headers = await buildHeaders();
+  const userRes = await fetch(`${API_BASE}/api/auth/user`, { headers });
+  if (!userRes.ok) throw new Error("Failed to fetch user after Google sign-in");
+  return userRes.json();
 }
