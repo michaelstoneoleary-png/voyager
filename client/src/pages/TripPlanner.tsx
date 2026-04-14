@@ -1232,7 +1232,7 @@ export default function TripPlanner() {
         )}
 
         {viewMode === "itinerary" && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 xl:gap-6 flex-1 min-h-0">
           <div className="lg:col-span-2 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
               <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); setActivityMenu(null); setReplaceMode(null); }} className="w-full">
@@ -1251,7 +1251,7 @@ export default function TripPlanner() {
               )}
             </div>
             
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 p-3 xl:p-4">
               <div className="space-y-4 relative">
                 <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border z-0"></div>
 
@@ -1357,7 +1357,7 @@ export default function TripPlanner() {
 
                         <div className="flex">
                           {activity.image_url && (
-                            <div className="w-20 h-20 flex-shrink-0">
+                            <div className="w-16 h-16 xl:w-20 xl:h-20 flex-shrink-0">
                               <img
                                 src={activity.image_url}
                                 alt={activity.title}
@@ -1706,7 +1706,7 @@ export default function TripPlanner() {
                             </>
                           )}
                           {activity.travel_to_next.note && (
-                            <span className="text-[10px] italic ml-auto truncate max-w-[140px]" title={activity.travel_to_next.note}>
+                            <span className="text-[10px] italic ml-auto truncate max-w-[100px] xl:max-w-[140px]" title={activity.travel_to_next.note}>
                               {activity.travel_to_next.note}
                             </span>
                           )}
@@ -1836,7 +1836,7 @@ export default function TripPlanner() {
                    <Card className="overflow-hidden" data-testid="hotel-detail-panel">
                      <div className="flex flex-col md:flex-row">
                        {selectedHotel.image_url && (
-                         <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
+                         <div className="lg:w-48 xl:w-64 h-48 lg:h-auto flex-shrink-0">
                            <img src={selectedHotel.image_url} alt={selectedHotel.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }} data-testid="hotel-detail-image" />
                          </div>
                        )}
@@ -1900,7 +1900,7 @@ export default function TripPlanner() {
                    <Card className="overflow-hidden" data-testid="activity-detail-panel">
                      <div className="flex flex-col md:flex-row">
                        {selectedActivity.image_url && (
-                         <div className="md:w-64 h-48 md:h-auto flex-shrink-0">
+                         <div className="lg:w-48 xl:w-64 h-48 lg:h-auto flex-shrink-0">
                            <img
                              src={selectedActivity.image_url}
                              alt={selectedActivity.title}
