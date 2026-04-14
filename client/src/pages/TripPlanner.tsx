@@ -683,6 +683,40 @@ export default function TripPlanner() {
   const itinerary = journey?.itinerary as Itinerary | undefined;
   const currentDayData = itinerary?.days?.[selectedDay];
 
+  // Lazy image loading — fetched client-side after itinerary arrives so generation
+  // isn't blocked by Wikipedia API calls (was the primary source of 60+ second waits).
+  const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  const fetchedImageKeys = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!itinerary?.days) return;
+    for (const day of itinerary.days) {
+      for (const activity of day.activities) {
+        const q = activity.image_query || activity.title;
+        if (!q || activity.image_url || fetchedImageKeys.current.has(q)) continue;
+        fetchedImageKeys.current.add(q);
+        fetch(`/api/inspire/image?q=${encodeURIComponent(q)}&type=culture`, { credentials: "include" })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.url) setImageMap(prev => ({ ...prev, [q]: d.url })); })
+          .catch(() => {});
+      }
+      for (const hotel of (day.hotels || [])) {
+        const q = hotel.image_query || hotel.neighborhood || hotel.name;
+        if (!q || hotel.image_url || fetchedImageKeys.current.has(q)) continue;
+        fetchedImageKeys.current.add(q);
+        fetch(`/api/inspire/image?q=${encodeURIComponent(q)}&type=city`, { credentials: "include" })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.url) setImageMap(prev => ({ ...prev, [q]: d.url })); })
+          .catch(() => {});
+      }
+    }
+  }, [itinerary]);
+
+  const getActivityImage = (a: Activity) =>
+    imageMap[a.image_query || a.title] || a.image_url;
+  const getHotelImage = (h: Hotel) =>
+    imageMap[h.image_query || h.neighborhood || h.name] || h.image_url;
+
   const allMarkers = useMemo(() => {
     const markers: { lat: number; lng: number; title: string; index: number; activity: Activity }[] = [];
     if (currentDayData?.activities) {
@@ -1356,10 +1390,10 @@ export default function TripPlanner() {
                         </div>
 
                         <div className="flex">
-                          {activity.image_url && (
+                          {getActivityImage(activity) && (
                             <div className="w-16 h-16 xl:w-20 xl:h-20 flex-shrink-0">
                               <img
-                                src={activity.image_url}
+                                src={getActivityImage(activity)}
                                 alt={activity.title}
                                 className="w-full h-full object-cover"
                                 loading="lazy"
@@ -1742,9 +1776,9 @@ export default function TripPlanner() {
                       onClick={() => { setSelectedHotel(picked); setSelectedActivity(null); }}
                     >
                       <div className="flex gap-3">
-                        {picked.image_url && (
+                        {getHotelImage(picked) && (
                           <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
-                            <img src={picked.image_url} alt={picked.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            <img src={getHotelImage(picked)} alt={picked.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
@@ -1835,9 +1869,9 @@ export default function TripPlanner() {
                  {selectedHotel ? (
                    <Card className="overflow-hidden" data-testid="hotel-detail-panel">
                      <div className="flex flex-col md:flex-row">
-                       {selectedHotel.image_url && (
+                       {getHotelImage(selectedHotel) && (
                          <div className="lg:w-48 xl:w-64 h-48 lg:h-auto flex-shrink-0">
-                           <img src={selectedHotel.image_url} alt={selectedHotel.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }} data-testid="hotel-detail-image" />
+                           <img src={getHotelImage(selectedHotel)} alt={selectedHotel.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }} data-testid="hotel-detail-image" />
                          </div>
                        )}
                        <div className="flex-1">
@@ -1899,10 +1933,10 @@ export default function TripPlanner() {
                  ) : selectedActivity ? (
                    <Card className="overflow-hidden" data-testid="activity-detail-panel">
                      <div className="flex flex-col md:flex-row">
-                       {selectedActivity.image_url && (
+                       {getActivityImage(selectedActivity) && (
                          <div className="lg:w-48 xl:w-64 h-48 lg:h-auto flex-shrink-0">
                            <img
-                             src={selectedActivity.image_url}
+                             src={getActivityImage(selectedActivity)}
                              alt={selectedActivity.title}
                              className="w-full h-full object-cover"
                              onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
