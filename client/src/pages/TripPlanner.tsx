@@ -701,32 +701,67 @@ export default function TripPlanner() {
 
   // Lazy image loading — fetched client-side after itinerary arrives so generation
   // isn't blocked by Wikipedia API calls (was the primary source of 60+ second waits).
+  // After all images resolve they are written back to the DB so future loads are instant.
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const fetchedImageKeys = useRef(new Set<string>());
 
   useEffect(() => {
     if (!itinerary?.days) return;
+
+    type FetchEntry = { q: string; promise: Promise<string | null> };
+    const fetches: FetchEntry[] = [];
+
+    const queue = (q: string, type: string) => {
+      if (!q || fetchedImageKeys.current.has(q)) return;
+      fetchedImageKeys.current.add(q);
+      const promise = fetch(`/api/inspire/image?q=${encodeURIComponent(q)}&type=${type}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : null)
+        .then((d: any) => {
+          if (d?.url) { setImageMap(prev => ({ ...prev, [q]: d.url })); return d.url as string; }
+          return null;
+        })
+        .catch(() => null);
+      fetches.push({ q, promise });
+    };
+
     for (const day of itinerary.days) {
       for (const activity of day.activities) {
-        const q = activity.image_query || activity.title;
-        if (!q || activity.image_url || fetchedImageKeys.current.has(q)) continue;
-        fetchedImageKeys.current.add(q);
-        fetch(`/api/inspire/image?q=${encodeURIComponent(q)}&type=culture`, { credentials: "include" })
-          .then(r => r.ok ? r.json() : null)
-          .then(d => { if (d?.url) setImageMap(prev => ({ ...prev, [q]: d.url })); })
-          .catch(() => {});
+        if (!activity.image_url) queue(activity.image_query || activity.title, "culture");
       }
       for (const hotel of (day.hotels || [])) {
-        const q = hotel.image_query || hotel.neighborhood || hotel.name;
-        if (!q || hotel.image_url || fetchedImageKeys.current.has(q)) continue;
-        fetchedImageKeys.current.add(q);
-        fetch(`/api/inspire/image?q=${encodeURIComponent(q)}&type=city`, { credentials: "include" })
-          .then(r => r.ok ? r.json() : null)
-          .then(d => { if (d?.url) setImageMap(prev => ({ ...prev, [q]: d.url })); })
-          .catch(() => {});
+        if (!hotel.image_url) queue(hotel.image_query || hotel.neighborhood || hotel.name, "city");
       }
     }
-  }, [itinerary]);
+
+    if (fetches.length === 0) return;
+
+    // Once all images settle, persist them back to the itinerary in the DB
+    // so they appear immediately on future page loads.
+    Promise.allSettled(fetches.map(f => f.promise)).then(results => {
+      const urlMap: Record<string, string> = {};
+      fetches.forEach(({ q }, i) => {
+        const r = results[i];
+        if (r.status === "fulfilled" && r.value) urlMap[q] = r.value;
+      });
+      if (Object.keys(urlMap).length === 0) return;
+      const updatedItinerary = {
+        ...itinerary,
+        days: itinerary.days.map((day: any) => ({
+          ...day,
+          activities: day.activities.map((act: any) => {
+            const q = act.image_query || act.title;
+            return urlMap[q] ? { ...act, image_url: urlMap[q] } : act;
+          }),
+          hotels: (day.hotels || []).map((hotel: any) => {
+            const q = hotel.image_query || hotel.neighborhood || hotel.name;
+            return urlMap[q] ? { ...hotel, image_url: urlMap[q] } : hotel;
+          }),
+        })),
+      };
+      // Fire-and-forget — keeps the UI fast, images persist for next load
+      apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: updatedItinerary }).catch(() => {});
+    });
+  }, [itinerary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getActivityImage = (a: Activity) =>
     imageMap[a.image_query || a.title] || a.image_url;
