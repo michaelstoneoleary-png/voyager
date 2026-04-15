@@ -721,27 +721,6 @@ ${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels
         }
       }
 
-      const allItems: { item: any; searchTerm: string }[] = [];
-      for (const day of itinerary.days) {
-        for (const activity of day.activities) {
-          allItems.push({ item: activity, searchTerm: activity.image_query || activity.title });
-        }
-        for (const hotel of day.hotels) {
-          allItems.push({ item: hotel, searchTerm: hotel.image_query || hotel.neighborhood || hotel.name });
-        }
-      }
-
-      const CONCURRENCY = 5;
-      for (let i = 0; i < allItems.length; i += CONCURRENCY) {
-        const batch = allItems.slice(i, i + CONCURRENCY);
-        const images = await Promise.all(
-          batch.map(({ searchTerm }) => fetchDestinationImage(searchTerm, "culture"))
-        );
-        for (let j = 0; j < batch.length; j++) {
-          batch[j].item.image_url = images[j];
-        }
-      }
-
       const updated = await storage.updateJourney(req.params.id, userId, { itinerary });
       res.json(updated);
     } catch (error) {

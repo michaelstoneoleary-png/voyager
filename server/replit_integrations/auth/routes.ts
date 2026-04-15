@@ -11,6 +11,15 @@ import { storage } from "../../storage";
 // Simple in-memory rate limit for resend verification (per userId)
 const resendRateLimit = new Map<string, number>();
 
+// Short-lived one-time codes for mobile OAuth session exchange (2-min TTL)
+const mobileCodes = new Map<string, { sessionId: string; expires: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, val] of mobileCodes) {
+    if (now > val.expires) mobileCodes.delete(code);
+  }
+}, 5 * 60 * 1000);
+
 export function registerAuthRoutes(app: Express): void {
   // ── Get current user ──────────────────────────────────────────────────────
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
@@ -159,15 +168,53 @@ export function registerAuthRoutes(app: Express): void {
 
   // ── Google OAuth ──────────────────────────────────────────────────────────
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    // Web flow
     app.get("/api/auth/google",
       passport.authenticate("google", { scope: ["openid", "email", "profile"] })
     );
 
+    // Mobile flow — sets session flag so callback deep-links back to the app
+    app.get("/api/auth/google/mobile", (req: any, _res, next) => {
+      (req.session as any).oauthMobile = true;
+      req.session.save(next);
+    }, passport.authenticate("google", { scope: ["openid", "email", "profile"] }));
+
     app.get("/api/auth/google/callback",
       passport.authenticate("google", { failureRedirect: "/login?error=google" }),
-      (req, res) => res.redirect("/")
+      (req: any, res) => {
+        if ((req.session as any).oauthMobile) {
+          delete (req.session as any).oauthMobile;
+          const code = crypto.randomBytes(24).toString("hex");
+          mobileCodes.set(code, { sessionId: req.sessionID, expires: Date.now() + 120_000 });
+          req.session.save(() => res.redirect(`bonvoyager://auth-callback?code=${code}`));
+        } else {
+          res.redirect("/");
+        }
+      }
     );
   }
+
+  // ── Mobile OAuth session exchange ─────────────────────────────────────────
+  // Exchanges a short-lived one-time code (from Google callback deep link) for
+  // a signed session cookie that the mobile app stores in SecureStore.
+  app.get("/api/auth/mobile/exchange", (req: any, res) => {
+    const { code } = req.query;
+    if (!code || typeof code !== "string") {
+      return res.status(400).json({ message: "Missing code" });
+    }
+    const stored = mobileCodes.get(code);
+    if (!stored || Date.now() > stored.expires) {
+      mobileCodes.delete(code);
+      return res.status(400).json({ message: "Invalid or expired code" });
+    }
+    mobileCodes.delete(code);
+    // cookie-signature is a transitive dep of express-session
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { sign } = require("cookie-signature") as { sign: (v: string, s: string) => string };
+    const signedSid = "s:" + sign(stored.sessionId, process.env.SESSION_SECRET!);
+    const cookieValue = `connect.sid=${encodeURIComponent(signedSid)}`;
+    res.json({ cookie: cookieValue });
+  });
 
   // ── Apple OAuth ───────────────────────────────────────────────────────────
   if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY) {

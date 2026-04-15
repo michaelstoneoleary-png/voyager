@@ -4,14 +4,16 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { apiPost } from "./api";
 
-// Configure how notifications appear when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// Call this once from the root layout to configure foreground notification appearance
+export function setupNotificationHandler() {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 export async function requestNotificationPermissions(): Promise<boolean> {
   if (!Device.isDevice) return false; // simulator — skip

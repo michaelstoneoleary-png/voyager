@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { checkAuth, login as apiLogin, logout as apiLogout } from "./api";
+import { checkAuth, login as apiLogin, logout as apiLogout, signInWithGoogleMobile } from "./api";
 
 interface User {
   firstName: string;
@@ -15,6 +15,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,8 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const signInWithGoogle = async () => {
+    const data = await signInWithGoogleMobile();
+    setUser(data as User);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Component, type ReactNode } from "react";
+import { Alert, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -6,8 +7,38 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ONBOARDING_KEY } from "./onboarding/permissions";
+import { setupNotificationHandler } from "@/lib/notifications";
+
+// Catch unhandled JS errors in release builds and show them instead of crashing
+// Remove this block once the startup crash is resolved
+if (!__DEV__) {
+  const utils = (global as any).ErrorUtils;
+  if (utils) {
+    utils.setGlobalHandler((error: Error, isFatal: boolean) => {
+      Alert.alert(
+        isFatal ? "Fatal JS Error" : "JS Error",
+        (error?.message ?? "Unknown error") + "\n\n" + (error?.stack ?? "").slice(0, 600),
+      );
+    });
+  }
+}
 
 const queryClient = new QueryClient();
+
+class RenderErrorBoundary extends Component<{ children: ReactNode }, { caught: boolean }> {
+  state = { caught: false };
+  static getDerivedStateFromError() { return { caught: true }; }
+  componentDidCatch(error: Error) {
+    Alert.alert(
+      "Render Error",
+      (error?.message ?? "Unknown") + "\n\n" + (error?.stack ?? "").slice(0, 600),
+    );
+  }
+  render() {
+    if (this.state.caught) return <View style={{ flex: 1 }} />;
+    return this.props.children;
+  }
+}
 
 function RootGuard() {
   const { user, isLoading } = useAuth();
@@ -66,7 +97,9 @@ function RootGuard() {
 }
 
 export default function RootLayout() {
+  setupNotificationHandler();
   return (
+    <RenderErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RootGuard />
@@ -86,5 +119,6 @@ export default function RootLayout() {
         </Stack>
       </AuthProvider>
     </QueryClientProvider>
+    </RenderErrorBoundary>
   );
 }
