@@ -428,7 +428,23 @@ export default function TripPlanner() {
       const label = endD
         ? `${fmt(d)} – ${fmt(endD)}, ${endD.getFullYear()}`
         : fmt(d);
-      const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, { dates: label });
+
+      // If an itinerary exists, recompute each day's date_label to match the new start date
+      const currentJourney = queryClient.getQueryData([`/api/journeys/${journeyId}`]) as any;
+      const existingItinerary = currentJourney?.itinerary;
+      const payload: Record<string, any> = { dates: label };
+      if (existingItinerary?.days?.length) {
+        const fmtLabel = (dt: Date) =>
+          dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+        const updatedDays = existingItinerary.days.map((day: any, idx: number) => {
+          const dayDate = new Date(iso + "T00:00:00");
+          dayDate.setDate(dayDate.getDate() + idx);
+          return { ...day, date_label: fmtLabel(dayDate) };
+        });
+        payload.itinerary = { ...existingItinerary, days: updatedDays };
+      }
+
+      const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, payload);
       return res.json();
     },
     onSuccess: (data) => {
