@@ -1064,18 +1064,24 @@ Rules:
           role: "user",
           content: `Travel dates changed to: "${newDates}" (trip starts ${newStartIso}).
 
-Review this itinerary for date-specific references that may no longer be accurate. Look for:
-- Holiday-specific activities or events (Christmas markets, New Year's Eve, Valentine's Day, Easter, Thanksgiving, etc.)
-- Seasonal references that don't fit the new season ("snowy slopes" in summer, "beach weather" in winter, "cherry blossoms" out of season)
-- Festival or event references tied to specific calendar dates
-- Restaurant or attraction recommendations with seasonal menus or hours
+Review this itinerary for two types of issues:
 
-Update the description and tip of any activity/hotel that has date-specific issues to be accurate for the new dates. Keep all other text identical — only change what's actually date-specific.
+1. STALE TEXT — Update description/tip text for any activity or hotel whose content references holidays, seasons, festivals, or calendar-specific events that no longer fit the new dates (e.g. "Christmas markets" in summer, "cherry blossoms" out of season, "New Year's Eve fireworks" on a non-NYE date).
 
-If nothing in this itinerary is date-specific, return exactly: {"changed":false}
+2. MISPLACED EVENTS — Check whether any birthday, anniversary, or other date-anchored celebration appears to be on the wrong day given the new dates. The date_label on each day shows its correct calendar date. If a celebration activity sits on a day that doesn't match the date it was clearly planned for (e.g. a birthday dinner on Sunday when Saturday is earlier in the trip and a more natural fit), include a move instruction. Only flag a move when you are confident the activity was intended for a different specific day.
 
-If changes are needed, return:
-{"changed":true,"summary":"One sentence describing what was updated","days":[...same structure as input with updated descriptions/tips...]}
+Keep all unchanged text identical.
+
+If nothing needs changing, return exactly: {"changed":false}
+
+If changes are needed, return JSON:
+{
+  "changed": true,
+  "summary": "One sentence describing what was updated",
+  "days": [...same structure as input, with updated descriptions/tips only where changed...],
+  "moves": [{"from_day": 2, "to_day": 1, "activity_title": "Birthday Dinner"}]
+}
+Omit "moves" if no activities need to change days.
 
 Itinerary:
 ${JSON.stringify(summary)}`,
@@ -1115,6 +1121,21 @@ ${JSON.stringify(summary)}`,
 
         return { ...fullDay, activities: updatedActivities, hotels: updatedHotels };
       });
+
+      // Apply any day-to-day activity moves (e.g. birthday dinner moved to correct day)
+      if (result.moves?.length) {
+        for (const move of result.moves) {
+          const fromIdx = updatedDays.findIndex((d: any) => d.day === move.from_day);
+          const toIdx = updatedDays.findIndex((d: any) => d.day === move.to_day);
+          if (fromIdx === -1 || toIdx === -1) continue;
+          const fromActivities = [...(updatedDays[fromIdx].activities || [])];
+          const actIdx = fromActivities.findIndex((a: any) => a.title === move.activity_title);
+          if (actIdx === -1) continue;
+          const [moved] = fromActivities.splice(actIdx, 1);
+          updatedDays[fromIdx] = { ...updatedDays[fromIdx], activities: fromActivities };
+          updatedDays[toIdx] = { ...updatedDays[toIdx], activities: [...(updatedDays[toIdx].activities || []), moved] };
+        }
+      }
 
       const updatedItinerary = { ...itinerary, days: updatedDays };
       const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
