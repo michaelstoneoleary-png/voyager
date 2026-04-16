@@ -10,6 +10,7 @@ import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, se
 import { sendSms } from "./twilio";
 import { sendInviteEmail, sendFriendRequestEmail, sendFriendAcceptedEmail, sendJourneySharedEmail } from "./lib/email";
 import { getLiveHotelPrice, amadeusEnabled } from "./lib/amadeus";
+import { refinePricesWithClaude } from "./lib/hotelPricing";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 import multer from "multer";
@@ -1165,9 +1166,9 @@ ${JSON.stringify(summary)}`,
     }
   });
 
-  // POST /api/journeys/:id/enrich-hotel-prices — replace AI-estimated prices with live Amadeus rates
+  // POST /api/journeys/:id/enrich-hotel-prices
+  // Uses Amadeus live rates when configured, otherwise refines estimates with a focused Claude call.
   app.post("/api/journeys/:id/enrich-hotel-prices", isAuthenticated, async (req: any, res) => {
-    if (!amadeusEnabled()) return res.json({ updated: false, reason: "amadeus_not_configured" });
     try {
       const userId = getUserId(req)!;
       const journey = await storage.getJourney(req.params.id, userId);
@@ -1179,10 +1180,9 @@ ${JSON.stringify(summary)}`,
       const itinerary = journey.itinerary as any;
       if (!itinerary?.days?.length) return res.json({ updated: false });
 
-      const RETRY_AFTER_MS = 60 * 60 * 1000; // 1 hour before retrying a failed lookup
+      const RETRY_AFTER_MS = 60 * 60 * 1000;
       const now = Date.now();
 
-      // Collect hotels that need enrichment (not yet fetched, or last attempt was >1 hour ago)
       const toEnrich: Array<{ dayIdx: number; hotelIdx: number; hotel: any }> = [];
       itinerary.days.forEach((day: any, dayIdx: number) => {
         (day.hotels || []).forEach((hotel: any, hotelIdx: number) => {
@@ -1196,26 +1196,46 @@ ${JSON.stringify(summary)}`,
 
       if (toEnrich.length === 0) return res.json({ updated: false });
 
-      // Look up all hotels in parallel
-      const liveRates = await Promise.all(
-        toEnrich.map(({ hotel }) => getLiveHotelPrice(hotel, checkIn, checkOut))
-      );
-
       const updatedDays = itinerary.days.map((day: any) => ({
         ...day,
         hotels: [...(day.hotels || [])],
       }));
 
       let anyUpdated = false;
-      toEnrich.forEach(({ dayIdx, hotelIdx }, i) => {
-        const rate = liveRates[i];
-        updatedDays[dayIdx].hotels[hotelIdx] = {
-          ...updatedDays[dayIdx].hotels[hotelIdx],
-          price_attempted_at: now,
-          ...(rate ? { price_per_night: rate, price_live: true, price_checked_for: checkIn } : {}),
-        };
-        if (rate) anyUpdated = true;
-      });
+
+      if (amadeusEnabled()) {
+        // Live rates from Amadeus
+        const liveRates = await Promise.all(
+          toEnrich.map(({ hotel }) => getLiveHotelPrice(hotel, checkIn, checkOut))
+        );
+        toEnrich.forEach(({ dayIdx, hotelIdx }, i) => {
+          const rate = liveRates[i];
+          updatedDays[dayIdx].hotels[hotelIdx] = {
+            ...updatedDays[dayIdx].hotels[hotelIdx],
+            price_attempted_at: now,
+            ...(rate ? { price_per_night: rate, price_live: true, price_checked_for: checkIn } : {}),
+          };
+          if (rate) anyUpdated = true;
+        });
+      } else {
+        // Focused Claude Haiku pricing — more accurate than inline itinerary estimates
+        const hotelInputs = toEnrich.map(({ hotel, dayIdx }) => ({
+          name: hotel.name,
+          category: hotel.category || "mid-range",
+          neighborhood: hotel.neighborhood,
+          location: itinerary.days[dayIdx]?.location || "",
+        }));
+        const refined = await refinePricesWithClaude(hotelInputs, checkIn, checkOut);
+        toEnrich.forEach(({ dayIdx, hotelIdx, hotel }) => {
+          const price = refined.get(hotel.name);
+          updatedDays[dayIdx].hotels[hotelIdx] = {
+            ...updatedDays[dayIdx].hotels[hotelIdx],
+            price_attempted_at: now,
+            ...(price ? { price_per_night: price } : {}),
+          };
+          if (price) anyUpdated = true;
+        });
+      }
 
       const updatedItinerary = { ...itinerary, days: updatedDays };
       const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
