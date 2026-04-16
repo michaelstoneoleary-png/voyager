@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, getDirectionsRoute, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import { sendInviteEmail, sendFriendRequestEmail, sendFriendAcceptedEmail, sendJourneySharedEmail } from "./lib/email";
+import { getLiveHotelPrice, amadeusEnabled } from "./lib/amadeus";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 import multer from "multer";
@@ -1161,6 +1162,68 @@ ${JSON.stringify(summary)}`,
     } catch (error) {
       console.error("Error reviewing itinerary dates:", error);
       res.json({ changed: false }); // fail silently — non-critical feature
+    }
+  });
+
+  // POST /api/journeys/:id/enrich-hotel-prices — replace AI-estimated prices with live Amadeus rates
+  app.post("/api/journeys/:id/enrich-hotel-prices", isAuthenticated, async (req: any, res) => {
+    if (!amadeusEnabled()) return res.json({ updated: false, reason: "amadeus_not_configured" });
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const { checkIn, checkOut } = req.body;
+      if (!checkIn || !checkOut) return res.json({ updated: false });
+
+      const itinerary = journey.itinerary as any;
+      if (!itinerary?.days?.length) return res.json({ updated: false });
+
+      const RETRY_AFTER_MS = 60 * 60 * 1000; // 1 hour before retrying a failed lookup
+      const now = Date.now();
+
+      // Collect hotels that need enrichment (not yet fetched, or last attempt was >1 hour ago)
+      const toEnrich: Array<{ dayIdx: number; hotelIdx: number; hotel: any }> = [];
+      itinerary.days.forEach((day: any, dayIdx: number) => {
+        (day.hotels || []).forEach((hotel: any, hotelIdx: number) => {
+          const alreadyLive = hotel.price_live === true && hotel.price_checked_for === checkIn;
+          const recentlyAttempted = hotel.price_attempted_at && (now - hotel.price_attempted_at) < RETRY_AFTER_MS;
+          if (!alreadyLive && !recentlyAttempted) {
+            toEnrich.push({ dayIdx, hotelIdx, hotel });
+          }
+        });
+      });
+
+      if (toEnrich.length === 0) return res.json({ updated: false });
+
+      // Look up all hotels in parallel
+      const liveRates = await Promise.all(
+        toEnrich.map(({ hotel }) => getLiveHotelPrice(hotel, checkIn, checkOut))
+      );
+
+      const updatedDays = itinerary.days.map((day: any) => ({
+        ...day,
+        hotels: [...(day.hotels || [])],
+      }));
+
+      let anyUpdated = false;
+      toEnrich.forEach(({ dayIdx, hotelIdx }, i) => {
+        const rate = liveRates[i];
+        updatedDays[dayIdx].hotels[hotelIdx] = {
+          ...updatedDays[dayIdx].hotels[hotelIdx],
+          price_attempted_at: now,
+          ...(rate ? { price_per_night: rate, price_live: true, price_checked_for: checkIn } : {}),
+        };
+        if (rate) anyUpdated = true;
+      });
+
+      const updatedItinerary = { ...itinerary, days: updatedDays };
+      const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
+
+      res.json({ updated: anyUpdated, journey: updatedJourney });
+    } catch (err: any) {
+      console.error("[enrich-hotel-prices] error:", err.message);
+      res.json({ updated: false });
     }
   });
 
