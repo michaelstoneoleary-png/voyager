@@ -2,13 +2,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { checkAllServices, type HealthReport } from "./lib/healthChecks";
-import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, getUserId, authStorage } from "./replit_integrations/auth";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { insertJourneySchema, insertPastTripSchema, insertBookmarkSchema, updateUserSettingsSchema, journeyMembers, type User } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
 import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, getDirectionsRoute, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
-import { sendInviteEmail } from "./lib/email";
+import { sendInviteEmail, sendFriendRequestEmail, sendFriendAcceptedEmail, sendJourneySharedEmail } from "./lib/email";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 import multer from "multer";
@@ -356,6 +356,26 @@ Reply with ONLY a valid JSON array, no markdown, no explanation:
     } catch (error) {
       console.error("Error fetching journeys:", error);
       res.status(500).json({ message: "Failed to fetch journeys" });
+    }
+  });
+
+  // GET /api/journeys/shared — journeys shared with me (must be before /:id)
+  app.get("/api/journeys/shared", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const shared = await storage.getSharedJourneys(userId);
+      res.json(shared.map((j: any) => ({
+        ...j,
+        sharedBy: {
+          id: j.sharedBy.id,
+          firstName: j.sharedBy.firstName,
+          lastName: j.sharedBy.lastName,
+          profileImageUrl: j.sharedBy.profileImageUrl,
+        },
+      })));
+    } catch (error) {
+      console.error("Error fetching shared journeys:", error);
+      res.status(500).json({ message: "Failed to fetch shared journeys" });
     }
   });
 
@@ -1004,6 +1024,105 @@ Rules:
     } catch (error) {
       console.error("Error generating highlights:", error);
       res.status(500).json({ message: "Failed to generate highlights" });
+    }
+  });
+
+  // POST /api/journeys/:id/review-itinerary-dates — review itinerary for date-specific content after date change
+  app.post("/api/journeys/:id/review-itinerary-dates", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const itinerary = journey.itinerary as any;
+      if (!itinerary?.days?.length) return res.json({ changed: false });
+
+      const { newDates, newStartIso } = req.body;
+      if (!newDates || !newStartIso) return res.status(400).json({ message: "newDates and newStartIso required" });
+
+      // Extract just the textual content (no image URLs, coords, etc.) to keep prompt lean
+      const summary = itinerary.days.map((day: any) => ({
+        day: day.day,
+        date_label: day.date_label,
+        location: day.location || "",
+        activities: (day.activities || []).map((a: any) => ({
+          time: a.time,
+          title: a.title,
+          description: a.description || "",
+          tip: a.tip || "",
+        })),
+        hotels: (day.hotels || []).map((h: any) => ({
+          name: h.name,
+          description: h.description || "",
+        })),
+      }));
+
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4096,
+        messages: [{
+          role: "user",
+          content: `Travel dates changed to: "${newDates}" (trip starts ${newStartIso}).
+
+Review this itinerary for date-specific references that may no longer be accurate. Look for:
+- Holiday-specific activities or events (Christmas markets, New Year's Eve, Valentine's Day, Easter, Thanksgiving, etc.)
+- Seasonal references that don't fit the new season ("snowy slopes" in summer, "beach weather" in winter, "cherry blossoms" out of season)
+- Festival or event references tied to specific calendar dates
+- Restaurant or attraction recommendations with seasonal menus or hours
+
+Update the description and tip of any activity/hotel that has date-specific issues to be accurate for the new dates. Keep all other text identical — only change what's actually date-specific.
+
+If nothing in this itinerary is date-specific, return exactly: {"changed":false}
+
+If changes are needed, return:
+{"changed":true,"summary":"One sentence describing what was updated","days":[...same structure as input with updated descriptions/tips...]}
+
+Itinerary:
+${JSON.stringify(summary)}`,
+        }],
+      });
+
+      storage.recordApiUsage({ userId, feature: "date-review", model: "claude-sonnet-4-5", inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 }).catch(() => {});
+
+      const text = (response.content.find((c: any) => c.type === "text") as any)?.text ?? "";
+      let result: any;
+      try {
+        const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        result = jsonMatch ? JSON.parse(jsonMatch[0]) : { changed: false };
+      } catch {
+        return res.json({ changed: false });
+      }
+
+      if (!result?.changed) return res.json({ changed: false });
+
+      // Apply text updates back to the full itinerary (preserves image URLs, coords, etc.)
+      const updatedDays = itinerary.days.map((fullDay: any) => {
+        const reviewedDay = result.days?.find((d: any) => d.day === fullDay.day);
+        if (!reviewedDay) return fullDay;
+
+        const updatedActivities = (fullDay.activities || []).map((act: any) => {
+          const r = reviewedDay.activities?.find((a: any) => a.time === act.time && a.title === act.title);
+          if (!r) return act;
+          return { ...act, description: r.description || act.description, tip: r.tip || act.tip };
+        });
+
+        const updatedHotels = (fullDay.hotels || []).map((hotel: any) => {
+          const r = reviewedDay.hotels?.find((h: any) => h.name === hotel.name);
+          if (!r) return hotel;
+          return { ...hotel, description: r.description || hotel.description };
+        });
+
+        return { ...fullDay, activities: updatedActivities, hotels: updatedHotels };
+      });
+
+      const updatedItinerary = { ...itinerary, days: updatedDays };
+      const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
+
+      res.json({ changed: true, summary: result.summary || "Itinerary updated for new dates.", journey: updatedJourney });
+    } catch (error) {
+      console.error("Error reviewing itinerary dates:", error);
+      res.json({ changed: false }); // fail silently — non-critical feature
     }
   });
 
@@ -2864,6 +2983,166 @@ Rules:
     } catch (err) {
       console.error("Error creating admin invite:", err);
       res.status(500).json({ error: "Failed to create invite" });
+    }
+  });
+
+  // ── Friends & Journey Sharing ─────────────────────────────────────────────────
+
+  // POST /api/friends/request — send a friend request by email
+  app.post("/api/friends/request", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "email is required" });
+
+      const addressee = await authStorage.getUserByEmail(email.trim().toLowerCase());
+      if (!addressee) return res.status(404).json({ message: "No bon VOYAGER account found with that email" });
+      if (addressee.id === userId) return res.status(400).json({ message: "You can't send a friend request to yourself" });
+
+      const existing = await storage.getFriendship(userId, addressee.id);
+      if (existing) {
+        if (existing.status === "accepted") return res.status(409).json({ message: "You are already friends with this person" });
+        if (existing.status === "pending") return res.status(409).json({ message: "A friend request is already pending" });
+      }
+
+      const friendship = await storage.createFriendship(userId, addressee.id);
+      const requester = await storage.getUser(userId);
+      const fromName = requester?.firstName || requester?.displayName || "A bon VOYAGER user";
+      if (addressee.email) sendFriendRequestEmail(addressee.email, fromName).catch(() => {});
+      res.status(201).json({ friendship });
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      res.status(500).json({ message: "Failed to send friend request" });
+    }
+  });
+
+  // GET /api/friends — list accepted friends
+  app.get("/api/friends", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const friends = await storage.getFriends(userId);
+      res.json(friends.map((f: any) => ({
+        id: f.id,
+        status: f.status,
+        friend: {
+          id: f.friend.id,
+          firstName: f.friend.firstName,
+          lastName: f.friend.lastName,
+          email: f.friend.email,
+          profileImageUrl: f.friend.profileImageUrl,
+        },
+      })));
+    } catch (error) {
+      console.error("Error fetching friends:", error);
+      res.status(500).json({ message: "Failed to fetch friends" });
+    }
+  });
+
+  // GET /api/friends/requests — pending incoming friend requests
+  app.get("/api/friends/requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const requests = await storage.getFriendRequests(userId);
+      res.json(requests.map((r: any) => ({
+        id: r.id,
+        status: r.status,
+        createdAt: r.createdAt,
+        requester: {
+          id: r.requester.id,
+          firstName: r.requester.firstName,
+          lastName: r.requester.lastName,
+          email: r.requester.email,
+          profileImageUrl: r.requester.profileImageUrl,
+        },
+      })));
+    } catch (error) {
+      console.error("Error fetching friend requests:", error);
+      res.status(500).json({ message: "Failed to fetch friend requests" });
+    }
+  });
+
+  // POST /api/friends/:id/accept
+  app.post("/api/friends/:id/accept", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const updated = await storage.updateFriendshipStatus(req.params.id, "accepted");
+      if (!updated) return res.status(404).json({ message: "Friend request not found" });
+      const requester = await storage.getUser(updated.requesterId);
+      const accepter = await storage.getUser(userId);
+      if (requester?.email && accepter) {
+        const fromName = accepter.firstName || accepter.displayName || "Your friend";
+        sendFriendAcceptedEmail(requester.email, fromName).catch(() => {});
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+      res.status(500).json({ message: "Failed to accept friend request" });
+    }
+  });
+
+  // POST /api/friends/:id/decline
+  app.post("/api/friends/:id/decline", isAuthenticated, async (req: any, res) => {
+    try {
+      const updated = await storage.updateFriendshipStatus(req.params.id, "declined");
+      if (!updated) return res.status(404).json({ message: "Friend request not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error declining friend request:", error);
+      res.status(500).json({ message: "Failed to decline friend request" });
+    }
+  });
+
+  // POST /api/journeys/:id/share — share a journey with a friend
+  app.post("/api/journeys/:id/share", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const { friendId } = req.body;
+      if (!friendId) return res.status(400).json({ message: "friendId is required" });
+
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found or you don't own it" });
+
+      const friendship = await storage.getFriendship(userId, friendId);
+      if (!friendship || friendship.status !== "accepted") {
+        return res.status(403).json({ message: "You can only share with accepted friends" });
+      }
+
+      const members = await storage.getJourneyMembers(req.params.id);
+      if (members.some((m: any) => m.userId === friendId)) {
+        return res.status(409).json({ message: "Journey already shared with this friend" });
+      }
+
+      const member = await storage.shareJourneyWithFriend(req.params.id, friendId);
+      const friend = await storage.getUser(friendId);
+      const sharer = await storage.getUser(userId);
+      if (friend?.email && sharer) {
+        const fromName = sharer.firstName || sharer.displayName || "A friend";
+        sendJourneySharedEmail(friend.email, fromName, journey.title).catch(() => {});
+      }
+      res.status(201).json({ member });
+    } catch (error) {
+      console.error("Error sharing journey:", error);
+      res.status(500).json({ message: "Failed to share journey" });
+    }
+  });
+
+  // POST /api/journeys/:id/copy — copy a journey to own account
+  app.post("/api/journeys/:id/copy", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const ownedJourney = await storage.getJourney(req.params.id, userId);
+      const members = await storage.getJourneyMembers(req.params.id);
+      const isViewer = members.some((m: any) => m.userId === userId && m.role === "viewer");
+
+      if (!ownedJourney && !isViewer) {
+        return res.status(403).json({ message: "You don't have access to this journey" });
+      }
+
+      const newJourney = await storage.copyJourney(req.params.id, userId);
+      res.status(201).json(newJourney);
+    } catch (error) {
+      console.error("Error copying journey:", error);
+      res.status(500).json({ message: "Failed to copy journey" });
     }
   });
 

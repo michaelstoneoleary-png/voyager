@@ -419,6 +419,8 @@ export default function TripPlanner() {
     return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
   }, [startDate, endDate]);
 
+  const [reviewingDates, setReviewingDates] = useState(false);
+
   const dateSaveMutation = useMutation({
     mutationFn: async (iso: string) => {
       const d = new Date(iso + "T00:00:00");
@@ -445,10 +447,30 @@ export default function TripPlanner() {
       }
 
       const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, payload);
-      return res.json();
+      return { journey: await res.json(), iso, label };
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+    onSuccess: ({ journey, iso, label }) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], journey);
+      // If there's an itinerary, review it in the background for date-specific content
+      if ((journey as any)?.itinerary?.days?.length) {
+        setReviewingDates(true);
+        apiRequest("POST", `/api/journeys/${journeyId}/review-itinerary-dates`, {
+          newStartIso: iso,
+          newDates: label,
+        })
+          .then(r => r.json())
+          .then((result: any) => {
+            if (result?.changed && result?.journey) {
+              queryClient.setQueryData([`/api/journeys/${journeyId}`], result.journey);
+              toast({
+                title: "Itinerary reviewed for new dates",
+                description: result.summary || "Some content was updated to match your new travel dates.",
+              });
+            }
+          })
+          .catch(() => {})
+          .finally(() => setReviewingDates(false));
+      }
     },
   });
 
@@ -1207,6 +1229,11 @@ export default function TripPlanner() {
                   >
                     <Calendar className="h-3 w-3" /> Select your dates
                   </button>
+                )}
+                {reviewingDates && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground animate-pulse">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Reviewing itinerary…
+                  </span>
                 )}
               </div>
             </div>

@@ -211,13 +211,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          <button
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer w-full text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            onClick={() => { setInviteModalOpen(true); setIsMobileMenuOpen(false); }}
-          >
-            <Gift className="h-5 w-5 text-muted-foreground group-hover:text-sidebar-accent-foreground" />
-            Invite Friends
-          </button>
+          <FriendsNavButton onOpen={() => { setInviteModalOpen(true); setIsMobileMenuOpen(false); }} />
 
           {(user as any)?.isAdmin && (
             <AdminNavLink location={location} onClose={() => setIsMobileMenuOpen(false)} />
@@ -271,6 +265,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <BetaWelcomeModal />
       <InviteFriendsModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
     </div>
+  );
+}
+
+function FriendsNavButton({ onOpen }: { onOpen: () => void }) {
+  const { data: requests = [] } = useQuery<any[]>({
+    queryKey: ["/api/friends/requests"],
+    queryFn: async () => {
+      const res = await fetch("/api/friends/requests", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+  const count = requests.length;
+
+  return (
+    <button
+      className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer w-full text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      onClick={onOpen}
+    >
+      <Gift className="h-5 w-5 text-muted-foreground group-hover:text-sidebar-accent-foreground" />
+      <span className="flex-1 text-left">Invite Friends</span>
+      {count > 0 && (
+        <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none">
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
+    </button>
   );
 }
 
