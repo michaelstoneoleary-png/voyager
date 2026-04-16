@@ -417,6 +417,29 @@ export default function TripPlanner() {
       itinerary: updatedItinerary,
     });
     apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: updatedItinerary }).catch(() => {});
+
+    // Also review activity content for stale date-specific references
+    const endD = tripDays ? new Date(startDate + "T00:00:00") : null;
+    if (endD && tripDays) endD.setDate(endD.getDate() + tripDays - 1);
+    const fmtShort = (dt: Date) => dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const newDates = endD ? `${fmtShort(d)} – ${fmtShort(endD)}, ${endD.getFullYear()}` : fmtShort(d);
+    setReviewingDates(true);
+    apiRequest("POST", `/api/journeys/${journeyId}/review-itinerary-dates`, {
+      newStartIso: startDate,
+      newDates,
+    })
+      .then(r => r.json())
+      .then((result: any) => {
+        if (result?.changed && result?.journey) {
+          queryClient.setQueryData([`/api/journeys/${journeyId}`], result.journey);
+          toast({
+            title: "Itinerary reviewed for your travel dates",
+            description: result.summary || "Some content was updated to match your travel dates.",
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setReviewingDates(false));
   }, [startDate, journey, journeyId]);
 
   // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
