@@ -1950,7 +1950,6 @@ export default function TripPlanner() {
                               <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {picked.rating}
                             </span>
                             <span className="text-xs font-medium text-emerald-700">{picked.price_per_night}/night</span>
-                            {picked.price_live && <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5 leading-none">LIVE</span>}
                           </div>
                           <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{picked.neighborhood}</p>
                         </div>
@@ -2222,7 +2221,6 @@ export default function TripPlanner() {
                             <Badge variant="outline" className={`text-[9px] uppercase tracking-wider ${HOTEL_CATEGORY_COLORS[hotel.category] || ""}`}>{hotel.category}</Badge>
                             <span className="flex items-center gap-0.5 text-xs text-amber-600"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{hotel.rating}</span>
                             <span className="text-xs font-semibold text-emerald-700">{hotel.price_per_night}/night</span>
-                            {hotel.price_live && <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5 leading-none">LIVE</span>}
                           </div>
                           <p className="text-[11px] text-muted-foreground line-clamp-2">{hotel.review_summary || hotel.why_this_hotel}</p>
                           {hotel.neighborhood && <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-2.5 w-2.5" />{hotel.neighborhood}</p>}

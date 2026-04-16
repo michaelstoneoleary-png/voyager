@@ -9,7 +9,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, getDirectionsRoute, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import { sendInviteEmail, sendFriendRequestEmail, sendFriendAcceptedEmail, sendJourneySharedEmail } from "./lib/email";
-import { getLiveHotelPrice, amadeusEnabled } from "./lib/amadeus";
 import { refinePricesWithClaude } from "./lib/hotelPricing";
 import Papa from "papaparse";
 import Parser from "rss-parser";
@@ -1203,39 +1202,22 @@ ${JSON.stringify(summary)}`,
 
       let anyUpdated = false;
 
-      if (amadeusEnabled()) {
-        // Live rates from Amadeus
-        const liveRates = await Promise.all(
-          toEnrich.map(({ hotel }) => getLiveHotelPrice(hotel, checkIn, checkOut))
-        );
-        toEnrich.forEach(({ dayIdx, hotelIdx }, i) => {
-          const rate = liveRates[i];
-          updatedDays[dayIdx].hotels[hotelIdx] = {
-            ...updatedDays[dayIdx].hotels[hotelIdx],
-            price_attempted_at: now,
-            ...(rate ? { price_per_night: rate, price_live: true, price_checked_for: checkIn } : {}),
-          };
-          if (rate) anyUpdated = true;
-        });
-      } else {
-        // Focused Claude Haiku pricing — more accurate than inline itinerary estimates
-        const hotelInputs = toEnrich.map(({ hotel, dayIdx }) => ({
-          name: hotel.name,
-          category: hotel.category || "mid-range",
-          neighborhood: hotel.neighborhood,
-          location: itinerary.days[dayIdx]?.location || "",
-        }));
-        const refined = await refinePricesWithClaude(hotelInputs, checkIn, checkOut);
-        toEnrich.forEach(({ dayIdx, hotelIdx, hotel }) => {
-          const price = refined.get(hotel.name);
-          updatedDays[dayIdx].hotels[hotelIdx] = {
-            ...updatedDays[dayIdx].hotels[hotelIdx],
-            price_attempted_at: now,
-            ...(price ? { price_per_night: price } : {}),
-          };
-          if (price) anyUpdated = true;
-        });
-      }
+      const hotelInputs = toEnrich.map(({ hotel, dayIdx }) => ({
+        name: hotel.name,
+        category: hotel.category || "mid-range",
+        neighborhood: hotel.neighborhood,
+        location: itinerary.days[dayIdx]?.location || "",
+      }));
+      const refined = await refinePricesWithClaude(hotelInputs, checkIn, checkOut);
+      toEnrich.forEach(({ dayIdx, hotelIdx, hotel }) => {
+        const price = refined.get(hotel.name);
+        updatedDays[dayIdx].hotels[hotelIdx] = {
+          ...updatedDays[dayIdx].hotels[hotelIdx],
+          price_attempted_at: now,
+          ...(price ? { price_per_night: price } : {}),
+        };
+        if (price) anyUpdated = true;
+      });
 
       const updatedItinerary = { ...itinerary, days: updatedDays };
       const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
