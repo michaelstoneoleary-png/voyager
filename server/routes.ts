@@ -810,6 +810,7 @@ ${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels
           .map((a: any) => a.title)
           .join(", ");
 
+        const isFoodReplace = removedActivity.type === "food" || replaceType === "food";
         const response = await anthropic.messages.create({
           model: "claude-sonnet-4-5",
           max_tokens: 1024,
@@ -822,6 +823,7 @@ ${customRequest ? `Traveler's request: "${customRequest}"` : `Type requested: ${
 ${prevTitle ? `Previous activity: ${prevTitle}` : "First activity of the day"}
 ${nextTitle ? `Next activity: ${nextTitle}` : "Last activity of the day"}
 Other activities already planned this day: ${contextActivities || "none"}
+${isFoodReplace ? `\nThis is replacing a dining activity — suggest a specific restaurant or dining experience, not a general activity.` : ""}
 
 Return a JSON object (no markdown, no code fences, just raw JSON):
 {
@@ -928,12 +930,19 @@ Rules:
       const activity = day?.activities?.[activityIndex];
       if (!activity) return res.status(400).json({ message: "Activity not found" });
 
+      const isFood = activity.type === "food";
       const response = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 900,
         messages: [{
           role: "user",
-          content: `You are a travel expert. Give exactly 3 alternative activities for this time slot in ${day.location}.
+          content: isFood
+            ? `You are a travel expert. Suggest exactly 3 alternative restaurant or dining experiences for this time slot in ${day.location}.
+Current activity: "${activity.title}" (time: ${activity.time}, duration: ${activity.duration || "varies"})
+
+Return ONLY a valid JSON array of exactly 3 objects, no other text:
+[{"title":"Restaurant or dining option name","type":"food","time":"${activity.time}","duration":"X hours","cost":"$10–20|$20–40|$40+","description":"One vivid sentence about what makes this restaurant or dining experience special."}]`
+            : `You are a travel expert. Give exactly 3 alternative activities for this time slot in ${day.location}.
 Current activity: "${activity.title}" (type: ${activity.type}, time: ${activity.time}, duration: ${activity.duration || "varies"})
 
 Return ONLY a valid JSON array of exactly 3 objects, no other text:
