@@ -345,6 +345,7 @@ export default function TripPlanner() {
   const marcoBufferRef = useRef<string>("");
   const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const thinkingAbortRef = useRef<AbortController | null>(null);
+  const dateLabelsFixed = useRef(false);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -386,6 +387,37 @@ export default function TripPlanner() {
   const [startDate, setStartDate] = useState<string>("");
   const [dateModalOpen, setDateModalOpen] = useState(false);
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
+
+  // Self-heal stale date_labels on first load (for journeys saved before the date-sync fix)
+  useEffect(() => {
+    if (dateLabelsFixed.current) return;
+    if (!startDate || !journey) return;
+    const it = (journey as any)?.itinerary;
+    if (!it?.days?.length) return;
+
+    dateLabelsFixed.current = true;
+
+    const d = new Date(startDate + "T00:00:00");
+    if (isNaN(d.getTime())) return;
+
+    const fmtLabel = (dt: Date) =>
+      dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+    if (it.days[0]?.date_label === fmtLabel(d)) return; // Already correct
+
+    const updatedDays = it.days.map((day: any, idx: number) => {
+      const dayDate = new Date(startDate + "T00:00:00");
+      dayDate.setDate(dayDate.getDate() + idx);
+      return { ...day, date_label: fmtLabel(dayDate) };
+    });
+    const updatedItinerary = { ...it, days: updatedDays };
+
+    queryClient.setQueryData([`/api/journeys/${journeyId}`], {
+      ...(journey as any),
+      itinerary: updatedItinerary,
+    });
+    apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: updatedItinerary }).catch(() => {});
+  }, [startDate, journey, journeyId]);
 
   // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
   useEffect(() => {
