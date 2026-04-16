@@ -84,6 +84,27 @@ function formatDurationMinutes(mins: number): string {
   return `${h} hour${h > 1 ? "s" : ""} ${m} min`;
 }
 
+async function fetchGooglePlacesPhoto(query: string): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.photos",
+      },
+      body: JSON.stringify({ textQuery: query, maxResultCount: 1 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const photoName = data.places?.[0]?.photos?.[0]?.name;
+    if (!photoName) return null;
+    return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&key=${apiKey}`;
+  } catch { return null; }
+}
+
 async function fetchDestinationImage(destinationName: string, fallbackType: string): Promise<string> {
   const fallback = DESTINATION_FALLBACK_IMAGES[fallbackType] || DESTINATION_FALLBACK_IMAGES.city;
   try {
@@ -120,7 +141,14 @@ async function fetchDestinationImage(destinationName: string, fallbackType: stri
       }
     }
 
-    // Step 2: fallback — search Wikipedia for the term and take the top result's image
+    // Step 2: Google Places Photos — much more accurate for named venues that lack Wikipedia articles
+    const placesPhoto = await fetchGooglePlacesPhoto(searchTerm.replace(/_/g, " "));
+    if (placesPhoto) {
+      imageCache.set(cacheKey, placesPhoto);
+      return placesPhoto;
+    }
+
+    // Step 3: Wikipedia search fallback — only use if the top result is actually related to the query
     const searchController = new AbortController();
     const searchTimeout = setTimeout(() => searchController.abort(), 5000);
     const searchResp = await fetch(
@@ -133,11 +161,18 @@ async function fetchDestinationImage(destinationName: string, fallbackType: stri
       const searchData = await searchResp.json() as any;
       const topTitle = searchData?.query?.search?.[0]?.title;
       if (topTitle && topTitle.toLowerCase() !== encoded.toLowerCase()) {
-        // Recurse once with the correct article title
-        const found = await fetchDestinationImage(topTitle, fallbackType);
-        if (found !== fallback) {
-          imageCache.set(cacheKey, found);
-          return found;
+        // Only recurse if the returned article title actually shares words with the original query.
+        // Without this check, Wikipedia can return a completely unrelated article whose lead
+        // image is a European city skyline for a search like "Sea Island Beach Club".
+        const queryWords = searchTerm.toLowerCase().split(/[\s_,()-]+/).filter(w => w.length > 3);
+        const titleLower = topTitle.toLowerCase();
+        const isRelevant = queryWords.some(w => titleLower.includes(w));
+        if (isRelevant) {
+          const found = await fetchDestinationImage(topTitle, fallbackType);
+          if (found !== fallback) {
+            imageCache.set(cacheKey, found);
+            return found;
+          }
         }
       }
     }
