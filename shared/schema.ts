@@ -138,6 +138,15 @@ export const betaFeedback = pgTable("beta_feedback", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const friendships = pgTable("friendships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requesterId: varchar("requester_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  addresseeId: varchar("addressee_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // "pending" | "accepted" | "declined"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   journeys: many(journeys),
   journeyMemberships: many(journeyMembers),
@@ -181,6 +190,11 @@ export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
 export const packingListsRelations = relations(packingLists, ({ one }) => ({
   user: one(users, { fields: [packingLists.userId], references: [users.id] }),
   journey: one(journeys, { fields: [packingLists.journeyId], references: [journeys.id] }),
+}));
+
+export const friendshipsRelations = relations(friendships, ({ one }) => ({
+  requester: one(users, { fields: [friendships.requesterId], references: [users.id] }),
+  addressee: one(users, { fields: [friendships.addresseeId], references: [users.id] }),
 }));
 
 export const insertJourneySchema = createInsertSchema(journeys).omit({
@@ -290,3 +304,4 @@ export const invites = pgTable("invites", {
 });
 
 export type Invite = typeof invites.$inferSelect;
+export type Friendship = typeof friendships.$inferSelect;

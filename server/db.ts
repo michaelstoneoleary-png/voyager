@@ -28,4 +28,14 @@ export async function runMigrations() {
       accepted_by VARCHAR REFERENCES users(id) ON DELETE SET NULL
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friendships (
+      id           VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      requester_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      addressee_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status       TEXT NOT NULL DEFAULT 'pending',
+      created_at   TIMESTAMP DEFAULT NOW(),
+      updated_at   TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }

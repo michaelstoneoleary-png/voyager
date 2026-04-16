@@ -12,6 +12,7 @@ import {
   betaFeedback,
   destinationSuggestionsCache,
   invites, type Invite,
+  friendships, type Friendship,
 } from "@shared/schema";
 
 export interface CachedDestinationSuggestion {
@@ -94,6 +95,16 @@ export interface IStorage {
   getInviteByToken(token: string): Promise<Invite | null>;
   getInvitesByUser(userId: string): Promise<Invite[]>;
   acceptInvite(token: string, acceptedBy: string): Promise<void>;
+
+  // Friendships
+  createFriendship(requesterId: string, addresseeId: string): Promise<Friendship>;
+  getFriendship(userIdA: string, userIdB: string): Promise<Friendship | undefined>;
+  getFriends(userId: string): Promise<Array<Friendship & { friend: User }>>;
+  getFriendRequests(userId: string): Promise<Array<Friendship & { requester: User }>>;
+  updateFriendshipStatus(id: string, status: string): Promise<Friendship>;
+  shareJourneyWithFriend(journeyId: string, viewerUserId: string): Promise<JourneyMember>;
+  getSharedJourneys(userId: string): Promise<Array<Journey & { sharedBy: User }>>;
+  copyJourney(journeyId: string, newUserId: string): Promise<Journey>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -527,6 +538,92 @@ export class DatabaseStorage implements IStorage {
     await db.update(invites)
       .set({ acceptedAt: new Date(), acceptedBy })
       .where(eq(invites.token, token));
+  }
+
+  // ── Friendships ──────────────────────────────────────────────────────────────
+
+  async createFriendship(requesterId: string, addresseeId: string): Promise<Friendship> {
+    const [friendship] = await db.insert(friendships).values({ requesterId, addresseeId }).returning();
+    return friendship;
+  }
+
+  async getFriendship(userIdA: string, userIdB: string): Promise<Friendship | undefined> {
+    const [friendship] = await db.select().from(friendships).where(
+      or(
+        and(eq(friendships.requesterId, userIdA), eq(friendships.addresseeId, userIdB)),
+        and(eq(friendships.requesterId, userIdB), eq(friendships.addresseeId, userIdA))
+      )
+    );
+    return friendship || undefined;
+  }
+
+  async getFriends(userId: string): Promise<Array<Friendship & { friend: User }>> {
+    const rows = await db.select().from(friendships).where(
+      and(
+        or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId)),
+        eq(friendships.status, "accepted")
+      )
+    );
+    const result: Array<Friendship & { friend: User }> = [];
+    for (const row of rows) {
+      const friendId = row.requesterId === userId ? row.addresseeId : row.requesterId;
+      const [friend] = await db.select().from(users).where(eq(users.id, friendId));
+      if (friend) result.push({ ...row, friend });
+    }
+    return result;
+  }
+
+  async getFriendRequests(userId: string): Promise<Array<Friendship & { requester: User }>> {
+    const rows = await db.select({
+      friendship: friendships,
+      requester: users,
+    }).from(friendships)
+      .innerJoin(users, eq(friendships.requesterId, users.id))
+      .where(and(eq(friendships.addresseeId, userId), eq(friendships.status, "pending")));
+    return rows.map(row => ({ ...row.friendship, requester: row.requester }));
+  }
+
+  async updateFriendshipStatus(id: string, status: string): Promise<Friendship> {
+    const [updated] = await db.update(friendships)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(friendships.id, id))
+      .returning();
+    return updated;
+  }
+
+  async shareJourneyWithFriend(journeyId: string, viewerUserId: string): Promise<JourneyMember> {
+    const [member] = await db.insert(journeyMembers).values({
+      journeyId,
+      userId: viewerUserId,
+      role: "viewer",
+    }).returning();
+    return member;
+  }
+
+  async getSharedJourneys(userId: string): Promise<Array<Journey & { sharedBy: User }>> {
+    const members = await db.select().from(journeyMembers).where(
+      and(eq(journeyMembers.userId, userId), eq(journeyMembers.role, "viewer"))
+    );
+    const result: Array<Journey & { sharedBy: User }> = [];
+    for (const member of members) {
+      const [journey] = await db.select().from(journeys).where(eq(journeys.id, member.journeyId));
+      if (!journey) continue;
+      const [owner] = await db.select().from(users).where(eq(users.id, journey.userId));
+      if (owner) result.push({ ...normalizeJourney(journey), sharedBy: owner });
+    }
+    return result;
+  }
+
+  async copyJourney(journeyId: string, newUserId: string): Promise<Journey> {
+    const [source] = await db.select().from(journeys).where(eq(journeys.id, journeyId));
+    if (!source) throw new Error("Journey not found");
+    const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = source;
+    const [copy] = await db.insert(journeys).values({
+      ...rest,
+      userId: newUserId,
+      status: "Planning",
+    }).returning();
+    return copy;
   }
 }
 

@@ -11,6 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Calendar,
   Clock,
   Wallet,
@@ -22,31 +29,53 @@ import {
   Archive,
   RotateCcw,
   Trash2,
+  Share2,
+  Copy,
+  UserCheck,
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogTrigger,
+  DialogHeader,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NewTripDialog } from "@/components/NewTripDialog";
 import { Link } from "wouter";
 import { useTrips } from "@/lib/TripContext";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const DEFAULT_IMAGE = "/images/destinations/city.jpg";
 
 export default function Journeys() {
   const [isNewTripOpen, setIsNewTripOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareJourneyId, setShareJourneyId] = useState<string | null>(null);
+  const [shareJourneyTitle, setShareJourneyTitle] = useState("");
+  const [selectedFriendId, setSelectedFriendId] = useState<string>("");
   const { trips } = useTrips();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const upcomingJourneys = trips.filter(t => t.status !== "Completed" && t.status !== "Archived");
   const pastJourneys     = trips.filter(t => t.status === "Completed");
   const archivedJourneys = trips.filter(t => t.status === "Archived");
+
+  const { data: friends = [] } = useQuery<any[]>({
+    queryKey: ["/api/friends"],
+    queryFn: () => fetch("/api/friends", { credentials: "include" }).then(r => r.json()),
+  });
+
+  const { data: sharedJourneys = [] } = useQuery<any[]>({
+    queryKey: ["/api/journeys/shared"],
+    queryFn: () => fetch("/api/journeys/shared", { credentials: "include" }).then(r => r.json()),
+  });
 
   const archiveMutation = useMutation({
     mutationFn: (id: string) => apiRequest("PATCH", `/api/journeys/${id}`, { status: "Archived" }),
@@ -66,12 +95,85 @@ export default function Journeys() {
     },
   });
 
+  const shareMutation = useMutation({
+    mutationFn: ({ journeyId, friendId }: { journeyId: string; friendId: string }) =>
+      apiRequest("POST", `/api/journeys/${journeyId}/share`, { friendId }),
+    onSuccess: () => {
+      setShareDialogOpen(false);
+      setSelectedFriendId("");
+      toast({ title: "Journey shared!", description: `${shareJourneyTitle} has been shared. They'll receive an email notification.` });
+    },
+    onError: async (err: any) => {
+      const msg = await err?.response?.text?.() ?? "Failed to share journey";
+      toast({ title: "Share failed", description: msg, variant: "destructive" });
+    },
+  });
+
+  const copyMutation = useMutation({
+    mutationFn: (journeyId: string) => apiRequest("POST", `/api/journeys/${journeyId}/copy`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
+      toast({ title: "Journey copied!", description: "Added to your Upcoming & Planning tab." });
+    },
+    onError: () => toast({ title: "Failed to copy journey", variant: "destructive" }),
+  });
+
+  const openShareDialog = (e: React.MouseEvent, tripId: string, tripTitle: string) => {
+    e.stopPropagation();
+    setShareJourneyId(tripId);
+    setShareJourneyTitle(tripTitle);
+    setSelectedFriendId("");
+    setShareDialogOpen(true);
+  };
+
   return (
     <>
-      <NewTripDialog
-        open={isNewTripOpen}
-        onOpenChange={setIsNewTripOpen}
-      />
+      <NewTripDialog open={isNewTripOpen} onOpenChange={setIsNewTripOpen} />
+
+      {/* Share journey dialog */}
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-lg flex items-center gap-2">
+              <Share2 className="h-4 w-4 text-primary" /> Share Journey
+            </DialogTitle>
+            <DialogDescription>
+              Share <strong>{shareJourneyTitle}</strong> with a friend. They'll get read-only access and can copy it to their own account.
+            </DialogDescription>
+          </DialogHeader>
+          {friends.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              You have no friends yet. Add friends via the <strong>Invite Friends</strong> button in the sidebar.
+            </p>
+          ) : (
+            <div className="space-y-3 py-1">
+              <Select value={selectedFriendId} onValueChange={setSelectedFriendId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a friend…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {friends.map((f: any) => (
+                    <SelectItem key={f.friend.id} value={f.friend.id}>
+                      {f.friend.firstName} {f.friend.lastName} <span className="text-muted-foreground">({f.friend.email})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareDialogOpen(false)}>Cancel</Button>
+            {friends.length > 0 && (
+              <Button
+                disabled={!selectedFriendId || shareMutation.isPending}
+                onClick={() => shareJourneyId && shareMutation.mutate({ journeyId: shareJourneyId, friendId: selectedFriendId })}
+              >
+                {shareMutation.isPending ? "Sharing…" : "Share"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Layout>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -90,11 +192,18 @@ export default function Journeys() {
           </div>
 
         <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-8">
             <TabsTrigger value="upcoming">Upcoming & Planning</TabsTrigger>
             <TabsTrigger value="past">Past Journeys</TabsTrigger>
             <TabsTrigger value="archived">
               Archived{archivedJourneys.length > 0 && ` (${archivedJourneys.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="shared">
+              Shared with Me{sharedJourneys.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none">
+                  {sharedJourneys.length}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -139,6 +248,12 @@ export default function Journeys() {
                                </Button>
                              </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
+                               <DropdownMenuItem
+                                 onClick={(e) => openShareDialog(e, trip.id, trip.title)}
+                                 className="gap-2"
+                               >
+                                 <Share2 className="h-4 w-4" /> Share with friend
+                               </DropdownMenuItem>
                                <DropdownMenuItem
                                  onClick={() => archiveMutation.mutate(trip.id)}
                                  className="gap-2"
@@ -444,6 +559,66 @@ export default function Journeys() {
                           </Button>
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="shared" className="space-y-6">
+            {sharedJourneys.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <UserCheck className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No journeys shared with you yet.</p>
+                <p className="text-xs mt-1">When a friend shares a journey, it will appear here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sharedJourneys.map((trip: any) => (
+                  <Card key={trip.id} className="overflow-hidden">
+                    <div className="aspect-[16/9] relative overflow-hidden">
+                      <img
+                        src={trip.image || DEFAULT_IMAGE}
+                        alt={trip.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-white/20 text-white border-0 backdrop-blur-sm text-[10px]">
+                          Read-only
+                        </Badge>
+                      </div>
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="font-serif text-lg font-bold text-white leading-tight">{trip.title}</h3>
+                        {trip.dates && <p className="text-xs text-white/70 mt-0.5">{trip.dates}</p>}
+                      </div>
+                    </div>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
+                        <UserCheck className="h-3 w-3" />
+                        Shared by <span className="font-medium text-foreground ml-1">{trip.sharedBy?.firstName} {trip.sharedBy?.lastName}</span>
+                      </p>
+                      <div className="text-sm text-muted-foreground mb-4">
+                        {trip.days && <span>{trip.days} days</span>}
+                        {trip.days && trip.cost && " · "}
+                        {trip.cost && <span>{trip.cost}</span>}
+                      </div>
+                      <div className="flex gap-2">
+                        <Link href={`/planner/${trip.id}`} className="flex-1">
+                          <Button variant="outline" size="sm" className="w-full gap-1.5">
+                            View Itinerary
+                          </Button>
+                        </Link>
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          disabled={copyMutation.isPending}
+                          onClick={() => copyMutation.mutate(trip.id)}
+                        >
+                          <Copy className="h-3.5 w-3.5" /> Copy to Mine
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}

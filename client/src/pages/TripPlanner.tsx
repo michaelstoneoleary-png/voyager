@@ -345,6 +345,7 @@ export default function TripPlanner() {
   const marcoBufferRef = useRef<string>("");
   const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const thinkingAbortRef = useRef<AbortController | null>(null);
+  const dateLabelsFixed = useRef(false);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -387,6 +388,37 @@ export default function TripPlanner() {
   const [dateModalOpen, setDateModalOpen] = useState(false);
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
 
+  // Self-heal stale date_labels on first load (for journeys saved before the date-sync fix)
+  useEffect(() => {
+    if (dateLabelsFixed.current) return;
+    if (!startDate || !journey) return;
+    const it = (journey as any)?.itinerary;
+    if (!it?.days?.length) return;
+
+    dateLabelsFixed.current = true;
+
+    const d = new Date(startDate + "T00:00:00");
+    if (isNaN(d.getTime())) return;
+
+    const fmtLabel = (dt: Date) =>
+      dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+    if (it.days[0]?.date_label === fmtLabel(d)) return; // Already correct
+
+    const updatedDays = it.days.map((day: any, idx: number) => {
+      const dayDate = new Date(startDate + "T00:00:00");
+      dayDate.setDate(dayDate.getDate() + idx);
+      return { ...day, date_label: fmtLabel(dayDate) };
+    });
+    const updatedItinerary = { ...it, days: updatedDays };
+
+    queryClient.setQueryData([`/api/journeys/${journeyId}`], {
+      ...(journey as any),
+      itinerary: updatedItinerary,
+    });
+    apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: updatedItinerary }).catch(() => {});
+  }, [startDate, journey, journeyId]);
+
   // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
   useEffect(() => {
     if (!journeyId) return;
@@ -419,6 +451,8 @@ export default function TripPlanner() {
     return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
   }, [startDate, endDate]);
 
+  const [reviewingDates, setReviewingDates] = useState(false);
+
   const dateSaveMutation = useMutation({
     mutationFn: async (iso: string) => {
       const d = new Date(iso + "T00:00:00");
@@ -445,10 +479,30 @@ export default function TripPlanner() {
       }
 
       const res = await apiRequest("PATCH", `/api/journeys/${journeyId}`, payload);
-      return res.json();
+      return { journey: await res.json(), iso, label };
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData([`/api/journeys/${journeyId}`], data);
+    onSuccess: ({ journey, iso, label }) => {
+      queryClient.setQueryData([`/api/journeys/${journeyId}`], journey);
+      // If there's an itinerary, review it in the background for date-specific content
+      if ((journey as any)?.itinerary?.days?.length) {
+        setReviewingDates(true);
+        apiRequest("POST", `/api/journeys/${journeyId}/review-itinerary-dates`, {
+          newStartIso: iso,
+          newDates: label,
+        })
+          .then(r => r.json())
+          .then((result: any) => {
+            if (result?.changed && result?.journey) {
+              queryClient.setQueryData([`/api/journeys/${journeyId}`], result.journey);
+              toast({
+                title: "Itinerary reviewed for new dates",
+                description: result.summary || "Some content was updated to match your new travel dates.",
+              });
+            }
+          })
+          .catch(() => {})
+          .finally(() => setReviewingDates(false));
+      }
     },
   });
 
@@ -1207,6 +1261,11 @@ export default function TripPlanner() {
                   >
                     <Calendar className="h-3 w-3" /> Select your dates
                   </button>
+                )}
+                {reviewingDates && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground animate-pulse">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Reviewing itinerary…
+                  </span>
                 )}
               </div>
             </div>
