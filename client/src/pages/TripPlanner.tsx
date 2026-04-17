@@ -481,7 +481,7 @@ export default function TripPlanner() {
     localStorage.removeItem(`inspire_context_${journeyId}`);
   }, [journeyId]);
 
-  // Auto-start generation for Inspire day-trip picks (flag set by Inspire page)
+  // Auto-start generation for any Inspire pick (flag set by Inspire page on journey creation)
   useEffect(() => {
     if (!journeyId || !journey || inspireAutoStarted.current) return;
     const flag = localStorage.getItem(`inspire_autostart_${journeyId}`);
