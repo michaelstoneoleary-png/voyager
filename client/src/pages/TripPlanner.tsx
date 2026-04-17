@@ -346,6 +346,7 @@ export default function TripPlanner() {
   const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const thinkingAbortRef = useRef<AbortController | null>(null);
   const dateLabelsFixed = useRef(false);
+  const hotelPricesEnriched = useRef(false);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -417,7 +418,53 @@ export default function TripPlanner() {
       itinerary: updatedItinerary,
     });
     apiRequest("PATCH", `/api/journeys/${journeyId}`, { itinerary: updatedItinerary }).catch(() => {});
+
+    // Also review activity content for stale date-specific references
+    const endD = tripDays ? new Date(startDate + "T00:00:00") : null;
+    if (endD && tripDays) endD.setDate(endD.getDate() + tripDays - 1);
+    const fmtShort = (dt: Date) => dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const newDates = endD ? `${fmtShort(d)} – ${fmtShort(endD)}, ${endD.getFullYear()}` : fmtShort(d);
+    setReviewingDates(true);
+    apiRequest("POST", `/api/journeys/${journeyId}/review-itinerary-dates`, {
+      newStartIso: startDate,
+      newDates,
+    })
+      .then(r => r.json())
+      .then((result: any) => {
+        if (result?.changed && result?.journey) {
+          queryClient.setQueryData([`/api/journeys/${journeyId}`], result.journey);
+          toast({
+            title: "Itinerary reviewed for your travel dates",
+            description: result.summary || "Some content was updated to match your travel dates.",
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setReviewingDates(false));
   }, [startDate, journey, journeyId]);
+
+  // Enrich hotel prices with live Amadeus rates (runs once per load when dates are known)
+  useEffect(() => {
+    if (hotelPricesEnriched.current) return;
+    if (!startDate || !journey || !endDate) return;
+    const it = (journey as any)?.itinerary;
+    if (!it?.days?.length) return;
+    const hasHotels = it.days.some((d: any) => d.hotels?.length > 0);
+    if (!hasHotels) return;
+
+    hotelPricesEnriched.current = true;
+    apiRequest("POST", `/api/journeys/${journeyId}/enrich-hotel-prices`, {
+      checkIn: startDate,
+      checkOut: endDate,
+    })
+      .then(r => r.json())
+      .then((result: any) => {
+        if (result?.updated && result?.journey) {
+          queryClient.setQueryData([`/api/journeys/${journeyId}`], result.journey);
+        }
+      })
+      .catch(() => {});
+  }, [startDate, endDate, journey, journeyId]);
 
   // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
   useEffect(() => {

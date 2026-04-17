@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, getDirectionsRoute, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import { sendInviteEmail, sendFriendRequestEmail, sendFriendAcceptedEmail, sendJourneySharedEmail } from "./lib/email";
+import { refinePricesWithClaude } from "./lib/hotelPricing";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 import multer from "multer";
@@ -83,6 +84,27 @@ function formatDurationMinutes(mins: number): string {
   return `${h} hour${h > 1 ? "s" : ""} ${m} min`;
 }
 
+async function fetchGooglePlacesPhoto(query: string): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.photos",
+      },
+      body: JSON.stringify({ textQuery: query, maxResultCount: 1 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const photoName = data.places?.[0]?.photos?.[0]?.name;
+    if (!photoName) return null;
+    return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&key=${apiKey}`;
+  } catch { return null; }
+}
+
 async function fetchDestinationImage(destinationName: string, fallbackType: string): Promise<string> {
   const fallback = DESTINATION_FALLBACK_IMAGES[fallbackType] || DESTINATION_FALLBACK_IMAGES.city;
   try {
@@ -119,7 +141,14 @@ async function fetchDestinationImage(destinationName: string, fallbackType: stri
       }
     }
 
-    // Step 2: fallback — search Wikipedia for the term and take the top result's image
+    // Step 2: Google Places Photos — much more accurate for named venues that lack Wikipedia articles
+    const placesPhoto = await fetchGooglePlacesPhoto(searchTerm.replace(/_/g, " "));
+    if (placesPhoto) {
+      imageCache.set(cacheKey, placesPhoto);
+      return placesPhoto;
+    }
+
+    // Step 3: Wikipedia search fallback — only use if the top result is actually related to the query
     const searchController = new AbortController();
     const searchTimeout = setTimeout(() => searchController.abort(), 5000);
     const searchResp = await fetch(
@@ -132,11 +161,18 @@ async function fetchDestinationImage(destinationName: string, fallbackType: stri
       const searchData = await searchResp.json() as any;
       const topTitle = searchData?.query?.search?.[0]?.title;
       if (topTitle && topTitle.toLowerCase() !== encoded.toLowerCase()) {
-        // Recurse once with the correct article title
-        const found = await fetchDestinationImage(topTitle, fallbackType);
-        if (found !== fallback) {
-          imageCache.set(cacheKey, found);
-          return found;
+        // Only recurse if the returned article title actually shares words with the original query.
+        // Without this check, Wikipedia can return a completely unrelated article whose lead
+        // image is a European city skyline for a search like "Sea Island Beach Club".
+        const queryWords = searchTerm.toLowerCase().split(/[\s_,()-]+/).filter(w => w.length > 3);
+        const titleLower = topTitle.toLowerCase();
+        const isRelevant = queryWords.some(w => titleLower.includes(w));
+        if (isRelevant) {
+          const found = await fetchDestinationImage(topTitle, fallbackType);
+          if (found !== fallback) {
+            imageCache.set(cacheKey, found);
+            return found;
+          }
         }
       }
     }
@@ -640,7 +676,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
         {
           "name": "Hotel Name",
           "category": "luxury|upscale|mid-range|budget|boutique|hostel",
-          "price_per_night": "$150",
+          "price_per_night": "$220–$350",
           "rating": 4.5,
           "review_summary": "One-line summary of what reviewers love about this hotel",
           "why_this_hotel": "Why it makes sense for this day's itinerary and location",
@@ -682,7 +718,15 @@ SHOPPING ACTIVITIES: Include at least one shopping activity per destination that
 TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode and an optional practical note. For driving legs between cities, set duration and distance to null and use the note field to say "See Google Maps for routing and current drive time." For walking, transit, or short local trips within a city, provide realistic duration and distance estimates (distance always in km).
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
-${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.` : "NO HOTELS: This is a day trip. Do not include any hotels array in the JSON. The traveler is not staying overnight."}`
+${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.
+HOTEL PRICING: Express price_per_night as a realistic range (e.g. "$280–$380") reflecting current market rates — do not use a single point estimate. Use these calibrated baselines per night and adjust upward for high-demand destinations, peak season, and city-centre locations:
+- hostel: $40–80
+- budget: $80–140
+- mid-range: $140–220
+- upscale: $220–380
+- boutique: $200–550 (wide range — boutique properties in premium destinations like Savannah, Charleston, New Orleans, Napa, NYC, San Francisco, New England, or popular European cities regularly command $350–700+)
+- luxury: $400–1200+
+Major US/European tourist cities and historic districts trend toward the upper half of these ranges. If a named property is well-known as a premium hotel, reflect that in the estimate rather than defaulting to a mid-tier price.` : "NO HOTELS: This is a day trip. Do not include any hotels array in the JSON. The traveler is not staying overnight."}`
         }],
       });
 
@@ -810,6 +854,7 @@ ${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels
           .map((a: any) => a.title)
           .join(", ");
 
+        const isFoodReplace = removedActivity.type === "food" || replaceType === "food";
         const response = await anthropic.messages.create({
           model: "claude-sonnet-4-5",
           max_tokens: 1024,
@@ -822,6 +867,7 @@ ${customRequest ? `Traveler's request: "${customRequest}"` : `Type requested: ${
 ${prevTitle ? `Previous activity: ${prevTitle}` : "First activity of the day"}
 ${nextTitle ? `Next activity: ${nextTitle}` : "Last activity of the day"}
 Other activities already planned this day: ${contextActivities || "none"}
+${isFoodReplace ? `\nThis is replacing a dining activity — suggest a specific restaurant or dining experience, not a general activity.` : ""}
 
 Return a JSON object (no markdown, no code fences, just raw JSON):
 {
@@ -928,12 +974,19 @@ Rules:
       const activity = day?.activities?.[activityIndex];
       if (!activity) return res.status(400).json({ message: "Activity not found" });
 
+      const isFood = activity.type === "food";
       const response = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 900,
         messages: [{
           role: "user",
-          content: `You are a travel expert. Give exactly 3 alternative activities for this time slot in ${day.location}.
+          content: isFood
+            ? `You are a travel expert. Suggest exactly 3 alternative restaurant or dining experiences for this time slot in ${day.location}.
+Current activity: "${activity.title}" (time: ${activity.time}, duration: ${activity.duration || "varies"})
+
+Return ONLY a valid JSON array of exactly 3 objects, no other text:
+[{"title":"Restaurant or dining option name","type":"food","time":"${activity.time}","duration":"X hours","cost":"$10–20|$20–40|$40+","description":"One vivid sentence about what makes this restaurant or dining experience special."}]`
+            : `You are a travel expert. Give exactly 3 alternative activities for this time slot in ${day.location}.
 Current activity: "${activity.title}" (type: ${activity.type}, time: ${activity.time}, duration: ${activity.duration || "varies"})
 
 Return ONLY a valid JSON array of exactly 3 objects, no other text:
@@ -1064,18 +1117,24 @@ Rules:
           role: "user",
           content: `Travel dates changed to: "${newDates}" (trip starts ${newStartIso}).
 
-Review this itinerary for date-specific references that may no longer be accurate. Look for:
-- Holiday-specific activities or events (Christmas markets, New Year's Eve, Valentine's Day, Easter, Thanksgiving, etc.)
-- Seasonal references that don't fit the new season ("snowy slopes" in summer, "beach weather" in winter, "cherry blossoms" out of season)
-- Festival or event references tied to specific calendar dates
-- Restaurant or attraction recommendations with seasonal menus or hours
+Review this itinerary for two types of issues:
 
-Update the description and tip of any activity/hotel that has date-specific issues to be accurate for the new dates. Keep all other text identical — only change what's actually date-specific.
+1. STALE TEXT — Update description/tip text for any activity or hotel whose content references holidays, seasons, festivals, or calendar-specific events that no longer fit the new dates (e.g. "Christmas markets" in summer, "cherry blossoms" out of season, "New Year's Eve fireworks" on a non-NYE date).
 
-If nothing in this itinerary is date-specific, return exactly: {"changed":false}
+2. MISPLACED EVENTS — Check whether any birthday, anniversary, or other date-anchored celebration appears to be on the wrong day given the new dates. The date_label on each day shows its correct calendar date. If a celebration activity sits on a day that doesn't match the date it was clearly planned for (e.g. a birthday dinner on Sunday when Saturday is earlier in the trip and a more natural fit), include a move instruction. Only flag a move when you are confident the activity was intended for a different specific day.
 
-If changes are needed, return:
-{"changed":true,"summary":"One sentence describing what was updated","days":[...same structure as input with updated descriptions/tips...]}
+Keep all unchanged text identical.
+
+If nothing needs changing, return exactly: {"changed":false}
+
+If changes are needed, return JSON:
+{
+  "changed": true,
+  "summary": "One sentence describing what was updated",
+  "days": [...same structure as input, with updated descriptions/tips only where changed...],
+  "moves": [{"from_day": 2, "to_day": 1, "activity_title": "Birthday Dinner"}]
+}
+Omit "moves" if no activities need to change days.
 
 Itinerary:
 ${JSON.stringify(summary)}`,
@@ -1116,6 +1175,21 @@ ${JSON.stringify(summary)}`,
         return { ...fullDay, activities: updatedActivities, hotels: updatedHotels };
       });
 
+      // Apply any day-to-day activity moves (e.g. birthday dinner moved to correct day)
+      if (result.moves?.length) {
+        for (const move of result.moves) {
+          const fromIdx = updatedDays.findIndex((d: any) => d.day === move.from_day);
+          const toIdx = updatedDays.findIndex((d: any) => d.day === move.to_day);
+          if (fromIdx === -1 || toIdx === -1) continue;
+          const fromActivities = [...(updatedDays[fromIdx].activities || [])];
+          const actIdx = fromActivities.findIndex((a: any) => a.title === move.activity_title);
+          if (actIdx === -1) continue;
+          const [moved] = fromActivities.splice(actIdx, 1);
+          updatedDays[fromIdx] = { ...updatedDays[fromIdx], activities: fromActivities };
+          updatedDays[toIdx] = { ...updatedDays[toIdx], activities: [...(updatedDays[toIdx].activities || []), moved] };
+        }
+      }
+
       const updatedItinerary = { ...itinerary, days: updatedDays };
       const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
 
@@ -1123,6 +1197,70 @@ ${JSON.stringify(summary)}`,
     } catch (error) {
       console.error("Error reviewing itinerary dates:", error);
       res.json({ changed: false }); // fail silently — non-critical feature
+    }
+  });
+
+  // POST /api/journeys/:id/enrich-hotel-prices
+  // Uses Amadeus live rates when configured, otherwise refines estimates with a focused Claude call.
+  app.post("/api/journeys/:id/enrich-hotel-prices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const { checkIn, checkOut } = req.body;
+      if (!checkIn || !checkOut) return res.json({ updated: false });
+
+      const itinerary = journey.itinerary as any;
+      if (!itinerary?.days?.length) return res.json({ updated: false });
+
+      const RETRY_AFTER_MS = 60 * 60 * 1000;
+      const now = Date.now();
+
+      const toEnrich: Array<{ dayIdx: number; hotelIdx: number; hotel: any }> = [];
+      itinerary.days.forEach((day: any, dayIdx: number) => {
+        (day.hotels || []).forEach((hotel: any, hotelIdx: number) => {
+          const alreadyLive = hotel.price_live === true && hotel.price_checked_for === checkIn;
+          const recentlyAttempted = hotel.price_attempted_at && (now - hotel.price_attempted_at) < RETRY_AFTER_MS;
+          if (!alreadyLive && !recentlyAttempted) {
+            toEnrich.push({ dayIdx, hotelIdx, hotel });
+          }
+        });
+      });
+
+      if (toEnrich.length === 0) return res.json({ updated: false });
+
+      const updatedDays = itinerary.days.map((day: any) => ({
+        ...day,
+        hotels: [...(day.hotels || [])],
+      }));
+
+      let anyUpdated = false;
+
+      const hotelInputs = toEnrich.map(({ hotel, dayIdx }) => ({
+        name: hotel.name,
+        category: hotel.category || "mid-range",
+        neighborhood: hotel.neighborhood,
+        location: itinerary.days[dayIdx]?.location || "",
+      }));
+      const refined = await refinePricesWithClaude(hotelInputs, checkIn, checkOut);
+      toEnrich.forEach(({ dayIdx, hotelIdx, hotel }) => {
+        const price = refined.get(hotel.name);
+        updatedDays[dayIdx].hotels[hotelIdx] = {
+          ...updatedDays[dayIdx].hotels[hotelIdx],
+          price_attempted_at: now,
+          ...(price ? { price_per_night: price } : {}),
+        };
+        if (price) anyUpdated = true;
+      });
+
+      const updatedItinerary = { ...itinerary, days: updatedDays };
+      const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
+
+      res.json({ updated: anyUpdated, journey: updatedJourney });
+    } catch (err: any) {
+      console.error("[enrich-hotel-prices] error:", err.message);
+      res.json({ updated: false });
     }
   });
 

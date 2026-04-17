@@ -15,6 +15,7 @@ import {
   Sparkles,
   Shield,
   Gift,
+  MessageSquarePlus,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [isJourneysOpen, setIsJourneysOpen] = useState(
     location === "/journeys" || location === "/history"
   );
@@ -219,6 +221,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         </nav>
 
+        <div className="px-4 pb-2">
+          <button
+            onClick={() => { setFeedbackOpen(true); setIsMobileMenuOpen(false); }}
+            className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 group cursor-pointer w-full text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <MessageSquarePlus className="h-5 w-5 text-muted-foreground group-hover:text-sidebar-accent-foreground" />
+            Feedback
+          </button>
+        </div>
+
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 px-4 py-3">
             {user?.profileImageUrl ? (
@@ -261,7 +273,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <ChatBubble />
-      <FeedbackWidget />
+      <FeedbackWidget open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <BetaWelcomeModal />
       <InviteFriendsModal open={inviteModalOpen} onOpenChange={setInviteModalOpen} />
     </div>
