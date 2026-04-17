@@ -868,6 +868,7 @@ export default function Inspire() {
       return res.json();
     },
     onSuccess: (data) => {
+      localStorage.setItem(`inspire_autostart_${data.id}`, "true");
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       toast({ title: "Day trip created!", description: `"${data.title}" is ready for planning.` });
       setLocation(`/planner/${data.id}`);

@@ -377,6 +377,15 @@ async function runPlacesTextSearch(
   });
 }
 
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /**
  * Search for day-trip worthy attractions within ~2.5 hours drive of home.
  * Runs two parallel queries (attractions + parks/nature) and deduplicates.
@@ -445,8 +454,16 @@ export async function searchDayTrips(params: {
       }
     }
 
-    const all = Array.from(seen.values());
-    console.log(`[day-trips] raw results: ${all.length} (A:${resultsA.length} B:${resultsB.length} C:${resultsC.length}) radius:${RADIUS_METERS}m`);
+    const allRaw = Array.from(seen.values());
+    // Post-filter: Google Places doesn't strictly honour the radius, so discard anything
+    // whose straight-line distance from home exceeds our target radius.
+    const maxDistKm = RADIUS_METERS / 1000;
+    const all = allRaw.filter(p => {
+      const { latitude: lat, longitude: lng } = p.coordinates;
+      if (!lat && !lng) return true;
+      return haversineKm(center!.lat, center!.lng, lat, lng) <= maxDistKm;
+    });
+    console.log(`[day-trips] raw results: ${allRaw.length} → after distance filter: ${all.length} (A:${resultsA.length} B:${resultsB.length} C:${resultsC.length}) radius:${RADIUS_METERS}m`);
     if (all.length > 0) {
       console.log(`[day-trips] sample ratings:`, all.slice(0, 5).map(p => `${p.name} r=${p.rating} n=${p.review_count}`));
     }
@@ -464,7 +481,13 @@ export async function searchDayTrips(params: {
     // Wildcards from queryC: highly rated but not yet discovered (low review count)
     const wildcardIds = new Set(mainstream.map(p => p.id));
     const wildcards = resultsC
-      .filter(p => p.rating >= 4.2 && p.review_count >= 2 && p.review_count <= 200 && !wildcardIds.has(p.id))
+      .filter(p => {
+        const { latitude: lat, longitude: lng } = p.coordinates;
+        if (lat || lng) {
+          if (haversineKm(center!.lat, center!.lng, lat, lng) > maxDistKm) return false;
+        }
+        return p.rating >= 4.2 && p.review_count >= 2 && p.review_count <= 200 && !wildcardIds.has(p.id);
+      })
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 3)
       .map(p => ({ ...p, is_wildcard: true }));
