@@ -1,4 +1,5 @@
 import { Layout } from "@/components/Layout";
+import { VoyageLoader } from "@/components/VoyageLoader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -991,7 +992,7 @@ export default function TripPlanner() {
                     <p className="font-semibold text-sm text-foreground">Marco is planning your trip</p>
                     <p className="text-xs text-muted-foreground">Working through every detail…</p>
                   </div>
-                  <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
+                  <VoyageLoader size={28} className="ml-auto text-primary/55" />
                 </div>
                 <div ref={marcoScrollRef} className="px-6 py-6 max-h-80 overflow-y-auto space-y-3 scroll-smooth">
                   {marcoParagraphs.map((p, i) => (
@@ -1311,7 +1312,7 @@ export default function TripPlanner() {
                 )}
                 {reviewingDates && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground animate-pulse">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Reviewing itinerary…
+                    <VoyageLoader size={14} className="text-primary/60" /> Reviewing itinerary…
                   </span>
                 )}
               </div>
