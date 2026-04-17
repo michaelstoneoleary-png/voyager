@@ -845,6 +845,7 @@ export default function Inspire() {
       if (gem.tags?.length) {
         localStorage.setItem(`inspire_context_${journey.id}`, JSON.stringify({ tags: gem.tags, destination: gem.title }));
       }
+      localStorage.setItem(`inspire_autostart_${journey.id}`, "true");
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       toast({ title: "Journey created!", description: `"${journey.title}" is ready for planning.` });
       setLocation(`/planner/${journey.id}`);
@@ -868,8 +869,8 @@ export default function Inspire() {
       return res.json();
     },
     onSuccess: (data) => {
+      localStorage.setItem(`inspire_autostart_${data.id}`, "true");
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-      localStorage.setItem("inspire_autostart", data.id);
       toast({ title: "Day trip created!", description: `"${data.title}" is ready for planning.` });
       setLocation(`/planner/${data.id}`);
     },
