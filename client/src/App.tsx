@@ -1,4 +1,3 @@
-import { lazy, Suspense } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,7 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import LandingPage from "@/pages/LandingPage";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-const TripPlanner = lazy(() => import("@/pages/TripPlanner"));
+import TripPlanner from "@/pages/TripPlanner";
 import PackingList from "@/pages/PackingList";
 import Intel from "@/pages/Intel";
 import Journeys from "@/pages/Journeys";
@@ -114,7 +113,7 @@ function Router() {
       <Route path="/sms-consent" component={SmsConsent} />
       <Route path="/share/:id" component={SharedJourney} />
       <Route path="/onboarding" component={OnboardingRoute} />
-      <Route path="/planner/:id">{() => <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}><ProtectedRoute component={TripPlanner} /></Suspense>}</Route>
+      <Route path="/planner/:id">{() => <ProtectedRoute component={TripPlanner} />}</Route>
       <Route path="/packing">{() => <ProtectedRoute component={PackingList} />}</Route>
       <Route path="/intel">{() => <ProtectedRoute component={Intel} />}</Route>
       <Route path="/journeys">{() => <ProtectedRoute component={Journeys} />}</Route>
