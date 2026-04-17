@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Trash2, Loader2, Bot } from "lucide-react";
+import { X, Send, Trash2, Loader2, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -337,7 +337,7 @@ export function ChatBubble() {
         {isOpen ? (
           <X className="h-6 w-6" />
         ) : (
-          <MessageCircle className="h-6 w-6" />
+          <span className="font-serif font-bold text-2xl leading-none">M</span>
         )}
       </button>
     </>
