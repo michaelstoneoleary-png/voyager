@@ -71,12 +71,9 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: markerIcon2x,
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-});
+// Leaflet icon setup deferred to component mount to avoid TDZ errors
+// from Vite module initialization order changes
+let leafletIconsConfigured = false;
 
 // Convert a distance string (from AI, may be km or miles) to the user's preferred unit
 function formatDistance(raw: string, preferMiles: boolean): string {
@@ -389,6 +386,18 @@ export default function TripPlanner() {
   const [startDate, setStartDate] = useState<string>("");
   const [dateModalOpen, setDateModalOpen] = useState(false);
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
+
+  // Configure Leaflet default icons once on mount
+  useEffect(() => {
+    if (leafletIconsConfigured) return;
+    leafletIconsConfigured = true;
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: markerIcon2x,
+      iconUrl: markerIcon,
+      shadowUrl: markerShadow,
+    });
+  }, []);
 
   // Self-heal stale date_labels on first load (for journeys saved before the date-sync fix)
   useEffect(() => {
