@@ -347,6 +347,7 @@ export default function TripPlanner() {
   const thinkingAbortRef = useRef<AbortController | null>(null);
   const dateLabelsFixed = useRef(false);
   const hotelPricesEnriched = useRef(false);
+  const autoStartPendingRef = useRef(false);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -478,6 +479,23 @@ export default function TripPlanner() {
     } catch {}
     localStorage.removeItem(`inspire_context_${journeyId}`);
   }, [journeyId]);
+
+  // Detect inspire_autostart flag set by Inspire page when a day trip card is selected
+  useEffect(() => {
+    if (!journeyId) return;
+    const flag = localStorage.getItem("inspire_autostart");
+    if (flag === journeyId) {
+      localStorage.removeItem("inspire_autostart");
+      autoStartPendingRef.current = true;
+    }
+  }, [journeyId]);
+
+  // Fire generation once journey data is loaded and autostart is pending
+  useEffect(() => {
+    if (!autoStartPendingRef.current || !journey) return;
+    autoStartPendingRef.current = false;
+    generateMutation.mutate({});
+  }, [journey]);
 
   // Compute end date and formatted range from startDate + journey.days
   const tripDays = (journey as any)?.days as number | undefined;
