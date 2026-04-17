@@ -1,5 +1,4 @@
 import { Layout } from "@/components/Layout";
-import { VoyageLoader } from "@/components/VoyageLoader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -348,7 +347,6 @@ export default function TripPlanner() {
   const thinkingAbortRef = useRef<AbortController | null>(null);
   const dateLabelsFixed = useRef(false);
   const hotelPricesEnriched = useRef(false);
-  const inspireAutoStarted = useRef(false);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -480,17 +478,6 @@ export default function TripPlanner() {
     } catch {}
     localStorage.removeItem(`inspire_context_${journeyId}`);
   }, [journeyId]);
-
-  // Auto-start generation for any Inspire pick (flag set by Inspire page on journey creation)
-  useEffect(() => {
-    if (!journeyId || !journey || inspireAutoStarted.current) return;
-    const flag = localStorage.getItem(`inspire_autostart_${journeyId}`);
-    if (!flag) return;
-    inspireAutoStarted.current = true;
-    localStorage.removeItem(`inspire_autostart_${journeyId}`);
-    generateMutation.mutate({ vibes: [], extraContext: "" });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [journeyId, journey]);
 
   // Compute end date and formatted range from startDate + journey.days
   const tripDays = (journey as any)?.days as number | undefined;
@@ -1004,7 +991,7 @@ export default function TripPlanner() {
                     <p className="font-semibold text-sm text-foreground">Marco is planning your trip</p>
                     <p className="text-xs text-muted-foreground">Working through every detail…</p>
                   </div>
-                  <VoyageLoader size={28} className="ml-auto text-primary/55" />
+                  <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary/50" />
                 </div>
                 <div ref={marcoScrollRef} className="px-6 py-6 max-h-80 overflow-y-auto space-y-3 scroll-smooth">
                   {marcoParagraphs.map((p, i) => (
@@ -1324,7 +1311,7 @@ export default function TripPlanner() {
                 )}
                 {reviewingDates && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground animate-pulse">
-                    <VoyageLoader size={14} className="text-primary/60" /> Reviewing itinerary…
+                    <Loader2 className="h-3 w-3 animate-spin" /> Reviewing itinerary…
                   </span>
                 )}
               </div>

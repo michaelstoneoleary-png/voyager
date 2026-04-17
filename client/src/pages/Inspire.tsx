@@ -1,5 +1,4 @@
 import { Layout } from "@/components/Layout";
-import { VoyageLoader } from "@/components/VoyageLoader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -846,8 +845,6 @@ export default function Inspire() {
       if (gem.tags?.length) {
         localStorage.setItem(`inspire_context_${journey.id}`, JSON.stringify({ tags: gem.tags, destination: gem.title }));
       }
-      // Signal TripPlanner to auto-start generation (skips the brief wizard)
-      localStorage.setItem(`inspire_autostart_${journey.id}`, "true");
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       toast({ title: "Journey created!", description: `"${journey.title}" is ready for planning.` });
       setLocation(`/planner/${journey.id}`);
@@ -871,7 +868,6 @@ export default function Inspire() {
       return res.json();
     },
     onSuccess: (data) => {
-      localStorage.setItem(`inspire_autostart_${data.id}`, "true");
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
       toast({ title: "Day trip created!", description: `"${data.title}" is ready for planning.` });
       setLocation(`/planner/${data.id}`);
@@ -915,8 +911,14 @@ export default function Inspire() {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-in fade-in duration-500">
-          {/* VoyageLoader — animated globe + ship */}
-          <VoyageLoader size={96} className="text-primary/70" />
+          {/* Marco avatar + spinner */}
+          <div className="relative flex items-center justify-center">
+            <div className="h-24 w-24 rounded-full border-4 border-primary/10" />
+            <div className="absolute h-24 w-24 rounded-full border-4 border-transparent border-t-primary animate-spin" />
+            <div className="absolute w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-primary font-bold text-lg font-serif">M</span>
+            </div>
+          </div>
 
           {/* Streaming prose deliberation for non-day-trip */}
           {!isDayTrip ? (
