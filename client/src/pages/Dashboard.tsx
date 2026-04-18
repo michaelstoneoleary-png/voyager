@@ -1,15 +1,14 @@
 import { Layout } from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Masthead, Kicker, EditorialCard } from "@/components/ui/editorial";
 import {
   Calendar,
   MapPin,
   Plus,
   Wallet,
-  ArrowRight,
   CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useTrips } from "@/lib/TripContext";
@@ -57,34 +56,12 @@ function computeTripSteps(
   const logistics = (journey.logistics as any) || {};
 
   const steps: TripStep[] = [
-    {
-      id: "destination",
-      label: "Choose a destination",
-      done: !!(journey.destinations?.length > 0 || journey.finalDestination),
-    },
-    {
-      id: "dates",
-      label: "Set travel dates",
-      done: !!(journey.dates && journey.dates !== "TBD"),
-    },
-    {
-      id: "travelMode",
-      label: "Set travel mode",
-      done: !!journey.travelMode,
-    },
-    {
-      id: "itinerary",
-      label: "Build your itinerary",
-      done: !!journey.itinerary,
-    },
-    {
-      id: "firmDates",
-      label: "Firm up your dates",
-      done: isSpecificDateRange(journey.dates),
-    },
-    ...(needsFlights
-      ? [{ id: "flights", label: "Book flights", done: !!logistics.flightsBooked, selfReport: true }]
-      : []),
+    { id: "destination", label: "Choose a destination", done: !!(journey.destinations?.length > 0 || journey.finalDestination) },
+    { id: "dates", label: "Set travel dates", done: !!(journey.dates && journey.dates !== "TBD") },
+    { id: "travelMode", label: "Set travel mode", done: !!journey.travelMode },
+    { id: "itinerary", label: "Build your itinerary", done: !!journey.itinerary },
+    { id: "firmDates", label: "Firm up your dates", done: isSpecificDateRange(journey.dates) },
+    ...(needsFlights ? [{ id: "flights", label: "Book flights", done: !!logistics.flightsBooked, selfReport: true }] : []),
     { id: "hotels", label: "Book accommodation", done: !!logistics.hotelsBooked, selfReport: true },
     {
       id: "packing",
@@ -114,6 +91,16 @@ export default function Dashboard() {
   const activeTrip = planningTrip || trips[0];
   const daysUntil = activeTrip ? parseDaysUntil(activeTrip.dates) : null;
 
+  const dayStr = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const completedTrips = trips.filter((t) => t.status === "Completed");
+  const totalDays = trips.reduce((sum, t) => sum + (Number(t.days) || 0), 0);
+  const otherTrips = trips.filter((t) => t.id !== activeTrip?.id).slice(0, 3);
+
   const { data: packingSummary } = useQuery({
     queryKey: [`/api/journeys/${activeTrip?.id}/packing-summary`],
     queryFn: async () => {
@@ -137,10 +124,10 @@ export default function Dashboard() {
     },
   });
 
-  const { pct, currentStep, nextStep } =
+  const { pct, currentStep } =
     activeTrip && activeTrip.status !== "Completed"
       ? computeTripSteps(activeTrip, packingSummary)
-      : { pct: 100, currentStep: undefined, nextStep: undefined };
+      : { pct: 100, currentStep: undefined };
 
   return (
     <>
@@ -158,241 +145,222 @@ export default function Dashboard() {
           journeys={trips}
         />
       )}
-      <Layout>
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="font-serif text-3xl font-bold" data-testid="text-welcome">
-                Welcome back, {firstName}
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
+      <Layout>
+        <div className="space-y-10 animate-in fade-in duration-500">
+
+          {/* Masthead */}
+          <Masthead
+            eyebrow={`TODAY · ${dayStr.toUpperCase()}`}
+            meta="bon VOYAGER"
+            title={`Good morning, ${firstName}`}
+            data-testid="text-welcome"
+          />
+
+          {/* Hero journey card */}
+          {activeTrip ? (
+            <div className="space-y-5">
+              {/* 16:9 full-bleed image with overlay */}
+              <div
+                className="relative overflow-hidden rounded-[14px] w-full shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                style={{ aspectRatio: "16/9" }}
+              >
+                <img
+                  src={activeTrip.image || heroTravel}
+                  alt={activeTrip.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1f2722]/85 via-[#1f2722]/25 to-transparent" />
+                <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8">
+                  <Kicker className="text-[color:var(--sand)] mb-2">
+                    {activeTrip.status === "Completed"
+                      ? "COMPLETED JOURNEY"
+                      : activeTrip.status === "Upcoming"
+                      ? "UPCOMING TRIP"
+                      : "IN PLANNING"}
+                  </Kicker>
+                  <h2
+                    className="[font-family:var(--serif)] text-[28px] md:text-[40px] font-medium tracking-[-0.02em] leading-[1.1] text-white mb-3"
+                    data-testid="text-active-trip-title"
+                  >
+                    {activeTrip.title}
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {activeTrip.dates && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-[12px] [font-family:var(--mono)] tracking-[0.05em]">
+                        <Calendar className="h-3 w-3" /> {activeTrip.dates}
+                      </span>
+                    )}
+                    {activeTrip.cost && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-sm text-white text-[12px] [font-family:var(--mono)] tracking-[0.05em]">
+                        <Wallet className="h-3 w-3" /> {activeTrip.cost}
+                      </span>
+                    )}
+                    {daysUntil !== null && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--clay)]/90 text-white text-[12px] [font-family:var(--mono)] tracking-[0.05em]">
+                        <MapPin className="h-3 w-3" /> {daysUntil} days away
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress + actions row */}
+              {activeTrip.status !== "Completed" ? (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-1">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] [font-family:var(--mono)] tracking-[0.1em] uppercase text-[color:var(--ink-muted)]">
+                        {pct}% complete
+                      </span>
+                    </div>
+                    <Progress value={pct} className="h-px bg-[color:var(--rule)]" />
+                    {currentStep ? (
+                      <div className="flex items-center gap-2 text-[13px] text-[color:var(--ink-soft)]">
+                        <div className="h-1 w-1 rounded-full bg-[color:var(--clay)] flex-shrink-0" />
+                        {currentStep.label}
+                        {currentStep.selfReport && (
+                          <button
+                            onClick={() => bookingMutation.mutate(currentStep.id as "flightsBooked" | "hotelsBooked")}
+                            disabled={bookingMutation.isPending}
+                            className="ml-auto text-[12px] text-[color:var(--clay)] hover:underline font-medium disabled:opacity-50"
+                          >
+                            Mark done →
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[13px] text-emerald-600 font-medium flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Ready to go!
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-3 flex-shrink-0">
+                    <Link href={`/planner/${activeTrip.id}`}>
+                      <Button
+                        className="rounded-full bg-[var(--ink)] text-[var(--cream)] hover:bg-[var(--forest-deep)] border-0 text-[13px] font-medium transition-colors duration-150 px-5"
+                        data-testid="button-open-itinerary"
+                      >
+                        Open in Planner →
+                      </Button>
+                    </Link>
+                    <Link href={`/packing?journeyId=${activeTrip.id}`}>
+                      <Button
+                        variant="outline"
+                        className="rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px] transition-colors duration-150 px-5"
+                        data-testid="button-view-packing"
+                      >
+                        Packing List
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3 px-1">
+                  <Link href={`/planner/${activeTrip.id}`}>
+                    <Button
+                      className="rounded-full bg-[var(--ink)] text-[var(--cream)] hover:bg-[var(--forest-deep)] border-0 text-[13px] font-medium transition-colors duration-150 px-5"
+                      data-testid="button-open-itinerary"
+                    >
+                      View Itinerary →
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    className="rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px] transition-colors duration-150 px-5"
+                    onClick={() => setIsNewTripOpen(true)}
+                    data-testid="button-plan-new"
+                  >
+                    Plan New Trip
+                  </Button>
+                </div>
+              )}
             </div>
+          ) : (
+            /* Empty state */
+            <div className="rounded-[14px] border border-dashed border-[color:var(--rule)] p-12 text-center space-y-4">
+              <div className="h-12 w-12 rounded-full bg-[color:var(--sand)] flex items-center justify-center mx-auto">
+                <Plus className="h-6 w-6 text-[color:var(--ink-muted)]" />
+              </div>
+              <div>
+                <h3 className="[font-family:var(--serif)] text-[22px] font-medium text-[color:var(--ink)]">
+                  No Active Journeys
+                </h3>
+                <p className="text-[color:var(--ink-muted)] text-[15px] mt-1">
+                  Start planning your next adventure today.
+                </p>
+              </div>
+              <Button
+                className="rounded-full bg-[var(--ink)] text-[var(--cream)] hover:bg-[var(--forest-deep)] border-0 text-[13px] font-medium transition-colors duration-150 px-5"
+                onClick={() => setIsNewTripOpen(true)}
+                data-testid="button-create-journey"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Create New Journey
+              </Button>
+            </div>
+          )}
+
+          {/* Atlas strip — stats across all journeys */}
+          {trips.length > 0 && (
+            <div className="border-y border-[color:var(--rule)] py-6 grid grid-cols-2 sm:grid-cols-4 divide-x divide-[color:var(--rule)]">
+              {[
+                { label: "JOURNEYS", value: String(trips.length) },
+                { label: "COMPLETED", value: String(completedTrips.length) },
+                { label: "DAYS", value: totalDays > 0 ? String(totalDays) : "—" },
+                { label: "IN PROGRESS", value: String(trips.filter((t) => t.status !== "Completed").length) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex flex-col items-center gap-1 px-4 py-2">
+                  <Kicker>{label}</Kicker>
+                  <span className="[font-family:var(--serif)] text-[36px] font-medium tracking-[-0.02em] text-[color:var(--ink)] leading-none mt-1">
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Related journeys — editorial card grid */}
+          {otherTrips.length > 0 && (
+            <section className="space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="[font-family:var(--serif)] text-[22px] font-medium tracking-[-0.02em] text-[color:var(--ink)]">
+                  From your library
+                </h2>
+                <Link href="/journeys">
+                  <span className="flex items-center gap-1 text-[13px] text-[color:var(--clay)] hover:underline font-medium cursor-pointer">
+                    View all <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {otherTrips.map((trip, i) => (
+                  <Link key={trip.id} href={`/planner/${trip.id}`}>
+                    <EditorialCard
+                      image={trip.image || heroTravel}
+                      number={i + 1}
+                      category={trip.status}
+                      title={trip.title}
+                      dek={trip.dates || undefined}
+                      ratio="3/4"
+                    />
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Plan a new journey CTA */}
+          <div className="flex justify-center pb-4">
             <Button
-              size="lg"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              variant="outline"
+              className="rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px] transition-colors duration-150 px-5"
               onClick={() => setIsMarcoEntryOpen(true)}
               data-testid="button-new-journey"
             >
-              <Plus className="mr-2 h-5 w-5" /> Plan a Journey
+              <Plus className="mr-2 h-4 w-4" /> Plan a New Journey
             </Button>
           </div>
 
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-            {/* Active Trip Hero (2/3 width) */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="font-serif text-xl font-bold flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-primary" />{" "}
-                  {planningTrip ? "Current Focus" : "Recent Journey"}
-                </h3>
-              </div>
-
-              {activeTrip ? (
-                <Card className="overflow-hidden border-sidebar-border shadow-md group relative">
-                  <div className="absolute top-0 right-0 w-1/2 h-full hidden md:block">
-                    <img
-                      src={activeTrip.image || heroTravel}
-                      alt="Travel"
-                      className="w-full h-full object-cover opacity-60 mask-image-linear-to-l"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-l from-transparent to-background" />
-                  </div>
-
-                  <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row gap-8">
-                    <div className="flex-1 space-y-5">
-                      <div>
-                        <Badge
-                          className={`mb-2 border-0 ${
-                            activeTrip.status === "Completed"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-accent text-accent-foreground"
-                          }`}
-                        >
-                          {activeTrip.status === "Completed"
-                            ? "Completed Journey"
-                            : activeTrip.status === "Upcoming"
-                            ? "Upcoming Trip"
-                            : "In Planning Phase"}
-                        </Badge>
-                        <h2
-                          className="font-serif text-4xl font-bold text-foreground mb-2"
-                          data-testid="text-active-trip-title"
-                        >
-                          {activeTrip.title}
-                        </h2>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" /> {activeTrip.dates}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Wallet className="h-4 w-4" /> {activeTrip.cost} Est.
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Trip progress steps */}
-                      {activeTrip.status !== "Completed" ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{pct}% complete</span>
-                            {daysUntil !== null && (
-                              <span className="text-primary font-medium flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {daysUntil} days away
-                              </span>
-                            )}
-                          </div>
-                          <Progress value={pct} className="h-1.5" />
-                          {currentStep ? (
-                            <div className="pt-0.5 space-y-1">
-                              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-                                <div className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
-                                {currentStep.label}
-                                {currentStep.selfReport && (
-                                  <button
-                                    onClick={() =>
-                                      bookingMutation.mutate(
-                                        currentStep.id as "flightsBooked" | "hotelsBooked"
-                                      )
-                                    }
-                                    disabled={bookingMutation.isPending}
-                                    className="ml-auto text-[10px] text-primary hover:underline font-medium disabled:opacity-50"
-                                  >
-                                    Mark done →
-                                  </button>
-                                )}
-                              </div>
-                              {nextStep && (
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <div className="h-1.5 w-1.5 rounded-full bg-border flex-shrink-0" />
-                                  Next: {nextStep.label}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-emerald-600 font-medium pt-0.5 flex items-center gap-1">
-                              <CheckCircle2 className="h-3.5 w-3.5" /> Ready to go!
-                            </p>
-                          )}
-                        </div>
-                      ) : null}
-
-                      <div className="flex gap-3">
-                        <Link href={`/planner/${activeTrip.id}`}>
-                          <Button className="shadow-sm" data-testid="button-open-itinerary">
-                            {activeTrip.status === "Completed" ? "View Itinerary" : "Open Itinerary"}
-                          </Button>
-                        </Link>
-                        {activeTrip.status === "Completed" ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => setIsNewTripOpen(true)}
-                            data-testid="button-plan-new"
-                          >
-                            Plan New Trip
-                          </Button>
-                        ) : (
-                          <Link href={`/packing?journeyId=${activeTrip.id}`}>
-                            <Button variant="outline" data-testid="button-view-packing">
-                              View Packing List
-                            </Button>
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ) : (
-                <Card className="p-8 text-center border-sidebar-border border-dashed">
-                  <div className="flex flex-col items-center justify-center space-y-4">
-                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                      <Plus className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-medium">No Active Journeys</h3>
-                      <p className="text-muted-foreground">Start planning your next adventure today.</p>
-                    </div>
-                    <Button onClick={() => setIsNewTripOpen(true)} data-testid="button-create-journey">
-                      Create New Journey
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </div>
-
-            {/* Right Column: Your Journeys (1/3 width) */}
-            <div className="space-y-6">
-              {trips.length > 0 ? (
-                <Card className="bg-sidebar border-sidebar-border">
-                  <CardHeader>
-                    <CardTitle className="font-serif text-lg">Your Journeys</CardTitle>
-                    <CardDescription>Quick overview of your plans</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {trips
-                      .filter((t) => t.status !== "Archived")
-                      .slice(0, 5)
-                      .map((trip) => (
-                        <Link key={trip.id} href={`/planner/${trip.id}`}>
-                          <div className="p-3 bg-background rounded-lg border border-border hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-bold text-primary leading-tight">
-                                {trip.title}
-                              </span>
-                              <Badge variant="outline" className="text-[10px] shrink-0 ml-2">
-                                {trip.status}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {trip.dates} &middot; {trip.days} days
-                            </p>
-                          </div>
-                        </Link>
-                      ))}
-                  </CardContent>
-                  <div className="px-6 pb-4">
-                    <Link href="/journeys">
-                      <span className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors cursor-pointer">
-                        View All Journeys <ArrowRight className="h-3.5 w-3.5" />
-                      </span>
-                    </Link>
-                  </div>
-                </Card>
-              ) : (
-                <Card className="bg-sidebar border-sidebar-border">
-                  <CardHeader>
-                    <CardTitle className="font-serif text-lg">Getting Started</CardTitle>
-                    <CardDescription>Begin your travel planning journey</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Create your first journey to start seeing travel insights, packing lists, and more.
-                    </p>
-                    <Button
-                      onClick={() => setIsNewTripOpen(true)}
-                      variant="outline"
-                      className="w-full"
-                      data-testid="button-get-started"
-                    >
-                      <Plus className="mr-2 h-4 w-4" /> Plan Your First Trip
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-          </div>
         </div>
       </Layout>
     </>
