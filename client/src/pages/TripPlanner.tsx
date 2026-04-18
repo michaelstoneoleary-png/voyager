@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
 import { useParams } from "wouter";
-import { useState, useRef, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
   MapPin,
@@ -62,9 +62,21 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { JourneyIntelPanel } from "@/components/JourneyIntelPanel";
 import type { TravelAdvisory } from "@/components/JourneyIntelPanel";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import { Link } from "wouter";
 
-const TripPlannerMap = lazy(() => import("./TripPlannerMap"));
+import L from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
 
 // Convert a distance string (from AI, may be km or miles) to the user's preferred unit
 function formatDistance(raw: string, preferMiles: boolean): string {
@@ -191,6 +203,61 @@ const VIBE_OPTIONS = [
   { id: "shopping",    label: "Shopping & Style",       keywords: ["milan","dubai","new york","tokyo","paris","london","hong kong","boutique","fashion","outlet"] },
 ] as const;
 
+function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, zoom, { duration: 0.8 });
+  }, [center[0], center[1], zoom]);
+  return null;
+}
+
+function FitBoundsView({ bounds }: { bounds: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (bounds.length > 1) {
+      map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [48, 48], maxZoom: 14 });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 14);
+    }
+  }, [bounds.map(b => `${b[0]},${b[1]}`).join("|")]);
+  return null;
+}
+
+function createNumberedIcon(num: number, isSelected: boolean) {
+  return L.divIcon({
+    className: "custom-numbered-marker",
+    html: `<div style="
+      width: 28px; height: 28px; border-radius: 50%;
+      background: ${isSelected ? "#7c3aed" : "#1e293b"};
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,${isSelected ? "0.4" : "0.2"});
+      transform: ${isSelected ? "scale(1.3)" : "scale(1)"};
+      transition: transform 0.2s, background 0.2s;
+    ">${num}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+}
+
+function createHotelIcon(isSelected: boolean) {
+  return L.divIcon({
+    className: "custom-hotel-marker",
+    html: `<div style="
+      width: 30px; height: 30px; border-radius: 6px;
+      background: ${isSelected ? "#d97706" : "#f59e0b"};
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,${isSelected ? "0.4" : "0.2"});
+      transform: ${isSelected ? "scale(1.3)" : "scale(1)"};
+      transition: transform 0.2s, background 0.2s;
+    ">🏨</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -18],
+  });
+}
 
 function getTravelIcon(mode: string) {
   const m = mode.toLowerCase();
@@ -279,8 +346,6 @@ export default function TripPlanner() {
   const marcoScrollRef = useRef<HTMLDivElement | null>(null);
   const thinkingAbortRef = useRef<AbortController | null>(null);
   const dateLabelsFixed = useRef(false);
-  const hotelPricesEnriched = useRef(false);
-  const inspireAutoStarted = useRef(false);
   const [activityMenu, setActivityMenu] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [replaceMode, setReplaceMode] = useState<{ dayIndex: number; activityIndex: number } | null>(null);
   const [modifyingActivity, setModifyingActivity] = useState<{ dayIndex: number; activityIndex: number; action: string } | null>(null);
@@ -323,7 +388,7 @@ export default function TripPlanner() {
   const [dateModalOpen, setDateModalOpen] = useState(false);
   useEffect(() => { if (parsedStartDate) setStartDate(parsedStartDate); }, [parsedStartDate]);
 
-// Self-heal stale date_labels on first load (for journeys saved before the date-sync fix)
+  // Self-heal stale date_labels on first load (for journeys saved before the date-sync fix)
   useEffect(() => {
     if (dateLabelsFixed.current) return;
     if (!startDate || !journey) return;
@@ -377,29 +442,6 @@ export default function TripPlanner() {
       .finally(() => setReviewingDates(false));
   }, [startDate, journey, journeyId]);
 
-  // Enrich hotel prices with live Amadeus rates (runs once per load when dates are known)
-  useEffect(() => {
-    if (hotelPricesEnriched.current) return;
-    if (!startDate || !journey || !endDate) return;
-    const it = (journey as any)?.itinerary;
-    if (!it?.days?.length) return;
-    const hasHotels = it.days.some((d: any) => d.hotels?.length > 0);
-    if (!hasHotels) return;
-
-    hotelPricesEnriched.current = true;
-    apiRequest("POST", `/api/journeys/${journeyId}/enrich-hotel-prices`, {
-      checkIn: startDate,
-      checkOut: endDate,
-    })
-      .then(r => r.json())
-      .then((result: any) => {
-        if (result?.updated && result?.journey) {
-          queryClient.setQueryData([`/api/journeys/${journeyId}`], result.journey);
-        }
-      })
-      .catch(() => {});
-  }, [startDate, endDate, journey, journeyId]);
-
   // Pre-populate wishlist from Inspire context (stored by Inspire page on journey creation)
   useEffect(() => {
     if (!journeyId) return;
@@ -412,17 +454,6 @@ export default function TripPlanner() {
     } catch {}
     localStorage.removeItem(`inspire_context_${journeyId}`);
   }, [journeyId]);
-
-  // Auto-start generation for any Inspire pick (flag set by Inspire page on journey creation)
-  useEffect(() => {
-    if (!journeyId || !journey || inspireAutoStarted.current) return;
-    const flag = localStorage.getItem(`inspire_autostart_${journeyId}`);
-    if (!flag) return;
-    inspireAutoStarted.current = true;
-    localStorage.removeItem(`inspire_autostart_${journeyId}`);
-    generateMutation.mutate({ vibes: [], extraContext: "" });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [journeyId, journey]);
 
   // Compute end date and formatted range from startDate + journey.days
   const tripDays = (journey as any)?.days as number | undefined;
@@ -1918,22 +1949,49 @@ export default function TripPlanner() {
           <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 overflow-hidden">
              <>
                  <div className={`bg-muted rounded-xl border border-border relative overflow-hidden group transition-all duration-300 flex-shrink-0 ${(selectedActivity || selectedHotel) ? "h-[200px]" : "h-[260px]"}`}>
-                   <Suspense fallback={<div className="h-full w-full flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
-                     <TripPlannerMap
-                       center={mapCenter}
-                       zoom={mapZoom}
-                       bounds={allBounds}
-                       allMarkers={allMarkers}
-                       hotelMarkers={hotelMarkers}
-                       selectedActivity={selectedActivity}
-                       selectedHotel={selectedHotel}
-                       routePath={routePath}
-                       onSelectActivity={(a) => { setSelectedActivity(a); setSelectedHotel(null); }}
-                       onSelectHotel={(h) => { setSelectedHotel(h); setSelectedActivity(null); }}
-                       locationLabel={currentDayData?.location || ""}
-                       dayNumber={currentDayData?.day || selectedDay + 1}
-                     />
-                   </Suspense>
+                   <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={true} className="h-full w-full z-0">
+                      {(selectedActivity?.lat || selectedHotel?.lat)
+                        ? <ChangeView center={mapCenter} zoom={mapZoom} />
+                        : <FitBoundsView bounds={allBounds} />
+                      }
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                      />
+                      {routePath.length > 1 && (
+                        <Polyline
+                          positions={routePath}
+                          pathOptions={{ color: "#7c3aed", weight: 3, opacity: 0.6, dashArray: "8, 8" }}
+                        />
+                      )}
+                      {allMarkers.map((m) => (
+                        <Marker
+                          key={m.index}
+                          position={[m.lat, m.lng]}
+                          icon={createNumberedIcon(m.index + 1, selectedActivity === m.activity)}
+                          eventHandlers={{ click: () => { setSelectedActivity(m.activity); setSelectedHotel(null); } }}
+                        >
+                          <Popup>
+                            <div style={{ fontFamily: "serif", fontWeight: "bold" }}>{m.index + 1}. {m.title}</div>
+                            <div style={{ fontSize: "12px", color: "#666" }}>{m.activity.time}{m.activity.duration ? ` (${m.activity.duration})` : ""}</div>
+                          </Popup>
+                        </Marker>
+                      ))}
+                      {hotelMarkers.map((m, idx) => (
+                        <Marker
+                          key={`hotel-${idx}`}
+                          position={[m.lat, m.lng]}
+                          icon={createHotelIcon(selectedHotel === m.hotel)}
+                          eventHandlers={{ click: () => { setSelectedHotel(m.hotel); setSelectedActivity(null); } }}
+                        >
+                          <Popup>
+                            <div style={{ fontFamily: "serif", fontWeight: "bold" }}>{m.name}</div>
+                            <div style={{ fontSize: "12px", color: "#666" }}>{m.hotel.price_per_night}/night • ⭐ {m.hotel.rating}</div>
+                          </Popup>
+                        </Marker>
+                      ))}
+                    </MapContainer>
+                    
                    <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg shadow text-xs z-[400]">
                      <div className="font-bold">{currentDayData?.location || ""}</div>
                      <div className="text-muted-foreground">Day {(currentDayData?.day || selectedDay + 1)} Route</div>
