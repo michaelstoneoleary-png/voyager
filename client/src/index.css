@@ -37,9 +37,10 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  --font-sans: 'DM Sans', sans-serif;
-  --font-serif: 'Playfair Display', serif;
-  
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: 'Fraunces', 'Playfair Display', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -47,101 +48,186 @@
 }
 
 :root {
-  /* Earthy, Editorial Palette */
-  --background: 40 20% 97%; /* Off-white / Cream */
-  --foreground: 160 6% 20%; /* Dark Charcoal */
+  /* Shadcn base colors — mapped to Field Notes editorial palette */
+  --background: 38 28% 94%;         /* --bg #f5f1e8 warm cream */
+  --foreground: 141 10% 14%;        /* --ink #1f2722 */
 
-  --card: 0 0% 100%;
-  --card-foreground: 160 6% 20%;
+  --card: 40 56% 97%;               /* --bg-raised #fbf8f1 */
+  --card-foreground: 141 10% 14%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 160 6% 20%;
+  --popover: 40 56% 97%;
+  --popover-foreground: 141 10% 14%;
 
-  /* Primary: Deep Forest Green */
-  --primary: 160 40% 30%; 
-  --primary-foreground: 40 20% 97%;
+  --primary: 155 24% 23%;           /* --forest #2d4a3e */
+  --primary-foreground: 40 77% 95%; /* --cream #faf6eb */
 
-  /* Secondary: Terracotta / Clay */
-  --secondary: 25 35% 90%;
-  --secondary-foreground: 25 40% 40%;
+  --secondary: 40 46% 83%;          /* --sand #e8dcc0 */
+  --secondary-foreground: 112 5% 30%; /* --ink-soft #4a5249 */
 
-  /* Muted: Sand */
-  --muted: 40 15% 90%;
-  --muted-foreground: 40 10% 40%;
+  --muted: 40 25% 86%;              /* --rule-soft #e8e2d1 */
+  --muted-foreground: 107 3% 49%;   /* --ink-muted #7a8079 */
 
-  /* Accent: Golden Hour */
-  --accent: 35 80% 96%;
-  --accent-foreground: 35 80% 30%;
+  --accent: 18 60% 92%;             /* light clay tint for hover backgrounds */
+  --accent-foreground: 18 42% 35%;  /* deep clay */
 
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 40 10% 85%;
-  --input: 40 10% 85%;
-  --ring: 160 40% 30%;
+  --border: 40 22% 80%;             /* --rule #d9d2c0 */
+  --input: 40 22% 80%;
+  --ring: 155 24% 23%;              /* --forest */
 
-  --radius: 0.5rem;
+  --radius: 0.875rem;               /* 14px card radius */
 
-  --chart-1: 160 40% 30%;
-  --chart-2: 25 40% 50%;
-  --chart-3: 35 60% 50%;
-  --chart-4: 40 20% 60%;
-  --chart-5: 200 20% 40%;
+  --chart-1: 155 24% 23%;
+  --chart-2: 18 42% 50%;
+  --chart-3: 40 50% 52%;
+  --chart-4: 40 22% 60%;
+  --chart-5: 199 25% 38%;
 
-  --sidebar: 40 20% 95%;
-  --sidebar-foreground: 160 6% 20%;
-  --sidebar-primary: 160 40% 30%;
-  --sidebar-primary-foreground: 40 20% 97%;
-  --sidebar-accent: 40 15% 90%;
-  --sidebar-accent-foreground: 160 6% 20%;
-  --sidebar-border: 40 10% 85%;
-  --sidebar-ring: 160 40% 30%;
+  --sidebar: 40 56% 97%;
+  --sidebar-foreground: 141 10% 14%;
+  --sidebar-primary: 155 24% 23%;
+  --sidebar-primary-foreground: 40 77% 95%;
+  --sidebar-accent: 40 25% 86%;
+  --sidebar-accent-foreground: 141 10% 14%;
+  --sidebar-border: 40 22% 80%;
+  --sidebar-ring: 155 24% 23%;
+
+  /* Field Notes editorial design tokens */
+  --bg: #f5f1e8;
+  --bg-raised: #fbf8f1;
+  --ink: #1f2722;
+  --ink-soft: #4a5249;
+  --ink-muted: #7a8079;
+  --rule: #d9d2c0;
+  --rule-soft: #e8e2d1;
+  --forest: #2d4a3e;
+  --forest-deep: #1c3128;
+  --clay: #b86a48;
+  --golden: #c89442;
+  --sky: #4a6b7a;
+  --rose: #c4856b;
+  --sand: #e8dcc0;
+  --cream: #faf6eb;
+  --editorial-accent: var(--clay);
+
+  /* Typography */
+  --serif: 'Fraunces', 'Playfair Display', Georgia, serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Density multiplier */
+  --density: 1;
+  --base-pad: 1rem;
 }
 
 .dark {
-  /* Dark Mode: Night Sky & Embers */
-  --background: 160 10% 10%;
-  --foreground: 40 10% 90%;
+  /* Dark Mode — aligned with .aesthetic-bold expedition palette */
+  --background: 141 15% 8%;         /* #0f1511 */
+  --foreground: 40 42% 88%;         /* #efe8d4 */
 
-  --card: 160 10% 12%;
-  --card-foreground: 40 10% 90%;
+  --card: 141 15% 11%;              /* #181f1a */
+  --card-foreground: 40 42% 88%;
 
-  --popover: 160 10% 12%;
-  --popover-foreground: 40 10% 90%;
+  --popover: 141 15% 11%;
+  --popover-foreground: 40 42% 88%;
 
-  --primary: 160 40% 40%;
-  --primary-foreground: 40 10% 95%;
+  --primary: 130 18% 55%;           /* --forest light #78a37e */
+  --primary-foreground: 141 15% 11%;
 
-  --secondary: 160 10% 15%;
-  --secondary-foreground: 40 10% 90%;
+  --secondary: 90 4% 16%;           /* #2a2b24 sand-dark */
+  --secondary-foreground: 40 42% 88%;
 
-  --muted: 160 10% 20%;
-  --muted-foreground: 40 10% 60%;
+  --muted: 141 12% 14%;             /* #22281f */
+  --muted-foreground: 45 6% 57%;    /* #8a8777 */
 
-  --accent: 160 10% 20%;
-  --accent-foreground: 40 10% 90%;
+  --accent: 141 12% 16%;
+  --accent-foreground: 40 42% 88%;
 
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 160 10% 20%;
-  --input: 160 10% 20%;
-  --ring: 160 40% 40%;
+  --border: 141 10% 18%;            /* #2a3029 */
+  --input: 141 10% 18%;
+  --ring: 130 18% 55%;
 
-  --chart-1: 160 40% 40%;
-  --chart-2: 25 40% 60%;
-  --chart-3: 35 60% 60%;
-  --chart-4: 40 20% 70%;
-  --chart-5: 200 20% 50%;
+  --chart-1: 130 18% 55%;
+  --chart-2: 18 42% 60%;
+  --chart-3: 40 50% 60%;
+  --chart-4: 40 22% 70%;
+  --chart-5: 199 25% 50%;
 
-  --sidebar: 160 10% 12%;
-  --sidebar-foreground: 40 10% 90%;
-  --sidebar-primary: 160 40% 40%;
-  --sidebar-primary-foreground: 40 10% 95%;
-  --sidebar-accent: 160 10% 20%;
-  --sidebar-accent-foreground: 40 10% 90%;
-  --sidebar-border: 160 10% 20%;
-  --sidebar-ring: 160 40% 40%;
+  --sidebar: 141 15% 11%;
+  --sidebar-foreground: 40 42% 88%;
+  --sidebar-primary: 130 18% 55%;
+  --sidebar-primary-foreground: 141 15% 11%;
+  --sidebar-accent: 141 12% 14%;
+  --sidebar-accent-foreground: 40 42% 88%;
+  --sidebar-border: 141 10% 18%;
+  --sidebar-ring: 130 18% 55%;
+
+  /* editorial hex overrides for dark */
+  --bg: #0f1511;
+  --bg-raised: #181f1a;
+  --ink: #efe8d4;
+  --ink-soft: #c2bda9;
+  --ink-muted: #8a8777;
+  --rule: #2a3029;
+  --rule-soft: #22281f;
+  --forest: #78a37e;
+  --cream: #1b221d;
+  --sand: #2a2b24;
+}
+
+/* Aesthetic variant: Minimal (calm, lighter, greener) */
+.aesthetic-minimal {
+  --background: 38 36% 95%;
+  --foreground: 140 5% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 140 5% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 140 5% 16%;
+  --primary: 110 14% 44%;           /* #6b7a5f */
+  --primary-foreground: 40 77% 95%;
+  --accent: 110 20% 92%;
+  --accent-foreground: 110 14% 30%;
+
+  --bg: #f7f4ec;
+  --bg-raised: #ffffff;
+  --ink: #262b27;
+  --editorial-accent: #6b7a5f;
+}
+
+/* Aesthetic variant: Bold (expedition dark) */
+.aesthetic-bold {
+  --background: 141 15% 8%;
+  --foreground: 40 42% 88%;
+  --card: 141 15% 11%;
+  --card-foreground: 40 42% 88%;
+  --popover: 141 15% 11%;
+  --popover-foreground: 40 42% 88%;
+  --primary: 130 18% 55%;
+  --primary-foreground: 141 15% 11%;
+  --secondary: 90 4% 16%;
+  --secondary-foreground: 40 42% 88%;
+  --muted: 141 12% 14%;
+  --muted-foreground: 45 6% 57%;
+  --accent: 141 12% 16%;
+  --accent-foreground: 40 42% 88%;
+  --border: 141 10% 18%;
+  --input: 141 10% 18%;
+
+  --bg: #0f1511;
+  --bg-raised: #181f1a;
+  --ink: #efe8d4;
+  --ink-soft: #c2bda9;
+  --ink-muted: #8a8777;
+  --rule: #2a3029;
+  --rule-soft: #22281f;
+  --forest: #78a37e;
+  --cream: #1b221d;
+  --sand: #2a2b24;
 }
 
 @layer base {
@@ -149,10 +235,16 @@
     @apply border-border;
   }
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
   }
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-serif;
+  h1, h2, h3, h4 {
+    font-family: var(--serif);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
   }
 }
 
@@ -167,6 +259,14 @@
   }
 
   .serif-display {
-    font-family: 'Playfair Display', serif;
+    font-family: var(--serif);
+  }
+
+  .font-editorial-mono {
+    font-family: var(--mono);
+  }
+
+  .density-pad {
+    padding-block: calc(var(--base-pad) * var(--density));
   }
 }
