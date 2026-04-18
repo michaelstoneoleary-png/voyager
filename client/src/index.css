@@ -269,4 +269,15 @@
   .density-pad {
     padding-block: calc(var(--base-pad) * var(--density));
   }
+
+  .drop-cap::first-letter {
+    font-family: var(--serif);
+    font-size: 72px;
+    font-weight: 500;
+    float: left;
+    line-height: 0.85;
+    margin-right: 8px;
+    padding-top: 6px;
+    color: var(--ink);
+  }
 }
