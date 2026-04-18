@@ -87,8 +87,8 @@
 
   --sidebar: 40 56% 97%;
   --sidebar-foreground: 141 10% 14%;
-  --sidebar-primary: 155 24% 23%;
-  --sidebar-primary-foreground: 40 77% 95%;
+  --sidebar-primary: 141 10% 14%;           /* ink — active nav = dark fill */
+  --sidebar-primary-foreground: 40 77% 95%; /* cream text on dark */
   --sidebar-accent: 40 25% 86%;
   --sidebar-accent-foreground: 141 10% 14%;
   --sidebar-border: 40 22% 80%;
