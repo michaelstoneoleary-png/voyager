@@ -1911,6 +1911,7 @@ export default function TripPlanner() {
                   </div>
                   );
                 })}
+              </div>
               {/* Hotel section — persists per city (hidden for day trips) */}
               {journey?.days !== 1 && currentDayData?.location && hotelsByCity[currentDayData.location]?.length > 0 && (() => {
                 const city = currentDayData.location;
@@ -1970,7 +1971,6 @@ export default function TripPlanner() {
                   </div>
                 );
               })()}
-              </div>
             </ScrollArea>
           </div>
 
