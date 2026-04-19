@@ -2,15 +2,11 @@ import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { WorldMap } from "@/components/WorldMap";
 import { FileUpload } from "@/components/FileUpload";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Globe, Calendar, Loader2, Trash2, Sparkles } from "lucide-react";
+import { Masthead, Kicker } from "@/components/ui/editorial";
+import { Download, Loader2, Sparkles, Trash2, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { isUnauthorizedError } from "@/lib/auth-utils";
 import * as XLSX from "xlsx";
 
 interface PastTrip {
@@ -28,6 +24,7 @@ export default function PastJourneys() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [aiParsing, setAiParsing] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: pastTrips = [], isLoading } = useQuery<PastTrip[]>({
     queryKey: ["/api/past-trips"],
@@ -42,28 +39,24 @@ export default function PastJourneys() {
 
   const deleteTripMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/past-trips/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await fetch(`/api/past-trips/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/past-trips"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/past-trips"] }),
   });
 
   const visitedPlaces = pastTrips
     .filter((t) => t.lat && t.lng)
-    .map((t) => ({
-      lat: parseFloat(t.lat!),
-      lng: parseFloat(t.lng!),
-      name: t.destination,
-      date: t.startDate || "",
-    }));
+    .map((t) => ({ lat: parseFloat(t.lat!), lng: parseFloat(t.lng!), name: t.destination, date: t.startDate || "" }));
 
-  const uniqueCountries = new Set(pastTrips.map(t => t.country).filter(Boolean));
+  const uniqueCountries = new Set(pastTrips.map((t) => t.country).filter(Boolean));
+
+  const years = pastTrips
+    .map((t) => t.startDate ? new Date(t.startDate).getFullYear() : null)
+    .filter((y): y is number => y !== null);
+  const earliestYear = years.length > 0 ? Math.min(...years) : null;
+  const eyebrow = earliestYear ? `LIFETIME · ${earliestYear} — TODAY` : "LIFETIME TRAVELS";
 
   const fileToCSV = async (file: File): Promise<string> => {
     const ext = file.name.split(".").pop()?.toLowerCase();
@@ -74,9 +67,7 @@ export default function PastJourneys() {
       for (const sheetName of workbook.SheetNames) {
         const sheet = workbook.Sheets[sheetName];
         const csv = XLSX.utils.sheet_to_csv(sheet);
-        if (csv.trim()) {
-          parts.push(`=== Tab: ${sheetName} ===\n${csv}`);
-        }
+        if (csv.trim()) parts.push(`=== Tab: ${sheetName} ===\n${csv}`);
       }
       return parts.join("\n\n");
     }
@@ -85,71 +76,50 @@ export default function PastJourneys() {
 
   const handleUploadComplete = async (files: File[]) => {
     if (files.length === 0) return;
-
-    const file = files[0];
     setAiParsing(true);
-
     try {
-      const text = await fileToCSV(file);
-
+      const text = await fileToCSV(files[0]);
       const res = await fetch("/api/past-trips/ai-parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ csvText: text }),
       });
-
-      if (res.status === 401) {
-        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
-        window.location.href = "/api/login";
-        return;
-      }
-
+      if (res.status === 401) { toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" }); window.location.href = "/api/login"; return; }
       const data = await res.json();
-
-      if (!res.ok) {
-        toast({
-          title: "Import Issue",
-          description: data.message || "Could not parse the file.",
-          variant: "destructive",
-        });
-        return;
-      }
-
+      if (!res.ok) { toast({ title: "Import Issue", description: data.message || "Could not parse the file.", variant: "destructive" }); return; }
       queryClient.invalidateQueries({ queryKey: ["/api/past-trips"] });
       queryClient.invalidateQueries({ queryKey: ["/api/journeys"] });
-
       const journeyCount = data.journeys?.length || 0;
       const tripCount = data.pastTrips?.length || 0;
-      toast({
-        title: "Import Successful",
-        description: `AI created ${journeyCount} journey${journeyCount !== 1 ? 's' : ''} and ${tripCount} map pin${tripCount !== 1 ? 's' : ''} from your file.`,
-      });
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast({
-        title: "Import Failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Import Successful", description: `AI created ${journeyCount} journey${journeyCount !== 1 ? "s" : ""} and ${tripCount} map pin${tripCount !== 1 ? "s" : ""}.` });
+      setImportOpen(false);
+    } catch {
+      toast({ title: "Import Failed", description: "Something went wrong. Please try again.", variant: "destructive" });
     } finally {
       setAiParsing(false);
     }
   };
 
+  const sortedTrips = [...pastTrips].sort((a, b) =>
+    (a.startDate || "") > (b.startDate || "") ? -1 : 1
+  );
+
   return (
     <Layout>
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-3xl font-bold">Past Journeys</h1>
-            <p className="text-muted-foreground text-sm">Visualize your travel history and import past adventures.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" data-testid="button-export">
-              <Download className="mr-2 h-4 w-4" /> Export Data
-            </Button>
-          </div>
+      <div className="space-y-10 animate-in fade-in duration-500">
+
+        {/* Masthead */}
+        <div className="flex items-start justify-between gap-4">
+          <Masthead eyebrow={eyebrow} title="The Atlas" className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-1 flex-shrink-0 rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px]"
+            data-testid="button-export"
+          >
+            <Download className="mr-2 h-3.5 w-3.5" /> Export
+          </Button>
         </div>
 
         {isLoading ? (
@@ -157,141 +127,130 @@ export default function PastJourneys() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="overflow-hidden border-sidebar-border h-[250px] sm:h-[400px]">
-                <CardHeader className="pb-2">
-                   <div className="flex items-center justify-between">
-                     <CardTitle className="font-serif text-xl flex items-center gap-2">
-                       <Globe className="h-5 w-5 text-primary" /> World Map
-                     </CardTitle>
-                     <Badge variant="secondary" className="font-mono" data-testid="text-cities-count">{visitedPlaces.length} Cities Visited</Badge>
-                   </div>
-                </CardHeader>
-                <CardContent className="p-0 h-[320px] relative">
-                  <WorldMap places={visitedPlaces} />
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <Card>
-                   <CardHeader>
-                     <CardTitle className="text-lg font-serif">Travel Stats</CardTitle>
-                   </CardHeader>
-                   <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <span className="text-sm text-muted-foreground">Countries</span>
-                        <span className="font-bold" data-testid="text-country-count">{uniqueCountries.size}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <span className="text-sm text-muted-foreground">Destinations</span>
-                        <span className="font-bold">{pastTrips.length}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <span className="text-sm text-muted-foreground">Map Pins</span>
-                        <span className="font-bold">{visitedPlaces.length}</span>
-                      </div>
-                   </CardContent>
-                 </Card>
-
-                 <Card>
-                   <CardHeader>
-                     <CardTitle className="text-lg font-serif flex items-center gap-2">
-                       <Sparkles className="h-4 w-4 text-primary" /> Marco-Powered Import
-                     </CardTitle>
-                   </CardHeader>
-                   <CardContent className="space-y-3">
-                     <p className="text-sm text-muted-foreground">Upload any spreadsheet or CSV — no special formatting needed. Marco creates full journey records with seasonality insights, logistics, and map pins.</p>
-                     <div className="bg-muted/30 p-3 rounded-lg text-xs text-muted-foreground space-y-1">
-                       <div>Creates complete Journey records</div>
-                       <div>Adds seasonality & logistics data</div>
-                       <div>Auto-detects coordinates for map</div>
-                       <div>Works with any column names</div>
-                     </div>
-                   </CardContent>
-                 </Card>
-              </div>
+          <>
+            {/* Stats band */}
+            <div className="border-y border-[color:var(--rule)] py-6 grid grid-cols-2 sm:grid-cols-4 divide-x divide-[color:var(--rule)]">
+              {[
+                { label: "COUNTRIES", value: uniqueCountries.size > 0 ? String(uniqueCountries.size) : "—" },
+                { label: "DESTINATIONS", value: pastTrips.length > 0 ? String(pastTrips.length) : "—", testid: "text-cities-count" },
+                { label: "MAP PINS", value: visitedPlaces.length > 0 ? String(visitedPlaces.length) : "—", testid: "text-country-count" },
+                { label: "YEARS", value: earliestYear ? String(new Date().getFullYear() - earliestYear) : "—" },
+              ].map(({ label, value, testid }) => (
+                <div key={label} className="flex flex-col items-center gap-1 px-4 py-2">
+                  <Kicker>{label}</Kicker>
+                  <span
+                    className="[font-family:var(--serif)] text-[36px] font-medium tracking-[-0.02em] text-[color:var(--ink)] leading-none mt-1"
+                    data-testid={testid}
+                  >
+                    {value}
+                  </span>
+                </div>
+              ))}
             </div>
 
-            <div className="space-y-6">
-              <Tabs defaultValue="history" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="history" data-testid="tab-history">History</TabsTrigger>
-                  <TabsTrigger value="import" data-testid="tab-import">Import</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="import">
-                  <Card className="border-sidebar-border">
-                    <CardHeader>
-                      <CardTitle className="font-serif text-lg flex items-center gap-2">
-                        Import History
-                        {aiParsing && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-                      </CardTitle>
-                      <CardDescription>
-                        {aiParsing
-                          ? "Marco is reading your file and extracting trip data..."
-                          : "Upload any spreadsheet — Marco handles the rest"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {aiParsing ? (
-                        <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                          <div className="relative">
-                            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-                          </div>
-                          <p className="text-sm text-muted-foreground text-center">Marco is analyzing your spreadsheet...</p>
-                          <p className="text-xs text-muted-foreground text-center">Identifying destinations, dates, and coordinates</p>
-                        </div>
-                      ) : (
-                        <FileUpload onUploadComplete={handleUploadComplete} />
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+            {/* World map — full width */}
+            <div className="rounded-[14px] overflow-hidden border border-[color:var(--rule)] h-[320px] sm:h-[420px]">
+              <WorldMap places={visitedPlaces} />
+            </div>
 
-                <TabsContent value="history">
-                  <Card className="border-sidebar-border h-[350px] sm:h-[500px] flex flex-col">
-                    <CardHeader>
-                      <CardTitle className="font-serif text-lg">Timeline</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 p-0">
-                      <ScrollArea className="h-[400px]">
-                        <div className="px-6 pb-6 space-y-6">
-                          {pastTrips.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-8">No past trips yet. Import your travel history to get started.</p>
-                          ) : (
-                            [...pastTrips].sort((a, b) => ((a.startDate || "") > (b.startDate || "") ? -1 : 1)).map((trip, i) => (
-                              <div key={trip.id || i} className="relative pl-6 border-l border-border last:border-0 group" data-testid={`timeline-item-${i}`}>
-                                 <div className="absolute left-[-5px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
-                                 <div className="flex items-start justify-between">
-                                   <div>
-                                     <div className="mb-1 text-sm font-medium">{trip.destination}</div>
-                                     {trip.country && <div className="text-xs text-muted-foreground mb-0.5">{trip.country}</div>}
-                                     <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                       <Calendar className="h-3 w-3" /> {trip.startDate || "Unknown date"}
-                                     </div>
-                                   </div>
-                                   <Button
-                                     variant="ghost"
-                                     size="icon"
-                                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                                     onClick={() => deleteTripMutation.mutate(trip.id)}
-                                     data-testid={`button-delete-trip-${i}`}
-                                   >
-                                     <Trash2 className="h-3 w-3" />
-                                   </Button>
-                                 </div>
-                              </div>
-                            ))
+            {/* Archive grid */}
+            {sortedTrips.length > 0 ? (
+              <section className="space-y-5">
+                <h2 className="[font-family:var(--serif)] text-[22px] font-medium tracking-[-0.02em] text-[color:var(--ink)]">
+                  Archive
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {sortedTrips.map((trip, i) => (
+                    <div
+                      key={trip.id || i}
+                      className="group flex flex-col gap-2 p-4 rounded-[14px] border border-[color:var(--rule)] bg-[color:var(--bg-raised)] hover:border-[color:var(--ink-soft)] transition-colors duration-150"
+                      data-testid={`timeline-item-${i}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          {trip.startDate && (
+                            <Kicker className="mb-1">
+                              {new Date(trip.startDate).getFullYear()}
+                            </Kicker>
+                          )}
+                          <p className="[font-family:var(--serif)] text-[16px] font-medium leading-[1.2] text-[color:var(--ink)] truncate">
+                            {trip.destination}
+                          </p>
+                          {trip.country && (
+                            <p className="[font-family:var(--serif)] text-[13px] italic text-[color:var(--ink-soft)] mt-0.5">
+                              {trip.country}
+                            </p>
+                          )}
+                          {trip.startDate && (
+                            <p className="flex items-center gap-1 text-[11px] [font-family:var(--mono)] text-[color:var(--ink-muted)] mt-1.5 tracking-[0.05em]">
+                              <Calendar className="h-3 w-3" /> {trip.startDate}
+                            </p>
                           )}
                         </div>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+                        <button
+                          onClick={() => deleteTripMutation.mutate(trip.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-[color:var(--ink-muted)] hover:text-destructive"
+                          data-testid={`button-delete-trip-${i}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {trip.notes && (
+                        <p className="text-[12px] text-[color:var(--ink-muted)] line-clamp-2 leading-relaxed">
+                          {trip.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <div className="rounded-[14px] border border-dashed border-[color:var(--rule)] p-12 text-center space-y-3">
+                <p className="[font-family:var(--serif)] text-[22px] font-medium text-[color:var(--ink)]">No trips yet</p>
+                <p className="text-[15px] text-[color:var(--ink-muted)]">Import your travel history to start building The Atlas.</p>
+              </div>
+            )}
+
+            {/* Marco import — collapsible */}
+            <div className="border border-[color:var(--rule)] rounded-[14px] overflow-hidden">
+              <button
+                onClick={() => setImportOpen(!importOpen)}
+                className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-[color:var(--sand)]/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Sparkles className="h-4 w-4 text-[color:var(--clay)]" />
+                  <div>
+                    <p className="[font-family:var(--serif)] text-[16px] font-medium text-[color:var(--ink)]">Marco-Powered Import</p>
+                    <p className="text-[13px] text-[color:var(--ink-muted)]">Upload any spreadsheet — Marco handles the rest</p>
+                  </div>
+                </div>
+                {importOpen ? <ChevronUp className="h-4 w-4 text-[color:var(--ink-muted)]" /> : <ChevronDown className="h-4 w-4 text-[color:var(--ink-muted)]" />}
+              </button>
+
+              {importOpen && (
+                <div className="px-6 pb-6 border-t border-[color:var(--rule)]">
+                  {aiParsing ? (
+                    <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                      <Sparkles className="h-8 w-8 text-[color:var(--clay)] animate-pulse" />
+                      <p className="text-[15px] text-[color:var(--ink-soft)] text-center [font-family:var(--serif)] italic">Marco is reading your file…</p>
+                      <p className="text-[13px] text-[color:var(--ink-muted)] text-center">Identifying destinations, dates, and coordinates</p>
+                    </div>
+                  ) : (
+                    <div className="pt-5 space-y-4">
+                      <div className="grid grid-cols-2 gap-2 text-[12px] text-[color:var(--ink-soft)] [font-family:var(--mono)] tracking-[0.05em]">
+                        {["Creates complete Journey records", "Adds seasonality & logistics data", "Auto-detects coordinates for map", "Works with any column names"].map(s => (
+                          <div key={s} className="flex items-center gap-2">
+                            <div className="h-1 w-1 rounded-full bg-[color:var(--clay)]" /> {s}
+                          </div>
+                        ))}
+                      </div>
+                      <FileUpload onUploadComplete={handleUploadComplete} />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
+          </>
         )}
       </div>
     </Layout>
