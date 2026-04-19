@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchRestaurants, formatRestaurantsForPrompt, matchActivityToPlace, searchDayTrips, searchInspireDestinations, geocodeLocation, placesAutocomplete, getTopAttractionForCity, getDirectionsRoute, type PlaceResult } from "./services/places";
 import { sendSms } from "./twilio";
 import { sendInviteEmail, sendFriendRequestEmail, sendFriendAcceptedEmail, sendJourneySharedEmail } from "./lib/email";
+import { refinePricesWithClaude } from "./lib/hotelPricing";
 import Papa from "papaparse";
 import Parser from "rss-parser";
 import multer from "multer";
@@ -675,7 +676,7 @@ Return a JSON object with this exact structure (no markdown, no code fences, jus
         {
           "name": "Hotel Name",
           "category": "luxury|upscale|mid-range|budget|boutique|hostel",
-          "price_per_night": "$150",
+          "price_per_night": "$220–$350",
           "rating": 4.5,
           "review_summary": "One-line summary of what reviewers love about this hotel",
           "why_this_hotel": "Why it makes sense for this day's itinerary and location",
@@ -717,7 +718,15 @@ SHOPPING ACTIVITIES: Include at least one shopping activity per destination that
 TRAVEL BETWEEN STOPS: For each activity (except the last one of the day), include "travel_to_next" with the best travel mode and an optional practical note. For driving legs between cities, set duration and distance to null and use the note field to say "See Google Maps for routing and current drive time." For walking, transit, or short local trips within a city, provide realistic duration and distance estimates (distance always in km).
 For image_query, provide the exact Wikipedia article title for each specific place, landmark, restaurant, or attraction (use underscores for spaces). This must be a real Wikipedia page name. For restaurants or lesser-known places, use the neighborhood or district Wikipedia page instead.
 
-${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.` : "NO HOTELS: This is a day trip. Do not include any hotels array in the JSON. The traveler is not staying overnight."}`
+${days > 1 ? `HOTEL RECOMMENDATIONS: For each day/location, recommend 2-3 hotels ranked by best value (balancing review rating and cost). Hotels MUST be real, well-known properties with accurate coordinates. Choose hotels strategically located near that day's activities so the itinerary "makes sense" geographically. Include a mix of price categories matching the traveler's budget (${budget} ${currency}). The "why_this_hotel" field should explain proximity to the day's attractions.
+HOTEL PRICING: Express price_per_night as a realistic range (e.g. "$280–$380") reflecting current market rates — do not use a single point estimate. Use these calibrated baselines per night and adjust upward for high-demand destinations, peak season, and city-centre locations:
+- hostel: $40–80
+- budget: $80–140
+- mid-range: $140–220
+- upscale: $220–380
+- boutique: $200–550 (wide range — boutique properties in premium destinations like Savannah, Charleston, New Orleans, Napa, NYC, San Francisco, New England, or popular European cities regularly command $350–700+)
+- luxury: $400–1200+
+Major US/European tourist cities and historic districts trend toward the upper half of these ranges. If a named property is well-known as a premium hotel, reflect that in the estimate rather than defaulting to a mid-tier price.` : "NO HOTELS: This is a day trip. Do not include any hotels array in the JSON. The traveler is not staying overnight."}`
         }],
       });
 
@@ -1188,6 +1197,70 @@ ${JSON.stringify(summary)}`,
     } catch (error) {
       console.error("Error reviewing itinerary dates:", error);
       res.json({ changed: false }); // fail silently — non-critical feature
+    }
+  });
+
+  // POST /api/journeys/:id/enrich-hotel-prices
+  // Uses Amadeus live rates when configured, otherwise refines estimates with a focused Claude call.
+  app.post("/api/journeys/:id/enrich-hotel-prices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req)!;
+      const journey = await storage.getJourney(req.params.id, userId);
+      if (!journey) return res.status(404).json({ message: "Journey not found" });
+
+      const { checkIn, checkOut } = req.body;
+      if (!checkIn || !checkOut) return res.json({ updated: false });
+
+      const itinerary = journey.itinerary as any;
+      if (!itinerary?.days?.length) return res.json({ updated: false });
+
+      const RETRY_AFTER_MS = 60 * 60 * 1000;
+      const now = Date.now();
+
+      const toEnrich: Array<{ dayIdx: number; hotelIdx: number; hotel: any }> = [];
+      itinerary.days.forEach((day: any, dayIdx: number) => {
+        (day.hotels || []).forEach((hotel: any, hotelIdx: number) => {
+          const alreadyLive = hotel.price_live === true && hotel.price_checked_for === checkIn;
+          const recentlyAttempted = hotel.price_attempted_at && (now - hotel.price_attempted_at) < RETRY_AFTER_MS;
+          if (!alreadyLive && !recentlyAttempted) {
+            toEnrich.push({ dayIdx, hotelIdx, hotel });
+          }
+        });
+      });
+
+      if (toEnrich.length === 0) return res.json({ updated: false });
+
+      const updatedDays = itinerary.days.map((day: any) => ({
+        ...day,
+        hotels: [...(day.hotels || [])],
+      }));
+
+      let anyUpdated = false;
+
+      const hotelInputs = toEnrich.map(({ hotel, dayIdx }) => ({
+        name: hotel.name,
+        category: hotel.category || "mid-range",
+        neighborhood: hotel.neighborhood,
+        location: itinerary.days[dayIdx]?.location || "",
+      }));
+      const refined = await refinePricesWithClaude(hotelInputs, checkIn, checkOut);
+      toEnrich.forEach(({ dayIdx, hotelIdx, hotel }) => {
+        const price = refined.get(hotel.name);
+        updatedDays[dayIdx].hotels[hotelIdx] = {
+          ...updatedDays[dayIdx].hotels[hotelIdx],
+          price_attempted_at: now,
+          ...(price ? { price_per_night: price } : {}),
+        };
+        if (price) anyUpdated = true;
+      });
+
+      const updatedItinerary = { ...itinerary, days: updatedDays };
+      const updatedJourney = await storage.updateJourney(req.params.id, userId, { itinerary: updatedItinerary });
+
+      res.json({ updated: anyUpdated, journey: updatedJourney });
+    } catch (err: any) {
+      console.error("[enrich-hotel-prices] error:", err.message);
+      res.json({ updated: false });
     }
   });
 

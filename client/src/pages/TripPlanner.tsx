@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PhotoGallery } from "@/components/PhotoGallery";
+import { Kicker } from "@/components/ui/editorial";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/lib/UserContext";
@@ -881,6 +882,26 @@ export default function TripPlanner() {
     return allMarkers.map(m => [m.lat, m.lng] as [number, number]);
   }, [allMarkers]);
 
+  const [realRoutePath, setRealRoutePath] = useState<[number, number][] | null>(null);
+
+  useEffect(() => {
+    setRealRoutePath(null);
+    if (routePath.length < 2) return;
+    let cancelled = false;
+    fetch("/api/places/directions", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waypoints: routePath.map(([lat, lng]) => ({ lat, lng })) }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!cancelled && data.points?.length > 1) setRealRoutePath(data.points);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [routePath]);
+
   const mapCenter: [number, number] = selectedHotel?.lat && selectedHotel?.lng
     ? [selectedHotel.lat, selectedHotel.lng]
     : selectedActivity?.lat && selectedActivity?.lng
@@ -1227,12 +1248,16 @@ export default function TripPlanner() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <Link href="/journeys">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Journeys
+              <Button variant="ghost" size="sm" className="rounded-full text-[13px]">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Journeys
               </Button>
             </Link>
             <div>
-              {/* Line 1: editable title */}
+              {/* Eyebrow: journey number + days */}
+              <Kicker className="mb-1">
+                JOURNEY{journey.days ? ` · ${journey.days} DAYS` : ""}
+              </Kicker>
+              {/* Editable title */}
               <div className="flex items-center gap-2">
                 {editingTitle ? (
                   <input
@@ -1244,28 +1269,29 @@ export default function TripPlanner() {
                       if (e.key === "Enter" && titleDraft.trim()) renameMutation.mutate(titleDraft.trim());
                       if (e.key === "Escape") setEditingTitle(false);
                     }}
-                    className="font-serif text-3xl font-bold bg-transparent border-b-2 border-primary outline-none w-full sm:max-w-sm"
+                    className="[font-family:var(--serif)] text-[28px] font-medium tracking-[-0.02em] bg-transparent border-b border-[color:var(--clay)] outline-none w-full sm:max-w-sm text-[color:var(--ink)]"
                     data-testid="text-planner-title"
                   />
                 ) : (
                   <h1
-                    className="font-serif text-3xl font-bold cursor-pointer group flex items-center gap-2"
+                    className="[font-family:var(--serif)] text-[28px] font-medium tracking-[-0.02em] leading-[1.05] text-[color:var(--ink)] cursor-pointer group flex items-center gap-2"
                     onClick={() => { setTitleDraft(journey.title); setEditingTitle(true); }}
                     title="Click to rename"
                     data-testid="text-planner-title"
                   >
                     {journey.title}
-                    <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
+                    <Pencil className="h-3.5 w-3.5 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
                   </h1>
                 )}
               </div>
-              {/* Line 2: route + days */}
-              <p className="text-muted-foreground text-sm mt-0.5">
-                {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ") || ""}
-                {journey.days ? ` • ${journey.days} days` : ""}
-              </p>
-              {/* Line 3: saved badge + date */}
-              <div className="flex items-center gap-3 mt-1">
+              {/* Route dek */}
+              {([journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).length > 0) && (
+                <p className="[font-family:var(--serif)] text-[14px] italic text-[color:var(--ink-soft)] mt-0.5">
+                  {[journey.origin, ...(journey.destinations || []), journey.finalDestination].filter(Boolean).join(" → ")}
+                </p>
+              )}
+              {/* Saved badge + date */}
+              <div className="flex items-center gap-3 mt-1.5">
                 <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
                   <CheckCircle2 className="h-3 w-3" /> Saved to My Journeys
                 </span>
@@ -1296,14 +1322,14 @@ export default function TripPlanner() {
           <div className="flex items-center gap-2">
             {/* Pack */}
             <Link href={`/packing?journeyId=${journeyId}`}>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px]">
                 <Luggage className="mr-2 h-4 w-4" /> Pack
               </Button>
             </Link>
 
             {/* Story — only when itinerary has a summary */}
             {(journey as any)?.itinerary?.summary && (
-              <Button variant="outline" size="sm" onClick={() => setShowNarrative(true)}>
+              <Button variant="outline" size="sm" className="rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px]" onClick={() => setShowNarrative(true)}>
                 <BookOpen className="mr-2 h-4 w-4" /> Story
               </Button>
             )}
@@ -1312,6 +1338,7 @@ export default function TripPlanner() {
             <Button
               variant="default"
               size="sm"
+              className="rounded-full bg-[var(--ink)] text-[var(--cream)] hover:opacity-90 text-[13px]"
               onClick={() => {
                 const url = `${window.location.origin}/share/${journey.id}`;
                 const dest = journey.finalDestination || (journey as any).destinations?.[0] || "an amazing destination";
@@ -1334,6 +1361,7 @@ export default function TripPlanner() {
             <Button
               variant={viewMode === "photos" ? "default" : "outline"}
               size="sm"
+              className={`rounded-full text-[13px] ${viewMode === "photos" ? "bg-[var(--ink)] text-[var(--cream)] hover:opacity-90" : "border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)]"}`}
               onClick={() => setViewMode((m) => m === "photos" ? "itinerary" : "photos")}
             >
               <Camera className="mr-2 h-4 w-4" />
@@ -1344,7 +1372,7 @@ export default function TripPlanner() {
             <Button
               variant={viewMode === "intel" ? "default" : "outline"}
               size="sm"
-              className="relative"
+              className={`rounded-full text-[13px] relative ${viewMode === "intel" ? "bg-[var(--ink)] text-[var(--cream)] hover:opacity-90" : "border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)]"}`}
               onClick={() => setViewMode((m) => m === "intel" ? "itinerary" : "intel")}
             >
               <ShieldAlert className="mr-2 h-4 w-4" />
@@ -1403,9 +1431,9 @@ export default function TripPlanner() {
           <div className="lg:col-span-2 flex flex-col min-h-0 bg-card rounded-xl border border-border shadow-sm">
             <div className="p-4 border-b border-border">
               <Tabs value={`day${selectedDay}`} onValueChange={(v) => { setSelectedDay(parseInt(v.replace("day", ""))); setSelectedActivity(null); setSelectedHotel(null); setActivityMenu(null); setReplaceMode(null); }} className="w-full">
-                <TabsList className="w-full justify-start overflow-x-auto gap-1 flex-nowrap h-auto pb-0.5">
+                <TabsList className="w-full justify-start overflow-x-auto gap-1 flex-nowrap h-auto pb-0.5 bg-transparent">
                   {itinerary.days.map((d, idx) => (
-                    <TabsTrigger key={idx} value={`day${idx}`} className="text-xs">
+                    <TabsTrigger key={idx} value={`day${idx}`} className="text-[11px] [font-family:var(--mono)] tracking-[0.05em] rounded-full px-3 py-1.5 data-[state=active]:bg-[var(--ink)] data-[state=active]:text-[var(--cream)] data-[state=inactive]:text-[color:var(--ink-muted)]">
                       {d.date_label && d.date_label !== `Day ${d.day}` ? d.date_label : `Day ${d.day}`}
                     </TabsTrigger>
                   ))}
@@ -1433,10 +1461,10 @@ export default function TripPlanner() {
                       onClick={() => { if (!isMenuOpen && !isReplacing) { setSelectedActivity(activity); setSelectedHotel(null); } }}
                       data-testid={`activity-card-${idx}`}
                     >
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground"}`}>
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-background border-2 flex items-center justify-center text-[10px] font-bold shadow-sm mt-1 ${selectedActivity === activity ? "border-[color:var(--clay)] text-[color:var(--clay)]" : "border-[color:var(--rule)] text-[color:var(--ink-muted)]"}`}>
                         {isBeingModified ? <Loader2 className="h-3 w-3 animate-spin" /> : idx + 1}
                       </div>
-                      <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden relative ${selectedActivity === activity ? "border-l-primary shadow-md bg-primary/5" : "border-l-primary/30"}`}>
+                      <Card className={`flex-1 hover:shadow-md transition-all border-l-4 overflow-hidden relative ${selectedActivity === activity ? "border-l-[color:var(--clay)] shadow-md bg-[color:var(--sand)]/20" : "border-l-[color:var(--clay)]/30"}`}>
                         {/* Action buttons — absolute overlay, visible on group-hover only */}
                         <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 backdrop-blur-sm rounded-md p-0.5 shadow-sm">
                           {/* Thumbs up */}
@@ -1958,7 +1986,12 @@ export default function TripPlanner() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                       />
-                      {routePath.length > 1 && (
+                      {realRoutePath && realRoutePath.length > 1 ? (
+                        <Polyline
+                          positions={realRoutePath}
+                          pathOptions={{ color: "#7c3aed", weight: 3, opacity: 0.75 }}
+                        />
+                      ) : routePath.length > 1 && (
                         <Polyline
                           positions={routePath}
                           pathOptions={{ color: "#7c3aed", weight: 3, opacity: 0.6, dashArray: "8, 8" }}

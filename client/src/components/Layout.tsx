@@ -82,7 +82,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col md:flex-row relative">
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-sidebar/50 backdrop-blur-md sticky top-0 z-50">
-        <h1 className="font-serif text-xl font-bold tracking-tight text-primary">bon VOYAGER</h1>
+        <h1 className="[font-family:var(--serif)] text-[20px] font-medium italic tracking-[-0.02em] text-[color:var(--ink)]">bon <span className="not-italic font-semibold">VOYAGER</span></h1>
         <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} data-testid="button-mobile-menu">
           {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
@@ -94,8 +94,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-8 hidden md:block">
-          <h1 className="font-serif text-2xl font-bold tracking-tight text-primary">bon VOYAGER</h1>
-          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Travel Without Limits</p>
+          <h1 className="[font-family:var(--serif)] text-[26px] font-medium italic tracking-[-0.02em] text-[color:var(--ink)]">bon <span className="not-italic font-semibold">VOYAGER</span></h1>
+          <p className="[font-family:var(--mono)] text-[9px] tracking-[0.25em] uppercase text-[color:var(--ink-muted)] mt-1">FIELD NOTES · EST. 2025</p>
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
