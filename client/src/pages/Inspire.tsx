@@ -44,6 +44,8 @@ import {
   Baby,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Masthead, Eyebrow, Kicker } from "@/components/ui/editorial";
+import { cn } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -229,14 +231,12 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
             <button
               key={opt.value}
               onClick={() => onChange(opt.value)}
-              className={`
-                flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
-                transition-all duration-150 cursor-pointer
-                ${value === opt.value
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
-                }
-              `}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center transition-all duration-150 cursor-pointer",
+                value === opt.value
+                  ? "border-[color:var(--ink)] bg-[color:var(--sand)] shadow-sm"
+                  : "border-[color:var(--rule)] bg-[color:var(--bg-raised)] hover:border-[color:var(--ink-soft)] hover:bg-[color:var(--sand)]/50"
+              )}
             >
               <span className="text-2xl leading-none">{opt.icon}</span>
               <span className="font-semibold text-sm text-foreground">{opt.label}</span>
@@ -251,12 +251,13 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <div className="w-full max-w-2xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Sparkles className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="font-serif text-3xl font-bold mb-2">What kind of adventure?</h1>
-          <p className="text-muted-foreground">Tell Marco what you're working with and he'll find the perfect voyage.</p>
+        <div className="text-left">
+          <Masthead
+            eyebrow="INSPIRE · MARCO'S SELECTION"
+            title="What kind of adventure?"
+            titleItalic
+            dek="Tell Marco what you're working with and he'll find the perfect voyage."
+          />
         </div>
 
         {/* Duration slider */}
@@ -302,14 +303,12 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
                 <button
                   key={opt.value}
                   onClick={() => toggleTransport(opt.value)}
-                  className={`
-                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
-                    transition-all duration-150 cursor-pointer
-                    ${selected
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
-                    }
-                  `}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center transition-all duration-150 cursor-pointer",
+                    selected
+                      ? "border-[color:var(--ink)] bg-[color:var(--sand)] shadow-sm"
+                      : "border-[color:var(--rule)] bg-[color:var(--bg-raised)] hover:border-[color:var(--ink-soft)] hover:bg-[color:var(--sand)]/50"
+                  )}
                 >
                   <span className="text-2xl leading-none">{opt.icon}</span>
                   <span className="font-semibold text-sm text-foreground">{opt.label}</span>
@@ -330,14 +329,12 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
                 <button
                   key={opt.value}
                   onClick={() => handlePartySelect(opt.value)}
-                  className={`
-                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
-                    transition-all duration-150 cursor-pointer
-                    ${selected
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
-                    }
-                  `}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center transition-all duration-150 cursor-pointer",
+                    selected
+                      ? "border-[color:var(--ink)] bg-[color:var(--sand)] shadow-sm"
+                      : "border-[color:var(--rule)] bg-[color:var(--bg-raised)] hover:border-[color:var(--ink-soft)] hover:bg-[color:var(--sand)]/50"
+                  )}
                 >
                   <span className="text-2xl leading-none">{opt.icon}</span>
                   <span className="font-semibold text-sm text-foreground">{opt.label}</span>
@@ -385,14 +382,12 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
                 <button
                   key={opt.value}
                   onClick={() => toggleBudget(opt.value)}
-                  className={`
-                    flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center
-                    transition-all duration-150 cursor-pointer
-                    ${selected
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border bg-card hover:border-primary/40 hover:bg-primary/5"
-                    }
-                  `}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-4 text-center transition-all duration-150 cursor-pointer",
+                    selected
+                      ? "border-[color:var(--ink)] bg-[color:var(--sand)] shadow-sm"
+                      : "border-[color:var(--rule)] bg-[color:var(--bg-raised)] hover:border-[color:var(--ink-soft)] hover:bg-[color:var(--sand)]/50"
+                  )}
                 >
                   <span className="text-2xl leading-none">{opt.icon}</span>
                   <span className="font-semibold text-sm text-foreground">{opt.label}</span>
@@ -422,8 +417,7 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
         </div>
 
         <Button
-          size="lg"
-          className="w-full h-14 text-base font-semibold"
+          className="w-full rounded-full bg-[var(--ink)] text-[var(--cream)] hover:bg-[var(--forest-deep)] border-0 text-[13px] font-medium h-12 transition-colors duration-150"
           disabled={!ready}
           onClick={handleSubmit}
           data-testid="button-inspire-submit"
@@ -441,7 +435,7 @@ function QualifierView({ onSubmit, defaultLocation }: { onSubmit: (q: Qualifier)
 
 // ── Gem Card ──────────────────────────────────────────────────────────────────
 
-function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (gem: Suggestion) => void }) {
+function GemCard({ gem, onStartJourney, featured = false }: { gem: Suggestion; onStartJourney: (gem: Suggestion) => void; featured?: boolean }) {
   const fallbackBg = "bg-gradient-to-br from-primary/20 to-primary/5";
   const [imageUrl, setImageUrl] = useState<string | null>(gem.image_url || null);
   const fetchedRef = useRef(false);
@@ -458,8 +452,8 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
   }, []);
 
   return (
-    <Card className="group overflow-hidden border-0 shadow-none bg-transparent hover:bg-card hover:shadow-lg transition-all duration-300 rounded-xl" data-testid={`inspire-card-${gem.title.toLowerCase().replace(/\s+/g, "-")}`}>
-      <div className="aspect-[4/3] relative overflow-hidden rounded-xl">
+    <div className={cn("group overflow-hidden bg-transparent transition-all duration-300 rounded-[14px]", featured && "flex flex-col gap-4")} data-testid={`inspire-card-${gem.title.toLowerCase().replace(/\s+/g, "-")}`}>
+      <div className={cn("relative overflow-hidden rounded-[14px]", featured ? "aspect-[16/9]" : "aspect-[4/3]")}>
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -499,15 +493,15 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
         </div>
       </div>
 
-      <CardContent className="p-4 pt-5">
+      <div className={cn("pt-3", featured ? "px-0 pb-0" : "px-4 pb-4")}>
         <div className="mb-2">
-          <h3 className="font-serif text-xl font-bold group-hover:text-primary transition-colors">{gem.title}</h3>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="h-3 w-3" /> {gem.country}
-          </div>
+          <Eyebrow className="mb-1">{gem.category}{gem.country ? ` · ${gem.country}` : ""}</Eyebrow>
+          <h3 className={cn("[font-family:var(--serif)] font-medium tracking-[-0.02em] leading-[1.1] text-[color:var(--ink)] group-hover:text-[color:var(--clay)] transition-colors duration-150", featured ? "text-[32px] mb-3" : "text-[22px] mb-1")}>
+            {gem.title}
+          </h3>
         </div>
 
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+        <p className={cn("text-[color:var(--ink-soft)] leading-relaxed mb-3", featured ? "text-[15px]" : "text-[14px] line-clamp-2")}>
           {gem.description}
         </p>
 
@@ -538,16 +532,15 @@ function GemCard({ gem, onStartJourney }: { gem: Suggestion; onStartJourney: (ge
           </div>
           <Button
             size="sm"
-            variant="ghost"
-            className="h-8 rounded-full hover:bg-primary/10 hover:text-primary text-xs"
+            className={cn("rounded-full border-0 text-[12px] font-medium transition-colors duration-150", featured ? "bg-[var(--ink)] text-[var(--cream)] hover:bg-[var(--forest-deep)] px-5 py-2" : "bg-[color:var(--sand)] text-[color:var(--ink)] hover:bg-[color:var(--rule)]")}
             onClick={() => onStartJourney(gem)}
             data-testid={`button-start-journey-${gem.title.toLowerCase().replace(/\s+/g, "-")}`}
           >
-            <Plus className="h-3.5 w-3.5 mr-1" /> Start Journey
+            <Plus className="h-3.5 w-3.5 mr-1" /> {featured ? "Start this journey →" : "Start Journey"}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -986,18 +979,20 @@ export default function Inspire() {
     return (
       <Layout>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-            <div>
-              <h1 className="font-serif text-4xl font-bold mb-2">Day Trips Near You</h1>
-              <p className="text-muted-foreground">
-                Top-rated attractions within ~2.5 hours of {dayTripData?.homeLocation}.
-              </p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs font-semibold" style={{ color: "#4285F4" }}>Powered by Google</span>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" onClick={handleChangeSearch} className="flex-shrink-0">
-              ← Change Trip Type
+          <div className="flex items-start justify-between gap-4">
+            <Masthead
+              eyebrow="INSPIRE · DAY TRIPS"
+              title="Near You"
+              dek={`Top-rated attractions within ~2.5 hours of ${dayTripData?.homeLocation}.`}
+              className="flex-1 mb-6"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleChangeSearch}
+              className="flex-shrink-0 rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px] mt-1"
+            >
+              ← Change
             </Button>
           </div>
 
@@ -1045,95 +1040,22 @@ export default function Inspire() {
     <Layout>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-          <div className="max-w-xl">
-            <h1 className="font-serif text-4xl font-bold mb-3" data-testid="text-inspire-title">Find Your Dream Voyage</h1>
-            <p className="text-muted-foreground text-lg">
-              {hasPreferences
-                ? "Marco has handpicked destinations that match your travel soul. Your next great adventure starts here."
-                : "Let Marco inspire your wanderlust with destinations you didn't know you were dreaming of."}
-            </p>
-            {!hasPreferences && (
-              <p className="text-sm text-primary mt-2 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" />
-                <Link href="/settings" className="underline underline-offset-2 hover:text-primary/80">Tell Marco about your travel style</Link> for deeply personal inspiration.
-              </p>
-            )}
-            {/* Qualifier summary + change button */}
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
-                <Calendar className="h-3 w-3" /> {durationLabel}
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
-                <Compass className="h-3 w-3" /> {travelTimeLabel} travel
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
-                {qualifier.transport.includes("flying") && <Plane className="h-3 w-3" />}
-                {qualifier.transport.includes("driving") && <Car className="h-3 w-3" />}
-                {qualifier.transport.includes("train") && <Train className="h-3 w-3" />}
-                {transportLabel}
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1 text-muted-foreground">
-                <DollarSign className="h-3 w-3" /> {budgetLabel}
-              </span>
-              {/* Departing from chip — always visible; inline edit to override */}
-              <span className="inline-flex items-center gap-1 text-xs bg-muted rounded-full pl-3 pr-1 py-1 text-muted-foreground">
-                <MapPin className="h-3 w-3 flex-shrink-0" />
-                {showOriginEdit ? (
-                  <>
-                    <input
-                      autoFocus
-                      className="bg-transparent outline-none w-28 text-xs text-foreground"
-                      defaultValue={originOverride || settings.homeLocation || ""}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          setOriginOverride((e.target as HTMLInputElement).value.trim());
-                          setShowOriginEdit(false);
-                        }
-                        if (e.key === "Escape") setShowOriginEdit(false);
-                      }}
-                      onBlur={(e) => {
-                        setOriginOverride(e.target.value.trim());
-                        setShowOriginEdit(false);
-                      }}
-                    />
-                    <Check className="h-3 w-3 text-primary cursor-pointer" onClick={() => setShowOriginEdit(false)} />
-                  </>
-                ) : (
-                  <>
-                    <span className={originOverride || settings.homeLocation ? "" : "italic"}>
-                      {originOverride || settings.homeLocation || "Set departure city"}
-                    </span>
-                    <button
-                      onClick={() => setShowOriginEdit(true)}
-                      className="ml-0.5 p-1 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
-                      title="Not home? Change your departure city"
-                      aria-label="Edit departure city"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                  </>
-                )}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleChangeSearch}
-                className="h-7 rounded-full text-xs px-3"
-                data-testid="button-change-qualifier"
-              >
-                ← Change
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex gap-2 w-full md:w-auto items-center">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        {/* Masthead */}
+        <div className="flex items-start justify-between gap-4">
+          <Masthead
+            eyebrow={`INSPIRE · ${durationLabel.toUpperCase()} · ${transportLabel.toUpperCase()}`}
+            title="Dream a voyage"
+            titleItalic
+            className="flex-1"
+            data-testid="text-inspire-title"
+          />
+          <div className="flex gap-2 items-center mt-1 flex-shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[color:var(--ink-muted)]" />
               <Input
                 type="search"
-                placeholder="Search dream destinations..."
-                className="pl-9 bg-background"
+                placeholder="Search destinations…"
+                className="pl-9 w-48 rounded-full border-[color:var(--rule)] bg-[color:var(--bg-raised)] text-[13px]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 data-testid="input-search-inspire"
@@ -1142,23 +1064,102 @@ export default function Inspire() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refreshMutation.mutate()}
-              disabled={refreshMutation.isPending}
-              className="flex-shrink-0"
-              data-testid="button-refresh-inspire"
+              onClick={handleChangeSearch}
+              className="rounded-full border-[color:var(--rule)] text-[color:var(--ink)] hover:bg-[color:var(--sand)] text-[13px]"
+              data-testid="button-change-qualifier"
             >
-              {refreshMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              ← Change
             </Button>
           </div>
         </div>
 
+        {/* Qualifier summary chips */}
+        <div className="flex flex-wrap items-center gap-2 -mt-4">
+          {[
+            { icon: <Calendar className="h-3 w-3" />, label: durationLabel },
+            { icon: <Compass className="h-3 w-3" />, label: `${travelTimeLabel} travel` },
+            { icon: <DollarSign className="h-3 w-3" />, label: budgetLabel },
+          ].map(({ icon, label }) => (
+            <span key={label} className="inline-flex items-center gap-1 [font-family:var(--mono)] text-[10.5px] tracking-[0.1em] uppercase bg-[color:var(--sand)] rounded-full px-3 py-1 text-[color:var(--ink-soft)]">
+              {icon} {label}
+            </span>
+          ))}
+          {/* Departing from chip with inline edit */}
+          <span className="inline-flex items-center gap-1 [font-family:var(--mono)] text-[10.5px] tracking-[0.1em] uppercase bg-[color:var(--sand)] rounded-full pl-3 pr-1 py-1 text-[color:var(--ink-soft)]">
+            <MapPin className="h-3 w-3 flex-shrink-0" />
+            {showOriginEdit ? (
+              <>
+                <input
+                  autoFocus
+                  className="bg-transparent outline-none w-28 text-[10.5px]"
+                  defaultValue={originOverride || settings.homeLocation || ""}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { setOriginOverride((e.target as HTMLInputElement).value.trim()); setShowOriginEdit(false); }
+                    if (e.key === "Escape") setShowOriginEdit(false);
+                  }}
+                  onBlur={(e) => { setOriginOverride(e.target.value.trim()); setShowOriginEdit(false); }}
+                />
+                <Check className="h-3 w-3 text-[color:var(--clay)] cursor-pointer" onClick={() => setShowOriginEdit(false)} />
+              </>
+            ) : (
+              <>
+                <span className={originOverride || settings.homeLocation ? "" : "italic"}>
+                  {originOverride || settings.homeLocation || "Set city"}
+                </span>
+                <button onClick={() => setShowOriginEdit(true)} className="ml-0.5 p-1 rounded-full hover:bg-[color:var(--rule)]" aria-label="Edit departure city">
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </>
+            )}
+          </span>
+        </div>
+
+        {/* Triptych: lead story + editor's pick + serendipity */}
+        {filteredBySearch.length >= 2 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Lead story — spans 2 cols */}
+            <div className="md:col-span-2">
+              <GemCard gem={filteredBySearch[0]} onStartJourney={(g) => createJourneyMutation.mutate(g)} featured />
+            </div>
+            {/* Right column: editor's pick + serendipity */}
+            <div className="flex flex-col gap-5">
+              <div>
+                <Eyebrow className="mb-2">Editor's Pick</Eyebrow>
+                <GemCard gem={filteredBySearch[1]} onStartJourney={(g) => createJourneyMutation.mutate(g)} />
+              </div>
+              {/* Serendipity engine */}
+              <div className="rounded-[14px] border border-[color:var(--rule)] bg-[color:var(--bg-raised)] p-6 flex flex-col gap-4 flex-1">
+                <Kicker>FEELING LUCKY</Kicker>
+                <p className="[font-family:var(--serif)] text-[20px] font-medium tracking-[-0.02em] text-[color:var(--ink)] leading-[1.2] italic">
+                  Somewhere between the unexpected and unforgettable.
+                </p>
+                <Button
+                  className="self-start rounded-full bg-[var(--ink)] text-[var(--cream)] hover:bg-[var(--forest-deep)] border-0 text-[13px] font-medium transition-colors duration-150 px-5"
+                  onClick={() => refreshMutation.mutate()}
+                  disabled={refreshMutation.isPending}
+                  data-testid="button-refresh-inspire"
+                >
+                  {refreshMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Shuffle className="h-3.5 w-3.5 mr-2" />}
+                  Roll the dice
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="[font-family:var(--serif)] text-[22px] font-medium tracking-[-0.02em] text-[color:var(--ink)]">Curated for you</h2>
+          </div>
+        </div>
+
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="w-full justify-start h-auto p-1 bg-transparent border-b border-border rounded-none mb-6 flex-wrap">
-            <TabsTrigger value="all" className="rounded-full px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid="tab-all">
+          <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b border-[color:var(--rule)] rounded-none mb-6 flex-wrap gap-1">
+            <TabsTrigger value="all" className="rounded-full px-4 py-1.5 text-[13px] data-[state=active]:bg-[var(--ink)] data-[state=active]:text-[var(--cream)] data-[state=active]:shadow-none" data-testid="tab-all">
               All
             </TabsTrigger>
             {categories.map(cat => (
-              <TabsTrigger key={cat} value={slugify(cat)} className="rounded-full px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" data-testid={`tab-${slugify(cat)}`}>
+              <TabsTrigger key={cat} value={slugify(cat)} className="rounded-full px-4 py-1.5 text-[13px] data-[state=active]:bg-[var(--ink)] data-[state=active]:text-[var(--cream)] data-[state=active]:shadow-none" data-testid={`tab-${slugify(cat)}`}>
                 {cat}
               </TabsTrigger>
             ))}
