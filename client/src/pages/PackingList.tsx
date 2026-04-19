@@ -541,7 +541,7 @@ export default function PackingList() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={() => { setShowSmsInput(!showSmsInput); setSmsSent(false); }} data-testid="button-send-to-phone">
+              <Button variant="outline" disabled title="Coming soon" data-testid="button-send-to-phone" className="opacity-40 cursor-not-allowed">
                 <Smartphone className="h-4 w-4 mr-2" /> Send to Phone
               </Button>
               <Button variant="outline" onClick={handleStartOver} data-testid="button-start-over">
