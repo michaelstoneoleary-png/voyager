@@ -882,6 +882,26 @@ export default function TripPlanner() {
     return allMarkers.map(m => [m.lat, m.lng] as [number, number]);
   }, [allMarkers]);
 
+  const [realRoutePath, setRealRoutePath] = useState<[number, number][] | null>(null);
+
+  useEffect(() => {
+    setRealRoutePath(null);
+    if (routePath.length < 2) return;
+    let cancelled = false;
+    fetch("/api/places/directions", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waypoints: routePath.map(([lat, lng]) => ({ lat, lng })) }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!cancelled && data.points?.length > 1) setRealRoutePath(data.points);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [routePath]);
+
   const mapCenter: [number, number] = selectedHotel?.lat && selectedHotel?.lng
     ? [selectedHotel.lat, selectedHotel.lng]
     : selectedActivity?.lat && selectedActivity?.lng
@@ -1966,7 +1986,12 @@ export default function TripPlanner() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                       />
-                      {routePath.length > 1 && (
+                      {realRoutePath && realRoutePath.length > 1 ? (
+                        <Polyline
+                          positions={realRoutePath}
+                          pathOptions={{ color: "#7c3aed", weight: 3, opacity: 0.75 }}
+                        />
+                      ) : routePath.length > 1 && (
                         <Polyline
                           positions={routePath}
                           pathOptions={{ color: "#7c3aed", weight: 3, opacity: 0.6, dashArray: "8, 8" }}
